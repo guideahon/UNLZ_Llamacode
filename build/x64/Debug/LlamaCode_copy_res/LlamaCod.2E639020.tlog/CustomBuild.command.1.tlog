@@ -1,0 +1,28 @@
+^C:\USERS\CRISTIAN\DOCUMENTS\LLAMACODE\BUILD\CMAKEFILES\546E3110EAE0B7718EFF24E9BA9FE3C7\LLAMACODE_RES.TXT.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -DFILES_INFO_PATH=C:/Users/cristian/Documents/LlamaCode/build/.qt/LlamaCode_res.cmake -P C:/Qt/6.8.3/msvc2022_64/lib/cmake/Qt6Qml/Qt6QmlCopyFiles.cmake
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\LLAMACODE\BUILD\CMAKEFILES\DD9940ADDCD48FBDA16C7AE09026646B\LLAMACODE_COPY_RES.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\LLAMACODE\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/cristian/Documents/LlamaCode -BC:/Users/cristian/Documents/LlamaCode/build --check-stamp-file C:/Users/cristian/Documents/LlamaCode/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

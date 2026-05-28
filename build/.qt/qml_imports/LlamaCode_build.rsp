@@ -1,0 +1,15 @@
+-rootPath
+C:/Users/cristian/Documents/LlamaCode
+-cmake-output
+-output-file
+C:/Users/cristian/Documents/LlamaCode/build/.qt/qml_imports/LlamaCode_build.cmake
+-importPath
+C:/Users/cristian/Documents/LlamaCode/build/LlamaCode
+-importPath
+C:/Users/cristian/Documents/LlamaCode/build
+-importPath
+C:/Qt/6.8.3/msvc2022_64/qml
+-qrcFiles
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/qmake_LlamaCode.qrc
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/LlamaCode_raw_qml_0.qrc
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/llamacode_assets.qrc

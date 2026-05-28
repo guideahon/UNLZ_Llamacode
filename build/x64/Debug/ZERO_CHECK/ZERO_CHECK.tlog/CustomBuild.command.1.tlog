@@ -1,0 +1,10 @@
+^C:\USERS\CRISTIAN\DOCUMENTS\LLAMACODE\BUILD\CMAKEFILES\DD9940ADDCD48FBDA16C7AE09026646B\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/cristian/Documents/LlamaCode -BC:/Users/cristian/Documents/LlamaCode/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/cristian/Documents/LlamaCode/build/LlamaCode.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

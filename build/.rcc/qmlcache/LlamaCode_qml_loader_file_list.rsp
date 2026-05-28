@@ -1,0 +1,17 @@
+--resource
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/qmake_LlamaCode.qrc
+--resource
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/LlamaCode_raw_qml_0.qrc
+--resource
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/llamacode_assets.qrc
+/LlamaCode/qml/Main.qml
+/LlamaCode/qml/pages/BinariesPage.qml
+/LlamaCode/qml/pages/ModelRootsPage.qml
+/LlamaCode/qml/pages/ProfilesPage.qml
+/LlamaCode/qml/pages/LaunchPage.qml
+/LlamaCode/qml/components/NavBar.qml
+/LlamaCode/qml/components/PageHeader.qml
+/LlamaCode/qml/components/CommandPreview.qml
+/LlamaCode/qml/components/LcButton.qml
+/LlamaCode/qml/components/LcTextField.qml
+/LlamaCode/qml/components/LcDialog.qml

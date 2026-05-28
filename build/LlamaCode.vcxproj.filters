@@ -1,0 +1,307 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_autogen\mocs_compilation_Debug.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\AppController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\LlamaBinary.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\BinaryRegistry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\CapabilityDetector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\ModelRoot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\ModelRootRegistry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\CatalogModel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\ModelCatalog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\GGUFScanner.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\profiles\ProfileTypes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\profiles\ProfileManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\src\core\profiles\EffectiveProfileBuilder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\llamacode_qmltyperegistrations.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.qt\rcc\qrc_qmake_LlamaCode.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qmlcache_loader.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\Main_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\pages\BinariesPage_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\pages\ModelRootsPage_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\pages\ProfilesPage_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\pages\LaunchPage_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\components\NavBar_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\components\PageHeader_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\components\CommandPreview_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\components\LcButton_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\components\LcTextField_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.rcc\qmlcache\LlamaCode_qml\components\LcDialog_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.qt\rcc\qrc_LlamaCode_raw_qml_0.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\.qt\rcc\qrc_llamacode_assets.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_autogen\mocs_compilation_Release.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_autogen\mocs_compilation_MinSizeRel.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_autogen\mocs_compilation_RelWithDebInfo.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\AppController.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\LlamaBinary.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\BinaryRegistry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\CapabilityDetector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\ModelRoot.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\ModelRootRegistry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\CatalogModel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\ModelCatalog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\GGUFScanner.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\profiles\ProfileTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\profiles\ProfileManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\src\core\profiles\EffectiveProfileBuilder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\build\ddf_LlamaCode.h">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\build\.qt\rcc\qmake_LlamaCode.qrc">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\build\LlamaCode\qmldir">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\build\.qt\rcc\LlamaCode_raw_qml_0.qrc">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\build\.qt\rcc\llamacode_assets.qrc">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\cristian\Documents\LlamaCode\assets\app_icon.png">
+      <Filter>Resources</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\611333d9be2285e71b522b7925d4978b\qt6llamacode_metatypes.json.gen.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\6bf7d82e833c0fcad4a101aae9fd2475\llamacode_qmltyperegistrations.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\9205b1a869f44e6012066f631d4c80da\qrc_qmake_LlamaCode.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\8dc628ec53893cfb9a19f23fa6b8e0b4\LlamaCode_qmlcache_loader.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\72c1c14793bb946212fd24e311c3f886\Main_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\6c1608f97a79109465377796cec5715a\BinariesPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\6c1608f97a79109465377796cec5715a\ModelRootsPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\6c1608f97a79109465377796cec5715a\ProfilesPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\6c1608f97a79109465377796cec5715a\LaunchPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\ce70afdac961d96fa5c106592eb73eb8\NavBar_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\ce70afdac961d96fa5c106592eb73eb8\PageHeader_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\ce70afdac961d96fa5c106592eb73eb8\CommandPreview_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\ce70afdac961d96fa5c106592eb73eb8\LcButton_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\ce70afdac961d96fa5c106592eb73eb8\LcTextField_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\ce70afdac961d96fa5c106592eb73eb8\LcDialog_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\9205b1a869f44e6012066f631d4c80da\qrc_LlamaCode_raw_qml_0.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\9205b1a869f44e6012066f631d4c80da\qrc_llamacode_assets.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\build\meta_types\qt6llamacode_metatypes.json.gen">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\Main.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\pages\BinariesPage.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\pages\ModelRootsPage.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\pages\ProfilesPage.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\pages\LaunchPage.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\components\NavBar.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\components\PageHeader.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\components\CommandPreview.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\components\LcButton.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\components\LcTextField.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Users\cristian\Documents\LlamaCode\qml\components\LcDialog.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6core_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6qml_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6network_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6quick_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6gui_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6qmlmeta_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6qmlmodels_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6qmlworkerscript_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6opengl_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6sql_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6concurrent_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="C:\Users\cristian\Documents\LlamaCode\app_icon.rc">
+      <Filter>Source Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{3F04F7EE-27A1-34FD-A893-AE9CFEC1765A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{F3AB1592-C61F-337D-A32B-104D6E03A257}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resources">
+      <UniqueIdentifier>{5B2BB452-2FA9-352F-8239-976D5D306D50}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{F80FF5D5-7BFD-3E19-94A2-277B8365EEE5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Generated">
+      <UniqueIdentifier>{EE1EABCF-6FE9-39D7-9322-56A71E28D3C9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

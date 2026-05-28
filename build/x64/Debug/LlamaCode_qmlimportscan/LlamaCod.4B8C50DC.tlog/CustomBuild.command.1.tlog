@@ -1,0 +1,32 @@
+^C:\USERS\CRISTIAN\DOCUMENTS\LLAMACODE\BUILD\CMAKEFILES\DE469ED2BED0E791C8D2361AF30A0F17\LLAMACODE_BUILD.CMAKE.RULE
+setlocal
+cd C:\Users\cristian\Documents\LlamaCode
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+call C:\Users\cristian\Documents\LlamaCode\build\.qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlimportscanner.exe @C:/Users/cristian/Documents/LlamaCode/build/.qt/qml_imports/LlamaCode_build.rsp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\LLAMACODE\BUILD\CMAKEFILES\DD9940ADDCD48FBDA16C7AE09026646B\LLAMACODE_QMLIMPORTSCAN.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\LLAMACODE\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/cristian/Documents/LlamaCode -BC:/Users/cristian/Documents/LlamaCode/build --check-stamp-file C:/Users/cristian/Documents/LlamaCode/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

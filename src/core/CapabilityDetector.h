@@ -1,0 +1,22 @@
+#pragma once
+#include <QString>
+#include <QStringList>
+#include <QMap>
+
+struct DetectedCapabilities {
+    QStringList flags;
+    QMap<QString, QString> flagAliases;
+    bool success = false;
+    QString error;
+
+    bool hasFlag(const QString &f) const { return flags.contains(f); }
+};
+
+class CapabilityDetector
+{
+public:
+    static DetectedCapabilities detect(const QString &binaryPath, int timeoutMs = 15000);
+
+private:
+    static DetectedCapabilities parse(const QString &helpOutput);
+};
