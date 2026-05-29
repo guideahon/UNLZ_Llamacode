@@ -26,6 +26,8 @@
 #include <QCoreApplication>
 #include <QUuid>
 #include <functional>
+#include <QSet>
+#include <memory>
 #include <QFile>
 #include <QStandardPaths>
 
@@ -180,9 +182,9 @@ try {
     $api = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
     $rel = Invoke-RestMethod -Uri $api -Headers $headers
     $assets = @($rel.assets)
-    $pick = $assets | Where-Object { $_.name -match 'bin-win-cuda.*x64.*\.zip$' } | Select-Object -First 1
-    if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'bin-win-(avx2|cpu|openblas).*x64.*\.zip$' } | Select-Object -First 1 }
-    if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'win.*x64.*\.zip$' } | Select-Object -First 1 }
+    $pick = $assets | Where-Object { $_.name -match 'bin-win-cuda.*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1
+    if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'bin-win-(avx2|cpu|openblas).*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1 }
+    if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'win.*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1 }
     if (-not $pick) { throw 'No suitable Windows x64 binary asset found in latest release.' }
 
     Write-Output ('STATUS: Descargando asset ' + $pick.name + ' ...')
@@ -268,15 +270,23 @@ try {
 
     connect(m_installerProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int exitCode, QProcess::ExitStatus) {
-        const QString stdOut = QString::fromUtf8(m_installerProc->readAllStandardOutput()).trimmed();
+        // stdout was already consumed by readyReadStandardOutput into m_officialBinaryInstallLog
+        const QString stdOut = m_officialBinaryInstallLog;
         const QString stdErr = QString::fromUtf8(m_installerProc->readAllStandardError()).trimmed();
 
         bool ok = false;
         QString installedPath;
         QString message;
         if (exitCode == 0) {
+            // Last non-empty line that isn't a STATUS/ERROR prefix is the exe path
             const QStringList lines = stdOut.split('\n', Qt::SkipEmptyParts);
-            if (!lines.isEmpty()) installedPath = lines.last().trimmed();
+            for (int i = lines.size() - 1; i >= 0; --i) {
+                const QString t = lines[i].trimmed();
+                if (!t.startsWith("STATUS:") && !t.startsWith("ERROR:") && !t.isEmpty()) {
+                    installedPath = t;
+                    break;
+                }
+            }
             if (QFileInfo::exists(installedPath)) {
                 const QString id = m_binaries.add(installedPath, "llama-server (official latest)", "official", "cuda", "latest");
                 if (!id.isEmpty()) {
@@ -1456,8 +1466,9 @@ static const TrEntry k_tr[] = {
     {"nav.profiles", "Perfiles",       "Profiles",     "配置",       "Profils",        "Profili",        "Profile"},
     {"nav.models",   "Modelos",        "Models",       "模型",       "Modèles",   "Modelli",        "Modelle"},
     {"nav.binaries", "Binarios",       "Binaries",     "二进制", "Binaires",       "Binari",         "Binärdateien"},
-    {"nav.chat",     "Chat",           "Chat",         "聊天",       "Discussion",     "Chat",           "Chat"},
-    {"nav.settings", "Configuración", "Settings", "设置",       "Paramètres","Impostazioni",   "Einstellungen"},
+    {"nav.chat",      "Chat",           "Chat",         "聊天",       "Discussion",     "Chat",           "Chat"},
+    {"nav.benchmark", "Benchmark",     "Benchmark",    "基准测试",   "Benchmark",      "Benchmark",      "Benchmark"},
+    {"nav.settings",  "Configuración", "Settings",     "设置",       "Paramètres",     "Impostazioni",   "Einstellungen"},
     // Launch page
     {"launch.title",       "Lanzar",          "Launch",          "启动",       "Lancer",          "Avvia",               "Starten"},
     {"launch.running",     "Servidor activo", "Server running",  "服务器运行中", "Serveur actif",   "Server in esecuzione","Server läuft"},
@@ -1623,4 +1634,497 @@ const QHash<QString, QHash<QString, QString>> &AppController::translations()
         return h;
     }();
     return t;
+}
+
+// ── Benchmark ─────────────────────────────────────────────────────────────────
+
+struct BenchTaskDef {
+    QString id;
+    QString category;
+    QString prompt;
+    int maxTokens;
+    bool isSpeed;
+    std::function<bool(const QString &)> eval;
+};
+
+static bool benchEvalJson(const QString &r)
+{
+    const QString tr = r.trimmed();
+    int s = tr.indexOf('{'), e = tr.lastIndexOf('}');
+    if (s < 0 || e <= s) return false;
+    QJsonParseError err;
+    auto doc = QJsonDocument::fromJson(tr.mid(s, e - s + 1).toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) return false;
+    const auto o = doc.object();
+    return o.contains("name") && o.contains("age") && o.contains("active");
+}
+
+static QVector<BenchTaskDef> buildBenchTasks(const QString &mode)
+{
+    const bool full = (mode == QStringLiteral("full"));
+    QVector<BenchTaskDef> t;
+
+    // ── Speed tasks (streaming, measure TTFT + TPS) ────────────────────────────
+    t.append({"speed_short", "speed",
+        "Write a Python function to check if a number is prime.",
+        512, true, nullptr});
+
+    t.append({"speed_medium", "speed",
+        "You are a senior Python engineer. Review the following code and suggest "
+        "specific improvements for performance, readability, and correctness.\n\n"
+        "```python\ndef process_data(items):\n    result = []\n    for i in range(len(items)):\n"
+        "        if items[i] > 0:\n            result.append(items[i] * 2)\n"
+        "        elif items[i] == 0:\n            result.append(0)\n"
+        "        else:\n            result.append(abs(items[i]))\n"
+        "    seen = {}\n    final = []\n    for x in result:\n"
+        "        if x not in seen:\n            seen[x] = True\n            final.append(x)\n"
+        "    total = 0\n    for x in final:\n        total = total + x\n    return total, final\n```\n\n"
+        "Provide: 1) A rewritten version using idiomatic Python, 2) Big-O analysis of original vs new, "
+        "3) Any edge cases the original misses. Be concise and specific.",
+        1024, true, nullptr});
+
+    if (full) {
+        t.append({"speed_long", "speed",
+            "You are an expert software architect. Perform a comprehensive security review of this "
+            "authentication system. List ALL vulnerabilities found, categorize by OWASP Top 10, "
+            "and provide specific remediation code for each.\n\n"
+            "=== FILE: src/api/auth.py ===\n"
+            "import jwt\nimport hashlib\nimport time\nfrom functools import wraps\n"
+            "from flask import request, jsonify\n\n"
+            "SECRET_KEY = 'hardcoded-secret-do-not-use-in-prod'\nALGORITHM = 'HS256'\n\n"
+            "def generate_token(user_id: int, role: str) -> str:\n"
+            "    payload = {'user_id': user_id, 'role': role, 'exp': time.time() + 3600}\n"
+            "    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)\n\n"
+            "def verify_token(token: str) -> dict:\n"
+            "    try:\n        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])\n"
+            "    except: return None\n\n"
+            "def require_auth(f):\n    @wraps(f)\n    def decorated(*args, **kwargs):\n"
+            "        token = request.headers.get('Authorization','').replace('Bearer ','')\n"
+            "        payload = verify_token(token)\n"
+            "        if not payload: return jsonify({'error':'Unauthorized'}), 401\n"
+            "        request.user = payload\n        return f(*args, **kwargs)\n"
+            "    return decorated\n",
+            2048, true, nullptr});
+
+        t.append({"speed_prose", "speed",
+            "Write an 800-word essay about paper money during the Tang Dynasty in China. "
+            "Cover its origins, how it worked, economic effects, and eventual decline. "
+            "Write in clear, flowing prose paragraphs. Do not use bullet points or headers.",
+            2048, true, nullptr});
+
+        t.append({"speed_json", "speed",
+            "You are given this list of programming concepts:\n"
+            "[\"recursion\", \"for loop\", \"while loop\", \"memoization\", \"dynamic programming\", "
+            "\"merge sort\", \"quick sort\", \"bubble sort\", \"binary search\", \"linear search\", "
+            "\"hash map\", \"linked list\", \"binary tree\", \"graph traversal\", \"stack\", \"queue\", "
+            "\"BFS\", \"DFS\", \"greedy algorithm\", \"divide and conquer\"]\n\n"
+            "Group these into categories. Return ONLY a valid JSON object where keys are category "
+            "names and values are arrays of items. No explanation, no markdown, no code fences.",
+            512, true, nullptr});
+    }
+
+    // ── Quality tasks (non-streaming, eval response) ───────────────────────────
+    t.append({"python_prime", "coding",
+        "Write a Python function is_prime(n: int) -> bool with proper type hints. "
+        "Handle edge cases (n<=1, n=2). No explanation, just code.",
+        300, false,
+        [](const QString &r) {
+            return r.contains("def is_prime") && r.contains("return") &&
+                   (r.contains("n <= 1") || r.contains("n < 2") || r.contains("n == 1"));
+        }});
+
+    t.append({"math_arithmetic", "math",
+        "Calculate: (17 * 23) + (456 / 8) - 12. Show each step. Give the final numeric answer.",
+        512, false,
+        [](const QString &r) { return r.contains("436") || r.contains("436.0"); }});
+
+    t.append({"code_refactor", "coding",
+        "Rewrite this as a one-liner using list comprehension:\n"
+        "result = []\nfor x in range(10):\n    if x % 2 == 0:\n        result.append(x**2)\n"
+        "Return only the one-liner, no explanation.",
+        100, false,
+        [](const QString &r) {
+            return r.contains("[") && r.contains("for") && r.contains("if") &&
+                   (r.contains("**2") || r.contains("x*x") || r.contains("pow("));
+        }});
+
+    t.append({"reasoning_logic", "reasoning",
+        "All A are B. All B are C. Is all A are C? Answer YES or NO, then explain in one sentence.",
+        150, false,
+        [](const QString &r) {
+            const QString u = r.toUpper().trimmed();
+            return u.startsWith("YES") || u.left(20).contains("YES");
+        }});
+
+    t.append({"json_output", "instruction",
+        "Return ONLY valid JSON: {\"name\":\"Alice\",\"age\":30,\"active\":true}. "
+        "No markdown, no explanation, no code fences.",
+        80, false, benchEvalJson});
+
+    if (full) {
+        t.append({"coding_sort", "coding",
+            "Implement merge sort in Python. Function signature: def merge_sort(arr: list) -> list. "
+            "Include the merge helper function. No explanation, just code.",
+            500, false,
+            [](const QString &r) {
+                return r.contains("def merge_sort") && r.contains("def merge") && r.contains("return");
+            }});
+
+        t.append({"summary_strict", "instruction",
+            "Summarize what a neural network is in EXACTLY 2 sentences. No more, no less.",
+            200, false,
+            [](const QString &r) { return r.trimmed().length() > 20; }});
+    }
+
+    return t;
+}
+
+// ── Public methods ─────────────────────────────────────────────────────────────
+
+void AppController::clearBenchmarkResults()
+{
+    m_benchmarkResults.clear();
+    emit benchmarkResultsChanged();
+}
+
+void AppController::cancelBenchmark()
+{
+    m_benchmarkCanceled = true;
+}
+
+void AppController::startBenchmark(const QStringList &profileIds, const QString &mode)
+{
+    if (m_benchmarkRunning || profileIds.isEmpty()) return;
+
+    m_benchmarkRunning  = true;
+    m_benchmarkCanceled = false;
+    m_benchmarkProgress = 0;
+    m_benchmarkStatus   = "Iniciando...";
+    emit benchmarkRunningChanged();
+    emit benchmarkProgressChanged();
+    emit benchmarkStatusChanged();
+
+    loadBenchmarkResults();
+
+    const QVector<BenchTaskDef> tasks = buildBenchTasks(mode);
+    const int totalSteps = profileIds.size() * tasks.size();
+    auto stepsDone = std::make_shared<int>(0);
+
+    // Recursive per-profile sequence
+    auto processNext = std::make_shared<std::function<void(int)>>();
+    *processNext = [=](int idx) {
+        if (m_benchmarkCanceled || idx >= profileIds.size()) {
+            m_benchmarkRunning  = false;
+            m_benchmarkProgress = 100;
+            m_benchmarkStatus   = m_benchmarkCanceled ? "Cancelado." : "Completado.";
+            emit benchmarkRunningChanged();
+            emit benchmarkProgressChanged();
+            emit benchmarkStatusChanged();
+            return;
+        }
+
+        const QString profileId   = profileIds.at(idx);
+        const QVariantMap profData = m_profiles.getLaunchProfile(profileId);
+        const QString profName    = profData.value("name").toString(profileId);
+
+        auto runProfile = [=]() {
+            m_benchmarkStatus = QString("[%1/%2] %3 — iniciando servidor...")
+                .arg(idx + 1).arg(profileIds.size()).arg(profName);
+            emit benchmarkStatusChanged();
+
+            startServer(profileId);
+            const QString url = serverBaseUrl();
+
+            benchmarkWaitServerReady(30, url, [=](bool ready) {
+                if (!ready || m_benchmarkCanceled) {
+                    (*processNext)(idx + 1);
+                    return;
+                }
+
+                // Warm-up request (discard result)
+                m_benchmarkStatus = QString("[%1/%2] %3 — calentando...").arg(idx+1).arg(profileIds.size()).arg(profName);
+                emit benchmarkStatusChanged();
+
+                benchmarkRequest(url, "Say hi.", 32, true, [=](QVariantMap) {
+                    // Run all tasks sequentially
+                    auto taskResults = std::make_shared<QVariantList>();
+                    auto runTask = std::make_shared<std::function<void(int)>>();
+
+                    *runTask = [=](int ti) {
+                        if (m_benchmarkCanceled || ti >= tasks.size()) {
+                            // Measure resources then store result
+                            benchmarkMeasureResources([=](double ramMb, double vramMb) {
+                                int passed = 0, qualTotal = 0;
+                                double tpsSum = 0, ttftSum = 0; int speedCount = 0;
+                                for (const QVariant &v : *taskResults) {
+                                    const QVariantMap r = v.toMap();
+                                    if (r.value("type") == "quality") {
+                                        qualTotal++;
+                                        if (r.value("passed").toBool()) passed++;
+                                    } else {
+                                        tpsSum  += r.value("tps").toDouble();
+                                        ttftSum += r.value("ttft_ms").toDouble();
+                                        speedCount++;
+                                    }
+                                }
+                                const double avgTps  = speedCount > 0 ? tpsSum  / speedCount : 0;
+                                const double avgTtft = speedCount > 0 ? ttftSum / speedCount : 0;
+
+                                QVariantMap result;
+                                result["profileId"]    = profileId;
+                                result["profileName"]  = profName;
+                                result["mode"]         = mode;
+                                result["timestamp"]    = (double)QDateTime::currentMSecsSinceEpoch();
+                                result["qualityScore"] = passed;
+                                result["qualityTotal"] = qualTotal;
+                                result["avgTps"]       = avgTps;
+                                result["avgTtftMs"]    = avgTtft;
+                                result["ramMb"]        = ramMb;
+                                result["vramMb"]       = vramMb;
+                                result["tasks"]        = *taskResults;
+
+                                m_benchmarkResults.append(result);
+                                emit benchmarkResultsChanged();
+                                saveBenchmarkResult(result);
+
+                                stopServer();
+                                benchmarkWaitServerStopped(10000, [=]() {
+                                    (*processNext)(idx + 1);
+                                });
+                            });
+                            return;
+                        }
+
+                        const BenchTaskDef &task = tasks.at(ti);
+                        m_benchmarkStatus = QString("[%1/%2] %3 — %4...")
+                            .arg(idx+1).arg(profileIds.size()).arg(profName).arg(task.id);
+                        emit benchmarkStatusChanged();
+
+                        benchmarkRequest(url, task.prompt, task.maxTokens, task.isSpeed, [=](QVariantMap res) {
+                            (*stepsDone)++;
+                            m_benchmarkProgress = qMin(99, (*stepsDone * 100) / qMax(1, totalSteps));
+                            emit benchmarkProgressChanged();
+
+                            res["id"]       = task.id;
+                            res["category"] = task.category;
+                            if (!task.isSpeed && task.eval)
+                                res["passed"] = task.eval(res.value("response").toString());
+                            taskResults->append(res);
+                            (*runTask)(ti + 1);
+                        });
+                    };
+                    (*runTask)(0);
+                });
+            });
+        };
+
+        if (serverRunning()) {
+            stopServer();
+            benchmarkWaitServerStopped(8000, runProfile);
+        } else {
+            runProfile();
+        }
+    };
+    (*processNext)(0);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+void AppController::benchmarkWaitServerReady(int attemptsLeft, const QString &url,
+                                              std::function<void(bool)> onResult)
+{
+    if (attemptsLeft <= 0) { onResult(false); return; }
+    if (!m_nam) m_nam = new QNetworkAccessManager(this);
+    auto *reply = m_nam->get(QNetworkRequest(QUrl(url + "/health")));
+    connect(reply, &QNetworkReply::finished, this, [=]() {
+        const bool ok = reply->error() == QNetworkReply::NoError &&
+                        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200;
+        reply->deleteLater();
+        if (ok) { onResult(true); return; }
+        QTimer::singleShot(2000, this, [=]() {
+            benchmarkWaitServerReady(attemptsLeft - 1, url, onResult);
+        });
+    });
+}
+
+void AppController::benchmarkWaitServerStopped(int remainingMs, std::function<void()> onStopped)
+{
+    if (!serverRunning() || remainingMs <= 0) { onStopped(); return; }
+    QTimer::singleShot(300, this, [=]() {
+        benchmarkWaitServerStopped(remainingMs - 300, onStopped);
+    });
+}
+
+void AppController::benchmarkRequest(const QString &url, const QString &prompt,
+                                      int maxTokens, bool streaming,
+                                      std::function<void(QVariantMap)> onDone)
+{
+    if (!m_nam) m_nam = new QNetworkAccessManager(this);
+    QNetworkRequest req(QUrl(url + "/v1/chat/completions"));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    req.setTransferTimeout(120000);
+
+    QJsonObject payload;
+    payload["model"]      = "benchmark";
+    payload["messages"]   = QJsonArray{QJsonObject{{"role","user"},{"content",prompt}}};
+    payload["stream"]     = streaming;
+    payload["max_tokens"] = maxTokens;
+    payload["temperature"]= 0.0;
+    payload["top_p"]      = 1.0;
+
+    auto *reply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    const qint64 startMs = QDateTime::currentMSecsSinceEpoch();
+
+    if (streaming) {
+        struct SpeedState { QByteArray buf; qint64 ttftMs = -1; int chunks = 0; QString response; };
+        auto state = std::make_shared<SpeedState>();
+
+        connect(reply, &QNetworkReply::readyRead, this, [=]() {
+            state->buf.append(reply->readAll());
+            int nl;
+            while ((nl = state->buf.indexOf('\n')) >= 0) {
+                const QByteArray line = state->buf.left(nl).trimmed();
+                state->buf.remove(0, nl + 1);
+                if (!line.startsWith("data: ")) continue;
+                const QByteArray json = line.mid(6);
+                if (json == "[DONE]") continue;
+                const QString delta = QJsonDocument::fromJson(json).object()
+                    .value("choices").toArray().first().toObject()
+                    .value("delta").toObject().value("content").toString();
+                if (!delta.isEmpty()) {
+                    if (state->ttftMs < 0) state->ttftMs = QDateTime::currentMSecsSinceEpoch() - startMs;
+                    state->chunks++;
+                    state->response += delta;
+                }
+            }
+        });
+
+        connect(reply, &QNetworkReply::finished, this, [=]() {
+            const qint64 totalMs = QDateTime::currentMSecsSinceEpoch() - startMs;
+            double tps = 0;
+            if (state->ttftMs >= 0 && state->chunks > 0)
+                tps = state->chunks / qMax(0.001, (totalMs - state->ttftMs) / 1000.0);
+            QVariantMap r;
+            r["type"]       = "speed";
+            r["ttft_ms"]    = state->ttftMs;
+            r["tps"]        = tps;
+            r["chunks"]     = state->chunks;
+            r["elapsed_ms"] = totalMs;
+            r["response"]   = state->response;
+            reply->deleteLater();
+            onDone(r);
+        });
+    } else {
+        connect(reply, &QNetworkReply::finished, this, [=]() {
+            const qint64 totalMs = QDateTime::currentMSecsSinceEpoch() - startMs;
+            QString response;
+            if (reply->error() == QNetworkReply::NoError) {
+                response = QJsonDocument::fromJson(reply->readAll()).object()
+                    .value("choices").toArray().first().toObject()
+                    .value("message").toObject().value("content").toString();
+            }
+            QVariantMap r;
+            r["type"]       = "quality";
+            r["elapsed_ms"] = totalMs;
+            r["response"]   = response;
+            reply->deleteLater();
+            onDone(r);
+        });
+    }
+}
+
+void AppController::benchmarkMeasureResources(std::function<void(double, double)> onDone)
+{
+    // VRAM via nvidia-smi
+    auto *nsmi = new QProcess(this);
+    nsmi->start("nvidia-smi",
+                {"--query-compute-apps=used_memory", "--format=csv,noheader,nounits"});
+    connect(nsmi, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [=](int, QProcess::ExitStatus) {
+        double vramMb = 0;
+        for (const QString &line :
+             QString::fromUtf8(nsmi->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts))
+            vramMb += line.trimmed().toDouble();
+        nsmi->deleteLater();
+
+        // RAM via tasklist
+        auto *tl = new QProcess(this);
+        tl->start("tasklist", {"/FI","IMAGENAME eq llama-server.exe","/FO","CSV","/NH"});
+        connect(tl, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [=](int, QProcess::ExitStatus) {
+            double ramMb = 0;
+            for (const QString &line :
+                 QString::fromUtf8(tl->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts)) {
+                const QStringList parts = line.split(',');
+                if (parts.size() >= 5) {
+                    const QString mem = parts[4].trimmed().remove('"').remove(" K").remove(',');
+                    ramMb += mem.toDouble() / 1024.0;
+                }
+            }
+            tl->deleteLater();
+            onDone(ramMb, vramMb);
+        });
+    });
+}
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+
+QString AppController::benchmarkStorageDir() const
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
+                        + "/benchmarks";
+    QDir().mkpath(dir);
+    return dir;
+}
+
+void AppController::saveBenchmarkResult(const QVariantMap &result)
+{
+    const QString dir = benchmarkStorageDir();
+    const QString id  = QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+    // Update index
+    const QString idxPath = dir + "/index.json";
+    QJsonArray idx;
+    QFile fi(idxPath);
+    if (fi.open(QIODevice::ReadOnly)) { idx = QJsonDocument::fromJson(fi.readAll()).array(); fi.close(); }
+
+    QJsonObject summary;
+    summary["id"]           = id;
+    summary["profileId"]    = result.value("profileId").toString();
+    summary["profileName"]  = result.value("profileName").toString();
+    summary["mode"]         = result.value("mode").toString();
+    summary["timestamp"]    = result.value("timestamp").toDouble();
+    summary["qualityScore"] = result.value("qualityScore").toInt();
+    summary["qualityTotal"] = result.value("qualityTotal").toInt();
+    summary["avgTps"]       = result.value("avgTps").toDouble();
+    summary["avgTtftMs"]    = result.value("avgTtftMs").toDouble();
+    summary["ramMb"]        = result.value("ramMb").toDouble();
+    summary["vramMb"]       = result.value("vramMb").toDouble();
+    idx.append(summary);
+
+    if (fi.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        fi.write(QJsonDocument(idx).toJson());
+
+    // Full result file
+    QFile rf(dir + "/" + id + ".json");
+    if (rf.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        rf.write(QJsonDocument(QJsonObject::fromVariantMap(result)).toJson());
+}
+
+void AppController::loadBenchmarkResults()
+{
+    const QString idxPath = benchmarkStorageDir() + "/index.json";
+    QFile f(idxPath);
+    if (!f.open(QIODevice::ReadOnly)) return;
+    const QJsonArray arr = QJsonDocument::fromJson(f.readAll()).array();
+    // Merge: add only entries not already in m_benchmarkResults
+    QSet<QString> existing;
+    for (const QVariant &v : std::as_const(m_benchmarkResults))
+        existing.insert(v.toMap().value("id").toString());
+    for (const QJsonValue &v : arr) {
+        const QVariantMap m = v.toObject().toVariantMap();
+        if (!existing.contains(m.value("id").toString()))
+            m_benchmarkResults.append(m);
+    }
+    emit benchmarkResultsChanged();
 }

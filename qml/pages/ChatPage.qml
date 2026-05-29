@@ -100,7 +100,7 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        const pid  = root.projectIdForSection(section)
+                                        const pid = root.projectIdForSection(section)
                                         App.newChatSessionInProject(pid, section)
                                     }
                                 }
@@ -155,32 +155,33 @@ Item {
                             onClicked: App.switchChatSession(modelData.id)
                         }
                     }
+                }
 
-                    // ── Nuevo proyecto ────────────────────────────────────────
-                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 40
-                        color: "transparent"
-                        RowLayout {
-                            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                            spacing: 6
-                            Text { text: "📁"; font.pixelSize: 11 }
-                            Text {
-                                text: "Nuevo proyecto"
-                                color: Theme.textMuted
-                                font.pixelSize: 12
-                                Layout.fillWidth: true
-                            }
+                // ── Nuevo proyecto ────────────────────────────────────────────
+                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
+                Rectangle {
+                    id: newProjectBtn
+                    Layout.fillWidth: true
+                    height: 40
+                    color: "transparent"
+                    RowLayout {
+                        anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                        spacing: 6
+                        Text { text: "📁"; font.pixelSize: 11 }
+                        Text {
+                            text: "Nuevo proyecto"
+                            color: Theme.textMuted
+                            font.pixelSize: 12
+                            Layout.fillWidth: true
                         }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            hoverEnabled: true
-                            onEntered: parent.color = Theme.highlight
-                            onExited:  parent.color = "transparent"
-                            onClicked: newProjectPopup.open()
-                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: true
+                        onEntered: newProjectBtn.color = Theme.highlight
+                        onExited:  newProjectBtn.color = "transparent"
+                        onClicked: newProjectPopup.open()
                     }
                 }
             }

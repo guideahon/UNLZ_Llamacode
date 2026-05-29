@@ -18,6 +18,27 @@ if not exist "%QT_DIR%\lib\cmake\Qt6\Qt6Config.cmake" (
     pause & exit /b 1
 )
 
+echo [INFO] Killing LlamaCode and managed children...
+taskkill /F /IM LlamaCode.exe      >nul 2>&1
+taskkill /F /IM llama-server.exe   >nul 2>&1
+taskkill /F /IM opencode.exe       >nul 2>&1
+taskkill /F /IM aider.exe          >nul 2>&1
+
+echo [INFO] Killing stale build tools...
+taskkill /F /IM MSBuild.exe        >nul 2>&1
+taskkill /F /IM CL.exe             >nul 2>&1
+taskkill /F /IM link.exe           >nul 2>&1
+taskkill /F /IM rc.exe             >nul 2>&1
+taskkill /F /IM qmlcachegen.exe    >nul 2>&1
+taskkill /F /IM rcc.exe            >nul 2>&1
+taskkill /F /IM moc.exe            >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+echo [INFO] Clearing stale tlogs...
+if exist build (
+    for /r "build" %%f in (*.tlog) do del /f /q "%%f" >nul 2>&1
+)
+
 if not exist build mkdir build
 cd build
 
@@ -36,7 +57,7 @@ if exist CMakeCache.txt (
     -DCMAKE_PREFIX_PATH="%QT_DIR%" ^
     -DCMAKE_BUILD_TYPE=Debug
 
-"%CMAKE%" --build . --config Debug --parallel
+"%CMAKE%" --build . --config Debug -- /maxcpucount:4
 if errorlevel 1 (
     echo.
     echo === Build FAILED ===

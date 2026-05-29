@@ -233,6 +233,82 @@ Item {
         onBinIdChanged: nameEditField.text = binData.name ?? ""
         onBinDataChanged: { if (!nameEditField.activeFocus) nameEditField.text = binData.name ?? "" }
 
+        // ── Edit dialog ───────────────────────────────────────────────────────
+        LcDialog {
+            id: editDlg
+            title: "Editar binario"
+            width: 520
+            height: 420
+
+            onOpened: {
+                editNameField.text    = binData.name          ?? ""
+                editVersionField.text = binData.versionHint   ?? ""
+                editWorkDirField.text = binData.workingDirectory ?? ""
+                editBackendCombo.currentIndex  = ["cpu","cuda","vulkan","metal"].indexOf(binData.backend ?? "cpu")
+                editFlavorCombo.currentIndex   = ["official","mtp-fork","custom"].indexOf(binData.flavor ?? "official")
+                if (editBackendCombo.currentIndex  < 0) editBackendCombo.currentIndex  = 0
+                if (editFlavorCombo.currentIndex   < 0) editFlavorCombo.currentIndex   = 0
+            }
+
+            onAccepted: {
+                const backends = ["cpu","cuda","vulkan","metal"]
+                const flavors  = ["official","mtp-fork","custom"]
+                App.binaryRegistry.update(
+                    binId,
+                    editNameField.text.trim(),
+                    flavors[editFlavorCombo.currentIndex],
+                    backends[editBackendCombo.currentIndex],
+                    editVersionField.text.trim(),
+                    editWorkDirField.text.trim()
+                )
+            }
+
+            contentItem: ColumnLayout {
+                width: 480
+                spacing: 12
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 14
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Text { text: "Backend"; color: Theme.dialogLabel; font.pixelSize: 12; font.bold: true }
+                        ComboBox {
+                            id: editBackendCombo
+                            Layout.fillWidth: true
+                            model: ["cpu", "cuda", "vulkan", "metal"]
+                            background: Rectangle { color: Theme.inputBg; radius: 6; border.color: Theme.borderColor }
+                            contentItem: Text { text: editBackendCombo.displayText; color: Theme.textPrimary; font.pixelSize: 13; leftPadding: 10; verticalAlignment: Text.AlignVCenter }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Text { text: "Variante"; color: Theme.dialogLabel; font.pixelSize: 12; font.bold: true }
+                        ComboBox {
+                            id: editFlavorCombo
+                            Layout.fillWidth: true
+                            model: ["official", "mtp-fork", "custom"]
+                            background: Rectangle { color: Theme.inputBg; radius: 6; border.color: Theme.borderColor }
+                            contentItem: Text { text: editFlavorCombo.displayText; color: Theme.textPrimary; font.pixelSize: 13; leftPadding: 10; verticalAlignment: Text.AlignVCenter }
+                        }
+                    }
+                }
+
+                Text { text: "Nombre"; color: Theme.dialogLabel; font.pixelSize: 12; font.bold: true }
+                LcTextField { id: editNameField; Layout.fillWidth: true; placeholderText: "Nombre visible" }
+
+                Text { text: "Versión (opcional)"; color: Theme.dialogLabel; font.pixelSize: 12; font.bold: true }
+                LcTextField { id: editVersionField; Layout.fillWidth: true; placeholderText: "ej: b4839-cuda12.4" }
+
+                Text { text: "Working directory (opcional)"; color: Theme.dialogLabel; font.pixelSize: 12; font.bold: true }
+                LcTextField { id: editWorkDirField; Layout.fillWidth: true; placeholderText: "Dejar vacío para usar el dir del binario" }
+            }
+        }
+
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
             spacing: 16
@@ -300,6 +376,11 @@ Item {
 
             Row {
                 spacing: 8
+                LcButton {
+                    text: "Editar"
+                    secondary: true
+                    onClicked: editDlg.open()
+                }
                 LcButton {
                     text: (App.langV, App.l("binaries.detectCaps"))
                     enabled: binData.pathValid ?? false

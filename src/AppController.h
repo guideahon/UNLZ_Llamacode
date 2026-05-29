@@ -48,6 +48,10 @@ class AppController : public QObject
     Q_PROPERTY(bool installingHarness READ installingHarness NOTIFY harnessStatusChanged)
     Q_PROPERTY(QString harnessInstallStatus READ harnessInstallStatus NOTIFY harnessStatusChanged)
     Q_PROPERTY(int harnessCheckV READ harnessCheckV NOTIFY harnessStatusChanged)
+    Q_PROPERTY(bool benchmarkRunning READ benchmarkRunning NOTIFY benchmarkRunningChanged)
+    Q_PROPERTY(int benchmarkProgress READ benchmarkProgress NOTIFY benchmarkProgressChanged)
+    Q_PROPERTY(QString benchmarkStatus READ benchmarkStatus NOTIFY benchmarkStatusChanged)
+    Q_PROPERTY(QVariantList benchmarkResults READ benchmarkResults NOTIFY benchmarkResultsChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -97,6 +101,10 @@ public:
     bool installingHarness() const { return m_installingHarness; }
     QString harnessInstallStatus() const { return m_harnessInstallStatus; }
     int harnessCheckV() const { return 0; }
+    bool benchmarkRunning() const { return m_benchmarkRunning; }
+    int benchmarkProgress() const { return m_benchmarkProgress; }
+    QString benchmarkStatus() const { return m_benchmarkStatus; }
+    QVariantList benchmarkResults() const { return m_benchmarkResults; }
 
     Q_INVOKABLE void newChatSession();
     Q_INVOKABLE void newChatSessionInProject(const QString &projectId, const QString &projectName);
@@ -131,6 +139,10 @@ public:
     Q_INVOKABLE void refreshOpencodeSessionList();
     Q_INVOKABLE QString pickDirectory(const QString &title = QString());
     Q_INVOKABLE void changeAgentProject(const QString &directory);
+    Q_INVOKABLE void startBenchmark(const QStringList &profileIds, const QString &mode);
+    Q_INVOKABLE void cancelBenchmark();
+    Q_INVOKABLE void clearBenchmarkResults();
+    Q_INVOKABLE void loadBenchmarkResults();
 
 signals:
     void serverRunningChanged();
@@ -154,6 +166,10 @@ signals:
     void agentLogChanged();
     void agentMessagesChanged();
     void agentSessionsChanged();
+    void benchmarkRunningChanged();
+    void benchmarkProgressChanged();
+    void benchmarkStatusChanged();
+    void benchmarkResultsChanged();
 
 private:
     void appendLog(const QString &text);
@@ -237,4 +253,21 @@ private:
     QString serviceStatePath() const;
 
     static const QHash<QString, QHash<QString, QString>> &translations();
+
+    // Benchmark
+    bool         m_benchmarkRunning  = false;
+    bool         m_benchmarkCanceled = false;
+    int          m_benchmarkProgress = 0;
+    QString      m_benchmarkStatus;
+    QVariantList m_benchmarkResults;
+    QString benchmarkStorageDir() const;
+    void saveBenchmarkResult(const QVariantMap &result);
+    void loadBenchmarkResults();
+    void benchmarkWaitServerReady(int attemptsLeft, const QString &url,
+                                  std::function<void(bool)> onResult);
+    void benchmarkWaitServerStopped(int remainingMs, std::function<void()> onStopped);
+    void benchmarkRequest(const QString &url, const QString &prompt,
+                          int maxTokens, bool streaming,
+                          std::function<void(QVariantMap)> onDone);
+    void benchmarkMeasureResources(std::function<void(double ramMb, double vramMb)> onDone);
 };

@@ -162,6 +162,7 @@ ApplicationWindow {
                     BinariesPage    { id: binariesPage }
                     ChatPage        {}
                     AgentPage       {}
+                    BenchmarkPage   {}
                     SettingsPage    {}
                 }
             }

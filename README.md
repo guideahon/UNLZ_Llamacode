@@ -179,6 +179,87 @@ cmake --build . --config Debug --parallel
 5. **P4** ✅ Chat integrado streaming + historial persistente + proyectos
 6. **P5** ⏳ Built-in coding agent con aprobaciones
 
+## Benchmarking
+
+Módulo para comparar quants y perfiles de forma sistemática: mide RAM, VRAM, velocidad y calidad relativa con resultados persistidos en tabla.
+
+### Flujo de uso
+
+1. Seleccionar uno o más `LaunchProfile` para comparar.
+2. Elegir modo de prueba: **Corta** (~30 s) o **Completa** (1–5 min).
+3. Ejecutar: LlamaCode lanza cada perfil en secuencia, corre los prompts, registra métricas.
+4. Ver resultados en tabla comparativa; exportar o guardar para comparaciones futuras.
+
+### Modos de prueba
+
+| Modo | Prompts | `n_predict` | Score | Tiempo estimado |
+|------|---------|-------------|-------|-----------------|
+| **Corta** | 5 fijos | 256 | 0–2 por prompt (máx 10) | ~30 s |
+| **Completa** | 15 configurables | 512 | 0–5 por prompt (máx 75) | 1–5 min |
+
+Parámetros fijos en toda corrida: `temp 0`, `top_p 1`, `top_k 0`, seed fijo, `ctx` según perfil.
+
+### Categorías de prompts (modo Completo)
+
+```text
+3 × razonamiento lógico
+3 × código / debug
+3 × redacción técnica / pericial
+3 × extracción de datos estructurada
+3 × contexto largo (1 000–4 000 tokens de entrada)
+```
+
+Los prompts son editables y persistidos; el usuario puede reemplazarlos con casos reales (logs llama.cpp, pericias, SQL, Airflow, expedientes judiciales, etc.).
+
+### Scoring
+
+```text
+Modo Corta:  0 = falla  /  1 = aceptable  /  2 = buena
+Modo Completa:
+  5 = igual o mejor que baseline
+  4 = leve pérdida, usable
+  3 = correcto pero menos preciso
+  2 = error importante
+  1 = falla grave
+  0 = no siguió la consigna
+```
+
+Calidad relativa normalizada contra el perfil baseline (el de mayor score):
+
+```
+calidad_relativa = score_perfil / score_baseline × 100
+```
+
+### Métricas registradas por corrida
+
+```text
+perfil / modelo / quant
+RAM usada (MB)
+VRAM usada (MB)
+tokens/s — prompt eval
+tokens/s — generation
+tiempo total (s)
+score corto / score completo
+errores graves (count)
+```
+
+### Persistencia y vista
+
+- Resultados en JSON (`AppLocalData/LlamaCode/benchmarks/{timestamp}.json`).
+- Vista tabla en `BenchmarkPage.qml`: columnas ordenables, filtro por perfil/quant/fecha.
+- Exportar a CSV desde la UI.
+
+### Tabla de ejemplo
+
+| Quant | Score | Δ baseline | t/s gen | RAM | VRAM |
+|-------|-------|------------|---------|-----|------|
+| Q8_0 | 92/100 | base | 20 | 2 GB | 28 GB |
+| Q6_K | 90/100 | −2.2% | 25 | 2 GB | 22 GB |
+| Q5_K_M | 86/100 | −6.5% | 30 | 2 GB | 18 GB |
+| Q4_K_M | 80/100 | −13.0% | 38 | 2 GB | 14 GB |
+| IQ4_XS | 77/100 | −16.3% | 42 | 2 GB | 12 GB |
+| Q3_K_M | 65/100 | −29.3% | 55 | 2 GB | 9 GB |
+
 ## Seguridad operativa
 
 - Nada destructivo sin aprobación explícita.

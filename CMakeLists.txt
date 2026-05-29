@@ -69,6 +69,7 @@ qt_add_qml_module(LlamaCode
         qml/components/LcTextField.qml
         qml/components/LcDialog.qml
         qml/pages/AgentPage.qml
+        qml/pages/BenchmarkPage.qml
         qml/pages/SettingsPage.qml
 )
 

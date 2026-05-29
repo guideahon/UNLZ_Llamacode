@@ -16,8 +16,9 @@ Rectangle {
         { key: "nav.profiles", icon: "📋",  serverOnly: false },
         { key: "nav.models",   icon: "📦",  serverOnly: false },
         { key: "nav.binaries", icon: "⚙",   serverOnly: false },
-        { key: "nav.chat",     icon: "💬",  serverOnly: true  },
-        { key: "agent.title",  icon: "🤖",  serverOnly: true  },
+        { key: "nav.chat",      icon: "💬",  serverOnly: true  },
+        { key: "agent.title",   icon: "🤖",  serverOnly: true  },
+        { key: "nav.benchmark", icon: "📊",  serverOnly: false },
     ]
 
     ColumnLayout {
@@ -72,7 +73,7 @@ Rectangle {
         ItemDelegate {
             Layout.fillWidth: true
             height: 48
-            highlighted: root.currentIndex === 6
+            highlighted: root.currentIndex === 7
             background: Rectangle {
                 color: parent.highlighted ? Theme.highlight : (parent.hovered ? Theme.hoverBg : "transparent")
                 Rectangle {
@@ -89,10 +90,10 @@ Rectangle {
                 Text {
                     text: (App.langV, App.l("nav.settings"))
                     font.pixelSize: 14
-                    color: root.currentIndex === 6 ? Theme.textPrimary : Theme.textSecondary
+                    color: root.currentIndex === 7 ? Theme.textPrimary : Theme.textSecondary
                 }
             }
-            onClicked: { root.currentIndex = 6; root.pageSelected(6) }
+            onClicked: { root.currentIndex = 7; root.pageSelected(7) }
         }
 
         Text {

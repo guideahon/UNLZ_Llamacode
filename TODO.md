@@ -128,6 +128,20 @@
 - [ ] `run_command` (aprobación)
 - [ ] Bloqueos de seguridad por workspace
 
+## P6 - Benchmarking
+
+- [ ] `BenchmarkRunner`: lanza perfiles en secuencia vía `AppController`, parámetros fijos (temp 0, seed fijo)
+- [ ] `BenchmarkSession`: entidad con métricas por perfil (RAM, VRAM, t/s prompt eval, t/s gen, tiempo total, scores)
+- [ ] Modo **Corta**: 5 prompts × 256 tokens, score 0–2, ~30 s
+- [ ] Modo **Completa**: 15 prompts × 512 tokens, score 0–5, 1–5 min
+- [ ] Editor de prompts por categoría (razonamiento, código, pericial, extracción, contexto largo)
+- [ ] Scoring manual post-corrida desde UI (o automático vía juez LLM)
+- [ ] Persistencia en JSON (`benchmarks/{timestamp}.json`)
+- [ ] `BenchmarkPage.qml`: tabla comparativa con columnas ordenables y filtros
+- [ ] Exportar resultados a CSV
+- [ ] Selección multi-perfil para comparar en una misma corrida
+- [ ] Calidad relativa normalizada contra perfil baseline
+
 ## Calidad
 
 - [ ] Tests `BinaryRegistry`
