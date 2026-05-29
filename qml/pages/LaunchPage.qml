@@ -178,6 +178,12 @@ Item {
                     onClicked: App.clearLog()
                     enabled: root.logVisible
                 }
+                LcButton {
+                    text: "Copiar logs"
+                    secondary: true
+                    enabled: root.logVisible
+                    onClicked: App.copyToClipboard(App.serverLog)
+                }
             }
         }
 

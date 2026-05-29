@@ -1,6 +1,6 @@
 <RCC>
   <qresource prefix="/assets">
-    <file alias="assets/app_icon.png">C:/Users/Cristian/Documents/GitHub/LlamaCode/assets/app_icon.png</file>
+    <file alias="assets/app_icon.png">C:/Users/cristian/Documents/LlamaCode/assets/app_icon.png</file>
   </qresource>
 </RCC>
 

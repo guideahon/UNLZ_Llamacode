@@ -8,6 +8,7 @@ TextField {
     font.pixelSize: 13
     leftPadding: 10
     rightPadding: 10
+    verticalAlignment: TextInput.AlignVCenter
     implicitHeight: 34
 
     background: Rectangle {

@@ -30,7 +30,13 @@ EffectiveProfile EffectiveProfileBuilder::build(const Context &ctx)
     // Launch overrides (raw, highest priority)
     for (auto it = ctx.launch.envOverrides.begin(); it != ctx.launch.envOverrides.end(); ++it)
         env[it.key()] = it.value();
-    args.append(ctx.launch.extraArgs);
+
+    // Resolve aliases in extraArgs; split entries that contain spaces (flag+value on one line)
+    for (const QString &rawArg : ctx.launch.extraArgs) {
+        const QStringList tokens = rawArg.trimmed().split(u' ', Qt::SkipEmptyParts);
+        for (const QString &arg : tokens)
+            args.append(arg.startsWith(u'-') ? ctx.binary.resolveFlag(arg) : arg);
+    }
 
     result.effectiveArgs = args;
     result.effectiveEnv = env;
@@ -111,7 +117,7 @@ void EffectiveProfileBuilder::applyRuntime(const RuntimePreset &rt,
         warnings.append("GPU layers set to auto — may not offload on all backends.");
 
     if (rt.flashAttention)
-        addFlag(bin, "--flash-attn", {}, args, warnings);
+        addFlag(bin, "--flash-attn", "on", args, warnings);
 
     if (!rt.mmap)
         addFlag(bin, "--no-mmap", {}, args, warnings);
@@ -132,14 +138,14 @@ void EffectiveProfileBuilder::addFlag(const LlamaBinary &bin, const QString &fla
                                       QStringList &warnings, bool required,
                                       QStringList *errors)
 {
-    const bool supported = bin.supportedFlags.isEmpty() || bin.supportsFlag(flag);
+    const QString resolved = bin.resolveFlag(flag);
+    const bool supported = bin.supportedFlags.isEmpty() || bin.supportsFlag(resolved);
     if (!supported) {
         const QString msg = QStringLiteral("Flag %1 not supported by this binary.").arg(flag);
         if (required && errors) errors->append(msg);
         else warnings.append(msg);
         return;
     }
-    const QString resolved = bin.resolveFlag(flag);
     args.append(resolved);
     if (!value.isEmpty()) args.append(value);
 }

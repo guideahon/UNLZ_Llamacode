@@ -1,12 +1,12 @@
 -I
-C:/Users/Cristian/Documents/GitHub/LlamaCode/build
+C:/Users/cristian/Documents/LlamaCode/build
 -I
 C:/Qt/6.8.3/msvc2022_64/qml
 --resource
-C:/Users/Cristian/Documents/GitHub/LlamaCode/build/.qt/rcc/qmake_LlamaCode.qrc
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/qmake_LlamaCode.qrc
 --resource
-C:/Users/Cristian/Documents/GitHub/LlamaCode/build/.qt/rcc/LlamaCode_raw_qml_0.qrc
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/LlamaCode_raw_qml_0.qrc
 --resource
-C:/Users/Cristian/Documents/GitHub/LlamaCode/build/.qt/rcc/llamacode_assets.qrc
+C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/llamacode_assets.qrc
 --module
 LlamaCode

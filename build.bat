@@ -10,12 +10,12 @@ if exist "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\MSBuild\Curre
 
 if not exist "%CMAKE%" (
     echo [ERROR] CMake not found.
-    exit /b 1
+    pause & exit /b 1
 )
 
 if not exist "%QT_DIR%\lib\cmake\Qt6\Qt6Config.cmake" (
     echo [ERROR] Qt6 not found at %QT_DIR%
-    exit /b 1
+    pause & exit /b 1
 )
 
 if not exist build mkdir build
@@ -37,7 +37,12 @@ if exist CMakeCache.txt (
     -DCMAKE_BUILD_TYPE=Debug
 
 "%CMAKE%" --build . --config Debug --parallel
-if errorlevel 1 exit /b 1
+if errorlevel 1 (
+    echo.
+    echo === Build FAILED ===
+    pause
+    exit /b 1
+)
 
 cd ..
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update-shortcut.ps1"
@@ -45,3 +50,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update-shortcut.ps1"
 echo.
 echo === Build complete ===
 echo Binary: build\Debug\LlamaCode.exe
+pause

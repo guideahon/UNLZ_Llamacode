@@ -9,15 +9,15 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "splitArgs",
-                        "line": 17
+                        "line": 20
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 470,
+                        "durationMicroseconds": 426,
                         "errorMessage": "Cannot access value for name extraArgsArea",
                         "functionName": "argsFlat",
-                        "line": 27
+                        "line": 30
                     },
                     {
                         "codegenSuccessfull": false,
@@ -25,7 +25,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "findArgValue",
-                        "line": 31
+                        "line": 34
                     },
                     {
                         "codegenSuccessfull": false,
@@ -33,7 +33,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "hasFlag",
-                        "line": 39
+                        "line": 42
                     },
                     {
                         "codegenSuccessfull": false,
@@ -41,63 +41,87 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "extractManualArgs",
-                        "line": 45
+                        "line": 48
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 431,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Functions without type annotations won't be compiled",
+                        "functionName": "selectProfile",
+                        "line": 65
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 5,
+                        "durationMicroseconds": 177,
+                        "errorMessage": "Cannot access value for name App",
+                        "functionName": "newProfile",
+                        "line": 77
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 5,
+                        "durationMicroseconds": 344,
+                        "errorMessage": "Cannot access value for name App",
+                        "functionName": "duplicateProfile",
+                        "line": 85
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 5,
+                        "durationMicroseconds": 255,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "loadLaunch",
-                        "line": 62
+                        "line": 113
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 195,
+                        "durationMicroseconds": 194,
                         "errorMessage": "Cannot retrieve a non-object type by ID: envArea",
                         "functionName": "saveAll",
-                        "line": 138
+                        "line": 191
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 162,
+                        "durationMicroseconds": 129,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "onCompleted",
-                        "line": 227
+                        "line": 285
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 166,
+                        "durationMicroseconds": 105,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 236
+                        "line": 294
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 293,
+                        "durationMicroseconds": 216,
                         "errorMessage": "",
                         "functionName": "width",
-                        "line": 251
+                        "line": 309
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 140,
+                        "durationMicroseconds": 115,
                         "errorMessage": "",
                         "functionName": "implicitHeight",
-                        "line": 260
+                        "line": 318
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 65,
+                        "durationMicroseconds": 50,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 264
+                        "line": 322
                     },
                     {
                         "codegenSuccessfull": false,
@@ -105,7 +129,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"model\".",
                         "functionName": "model",
-                        "line": 272
+                        "line": 330
                     },
                     {
                         "codegenSuccessfull": false,
@@ -113,23 +137,87 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"currentValueChanged\".",
                         "functionName": "onCurrentValueChanged",
-                        "line": 275
+                        "line": 333
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 39,
-                        "durationMicroseconds": 32,
+                        "durationMicroseconds": 24,
                         "errorMessage": "Cannot access value for name launchCombo",
                         "functionName": "text",
-                        "line": 281
+                        "line": 339
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 107,
-                        "durationMicroseconds": 278,
+                        "durationMicroseconds": 257,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
-                        "line": 282
+                        "line": 340
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 35,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"text\".",
+                        "functionName": "text",
+                        "line": 344
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 346
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 347
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 79,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 353
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 356
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 357
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 361
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 362
                     },
                     {
                         "codegenSuccessfull": false,
@@ -137,7 +225,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 285
+                        "line": 364
                     },
                     {
                         "codegenSuccessfull": false,
@@ -145,23 +233,175 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 286
+                        "line": 365
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 369
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 370
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 33,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"accepted\".",
+                        "functionName": "onAccepted",
+                        "line": 387
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 31,
+                        "durationMicroseconds": 23,
+                        "errorMessage": "Cannot access value for name launchCombo",
+                        "functionName": "text",
+                        "line": 382
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 35,
+                        "durationMicroseconds": 174,
+                        "errorMessage": "Cannot access value for name Text",
+                        "functionName": "wrapMode",
+                        "line": 385
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"title\".",
+                        "functionName": "title",
+                        "line": 404
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 43,
+                        "durationMicroseconds": 5,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "fill",
+                        "line": 411
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 43,
+                        "durationMicroseconds": 35,
+                        "errorMessage": "Cannot access value for name smokeTestResultDialog",
+                        "functionName": "color",
+                        "line": 414
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 47,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"fill\".",
+                        "functionName": "fill",
+                        "line": 417
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 62,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"policy\".",
+                        "functionName": "policy",
+                        "line": 419
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 43,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"text\".",
+                        "functionName": "text",
+                        "line": 422
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 44,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"color\".",
+                        "functionName": "color",
+                        "line": 423
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 47,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"wrapMode\".",
+                        "functionName": "wrapMode",
+                        "line": 425
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 29,
+                        "durationMicroseconds": 27,
+                        "errorMessage": "Cannot access value for name App",
+                        "functionName": "target",
+                        "line": 434
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 21,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Functions without type annotations won't be compiled",
+                        "functionName": "onSmokeTestFinished",
+                        "line": 435
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 33,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"accepted\".",
+                        "functionName": "onAccepted",
+                        "line": 458
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 43,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"fill\".",
+                        "functionName": "fill",
+                        "line": 453
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 51,
+                        "durationMicroseconds": 15,
+                        "errorMessage": "Cannot access value for name renameDialog",
+                        "functionName": "onReturnPressed",
+                        "line": 454
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 50,
+                        "durationMicroseconds": 11,
+                        "errorMessage": "Cannot access value for name renameDialog",
+                        "functionName": "onEnterPressed",
+                        "line": 455
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 142,
+                        "durationMicroseconds": 96,
                         "errorMessage": "",
                         "functionName": "implicitHeight",
-                        "line": 295
+                        "line": 479
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 65,
+                        "durationMicroseconds": 43,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 298
+                        "line": 482
                     },
                     {
                         "codegenSuccessfull": false,
@@ -169,23 +409,23 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"model\".",
                         "functionName": "model",
-                        "line": 308
+                        "line": 492
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 55,
-                        "durationMicroseconds": 25,
+                        "durationMicroseconds": 15,
                         "errorMessage": "Cannot access value for name backendBinary",
                         "functionName": "text",
-                        "line": 312
+                        "line": 496
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 156,
-                        "durationMicroseconds": 240,
+                        "durationMicroseconds": 186,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
-                        "line": 312
+                        "line": 496
                     },
                     {
                         "codegenSuccessfull": false,
@@ -193,23 +433,23 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 317
+                        "line": 501
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 147,
+                        "durationMicroseconds": 92,
                         "errorMessage": "",
                         "functionName": "implicitHeight",
-                        "line": 326
+                        "line": 510
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 105,
+                        "durationMicroseconds": 40,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 329
+                        "line": 513
                     },
                     {
                         "codegenSuccessfull": false,
@@ -217,23 +457,63 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"model\".",
                         "functionName": "model",
-                        "line": 339
+                        "line": 524
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 55,
-                        "durationMicroseconds": 29,
+                        "durationMicroseconds": 16,
                         "errorMessage": "Cannot access value for name modelMain",
                         "functionName": "text",
-                        "line": 343
+                        "line": 528
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 152,
-                        "durationMicroseconds": 367,
+                        "durationMicroseconds": 176,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
-                        "line": 343
+                        "line": 528
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"checked\".",
+                        "functionName": "checked",
+                        "line": 533
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 47,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"checkedChanged\".",
+                        "functionName": "onCheckedChanged",
+                        "line": 534
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 55,
+                        "durationMicroseconds": 26,
+                        "errorMessage": "Cannot access value for name mmprojEnabled",
+                        "functionName": "color",
+                        "line": 537
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 541
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"opacity\".",
+                        "functionName": "opacity",
+                        "line": 542
                     },
                     {
                         "codegenSuccessfull": false,
@@ -241,23 +521,63 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"model\".",
                         "functionName": "model",
-                        "line": 349
+                        "line": 543
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 55,
-                        "durationMicroseconds": 41,
+                        "durationMicroseconds": 13,
                         "errorMessage": "Cannot access value for name modelMmproj",
                         "functionName": "text",
-                        "line": 353
+                        "line": 547
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 154,
-                        "durationMicroseconds": 414,
+                        "durationMicroseconds": 163,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
-                        "line": 353
+                        "line": 547
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"checked\".",
+                        "functionName": "checked",
+                        "line": 552
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 47,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"checkedChanged\".",
+                        "functionName": "onCheckedChanged",
+                        "line": 553
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 60,
+                        "durationMicroseconds": 17,
+                        "errorMessage": "Cannot access value for name draftEnabled",
+                        "functionName": "color",
+                        "line": 556
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 560
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"opacity\".",
+                        "functionName": "opacity",
+                        "line": 561
                     },
                     {
                         "codegenSuccessfull": false,
@@ -265,39 +585,39 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"model\".",
                         "functionName": "model",
-                        "line": 359
+                        "line": 562
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 55,
-                        "durationMicroseconds": 47,
+                        "durationMicroseconds": 12,
                         "errorMessage": "Cannot access value for name modelDraft",
                         "functionName": "text",
-                        "line": 363
+                        "line": 566
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 153,
-                        "durationMicroseconds": 407,
+                        "durationMicroseconds": 165,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
-                        "line": 363
+                        "line": 566
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 283,
+                        "durationMicroseconds": 95,
                         "errorMessage": "",
                         "functionName": "implicitHeight",
-                        "line": 373
+                        "line": 576
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 114,
+                        "durationMicroseconds": 38,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 376
+                        "line": 579
                     },
                     {
                         "codegenSuccessfull": false,
@@ -305,7 +625,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 383
+                        "line": 586
                     },
                     {
                         "codegenSuccessfull": false,
@@ -313,7 +633,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 386
+                        "line": 589
                     },
                     {
                         "codegenSuccessfull": false,
@@ -321,7 +641,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 388
+                        "line": 591
                     },
                     {
                         "codegenSuccessfull": false,
@@ -329,7 +649,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 391
+                        "line": 594
                     },
                     {
                         "codegenSuccessfull": false,
@@ -337,7 +657,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 393
+                        "line": 596
                     },
                     {
                         "codegenSuccessfull": false,
@@ -345,87 +665,87 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 396
+                        "line": 599
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 98,
-                        "durationMicroseconds": 19,
+                        "durationMicroseconds": 6,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
-                        "line": 405
+                        "line": 608
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 142,
-                        "durationMicroseconds": 15,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
-                        "line": 405
+                        "line": 608
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 87,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
-                        "line": 406
+                        "line": 609
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 131,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
-                        "line": 406
+                        "line": 609
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 89,
-                        "durationMicroseconds": 15,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
-                        "line": 407
+                        "line": 610
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 133,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
-                        "line": 407
+                        "line": 610
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 101,
-                        "durationMicroseconds": 16,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
-                        "line": 408
+                        "line": 611
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 145,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
-                        "line": 408
+                        "line": 611
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 256,
+                        "durationMicroseconds": 128,
                         "errorMessage": "",
                         "functionName": "implicitHeight",
-                        "line": 416
+                        "line": 619
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 119,
+                        "durationMicroseconds": 40,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 419
+                        "line": 622
                     },
                     {
                         "codegenSuccessfull": false,
@@ -433,7 +753,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 428
+                        "line": 631
                     },
                     {
                         "codegenSuccessfull": false,
@@ -441,7 +761,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 438
+                        "line": 641
                     },
                     {
                         "codegenSuccessfull": false,
@@ -449,7 +769,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 446
+                        "line": 649
                     },
                     {
                         "codegenSuccessfull": false,
@@ -457,74 +777,74 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"inputMethodHints\".",
                         "functionName": "inputMethodHints",
-                        "line": 448
+                        "line": 651
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 109,
-                        "durationMicroseconds": 18,
+                        "durationMicroseconds": 6,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
-                        "line": 455
+                        "line": 658
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 153,
-                        "durationMicroseconds": 15,
+                        "durationMicroseconds": 6,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
-                        "line": 455
+                        "line": 658
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 93,
-                        "durationMicroseconds": 15,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
-                        "line": 456
+                        "line": 659
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 137,
-                        "durationMicroseconds": 14,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
-                        "line": 456
+                        "line": 659
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 96,
-                        "durationMicroseconds": 16,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
-                        "line": 457
+                        "line": 660
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 140,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
-                        "line": 457
+                        "line": 660
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 143,
+                        "durationMicroseconds": 39,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 467
+                        "line": 670
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 104,
+                        "durationMicroseconds": 32,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 487
+                        "line": 690
                     }
                 ],
-                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ProfilesPage.qml"
+                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/pages/ProfilesPage.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

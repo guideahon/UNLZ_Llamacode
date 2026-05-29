@@ -49,6 +49,9 @@ public:
     Q_INVOKABLE void copyToClipboard(const QString &text);
     Q_INVOKABLE void installOfficialBinary();
     Q_INVOKABLE void cancelOfficialBinaryInstall();
+    Q_INVOKABLE void smokeTestServer(const QString &launchProfileId);
+    Q_INVOKABLE bool smokeTestRunning() const { return m_smokeTestProc != nullptr; }
+    Q_INVOKABLE QString resolveFlag(const QString &binaryId, const QString &flag) const;
     Q_INVOKABLE QString version() const { return QStringLiteral("0.1.0"); }
 
 signals:
@@ -62,9 +65,11 @@ signals:
     void officialBinaryInstallLogChanged();
     void officialBinaryInstallFinished(bool success, const QString &message, const QString &binaryPath);
     void serverError(const QString &message);
+    void smokeTestFinished(bool passed, const QString &output);
 
 private:
     void appendLog(const QString &text);
+    void finishSmokeTest(bool passed, const QString &output);
     EffectiveProfileBuilder::Context buildContext(const QString &launchProfileId);
 
     BinaryRegistry    m_binaries;
@@ -74,6 +79,10 @@ private:
 
     QProcess *m_proc = nullptr;
     QProcess *m_installerProc = nullptr;
+    QProcess *m_smokeTestProc = nullptr;
+    QTimer   *m_smokeTestTimer = nullptr;
+    QString   m_smokeTestLog;
+    bool      m_smokeTestDone = false;
     QString   m_log;
     QString   m_activeLaunchId;
     QVariantMap m_effectiveProfile;

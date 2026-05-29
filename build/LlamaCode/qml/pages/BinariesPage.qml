@@ -16,8 +16,9 @@ Item {
         height: 340
 
         onAccepted: {
-            App.binaryRegistry.add(pathField.text, nameField.text,
-                                    flavorCombo.currentText, backendCombo.currentText, "")
+            const newId = App.binaryRegistry.add(pathField.text, nameField.text,
+                                                  flavorCombo.currentText, backendCombo.currentText, "")
+            if (newId.length > 0) App.binaryRegistry.detectCapabilities(newId)
             pathField.text = ""; nameField.text = ""
         }
 
@@ -175,14 +176,40 @@ Item {
         property string binId: ""
         property var binData: binId.length > 0 ? App.binaryRegistry.get(binId) : ({})
 
+        onBinIdChanged: nameEditField.text = binData.name ?? ""
+        onBinDataChanged: { if (!nameEditField.activeFocus) nameEditField.text = binData.name ?? "" }
+
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
             spacing: 16
 
-            Text {
-                text: binData.name ?? ""
-                font { pixelSize: 20; bold: true }
-                color: "#cdd6f4"
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                LcTextField {
+                    id: nameEditField
+                    Layout.fillWidth: true
+                    text: binData.name ?? ""
+                    font.pixelSize: 18
+                    font.bold: true
+                    Keys.onReturnPressed: applyRename()
+                    Keys.onEnterPressed: applyRename()
+                    function applyRename() {
+                        const t = nameEditField.text.trim()
+                        if (t.length > 0 && t !== binData.name)
+                            App.binaryRegistry.update(binId, t,
+                                binData.flavor ?? "official",
+                                binData.backend ?? "cpu",
+                                binData.versionHint ?? "",
+                                binData.workingDirectory ?? "")
+                    }
+                }
+                LcButton {
+                    text: "Renombrar"
+                    secondary: true
+                    enabled: nameEditField.text.trim().length > 0 && nameEditField.text.trim() !== (binData.name ?? "")
+                    onClicked: nameEditField.applyRename()
+                }
             }
 
             GridLayout {

@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 705,
+                        "durationMicroseconds": 536,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "pages",
                         "line": 14
@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 107,
+                        "durationMicroseconds": 68,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 22
@@ -22,7 +22,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 35,
-                        "durationMicroseconds": 76,
+                        "durationMicroseconds": 39,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 31
@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 151,
+                        "durationMicroseconds": 86,
                         "errorMessage": "",
                         "functionName": "model",
                         "line": 40
@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 32,
+                        "durationMicroseconds": 15,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "color",
                         "line": 46
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 8,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "visible",
                         "line": 48
@@ -70,7 +70,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 43,
-                        "durationMicroseconds": 5,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "height",
                         "line": 49
@@ -78,7 +78,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 39,
-                        "durationMicroseconds": 6,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "left",
                         "line": 50
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 37,
-                        "durationMicroseconds": 8,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "left",
                         "line": 56
@@ -94,7 +94,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 82,
-                        "durationMicroseconds": 5,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "verticalCenter",
                         "line": 56
@@ -102,7 +102,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 396,
+                        "durationMicroseconds": 300,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "text",
                         "line": 57
@@ -110,7 +110,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 31,
-                        "durationMicroseconds": 384,
+                        "durationMicroseconds": 259,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "text",
                         "line": 59
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 32,
-                        "durationMicroseconds": 26,
+                        "durationMicroseconds": 14,
                         "errorMessage": "Cannot access value for name root",
                         "functionName": "color",
                         "line": 61
@@ -126,7 +126,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 19,
-                        "durationMicroseconds": 259,
+                        "durationMicroseconds": 158,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "text",
                         "line": 74
@@ -134,13 +134,13 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 122,
+                        "durationMicroseconds": 74,
                         "errorMessage": "",
                         "functionName": "alignment",
                         "line": 72
                     }
                 ],
-                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/NavBar.qml"
+                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/components/NavBar.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

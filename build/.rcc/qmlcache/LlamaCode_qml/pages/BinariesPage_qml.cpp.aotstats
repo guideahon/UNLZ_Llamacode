@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 99,
+                        "durationMicroseconds": 70,
                         "errorMessage": "Cannot retrieve a non-object type by ID: addDlg",
                         "functionName": "openAddDialog",
                         "line": 9
@@ -25,7 +25,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 33
+                        "line": 34
                     },
                     {
                         "codegenSuccessfull": false,
@@ -33,23 +33,23 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"model\".",
                         "functionName": "model",
-                        "line": 50
+                        "line": 51
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 51,
-                        "durationMicroseconds": 39,
+                        "durationMicroseconds": 28,
                         "errorMessage": "Cannot access value for name flavorCombo",
                         "functionName": "text",
-                        "line": 52
+                        "line": 53
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 150,
-                        "durationMicroseconds": 286,
+                        "durationMicroseconds": 243,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
-                        "line": 52
+                        "line": 53
                     },
                     {
                         "codegenSuccessfull": false,
@@ -57,71 +57,71 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"model\".",
                         "functionName": "model",
-                        "line": 63
+                        "line": 64
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 51,
-                        "durationMicroseconds": 22,
+                        "durationMicroseconds": 15,
                         "errorMessage": "Cannot access value for name backendCombo",
                         "functionName": "text",
-                        "line": 65
+                        "line": 66
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 151,
-                        "durationMicroseconds": 236,
+                        "durationMicroseconds": 212,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
-                        "line": 65
+                        "line": 66
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 26,
-                        "durationMicroseconds": 334,
+                        "durationMicroseconds": 184,
                         "errorMessage": "",
                         "functionName": "nameFilters",
-                        "line": 74
+                        "line": 75
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 25,
-                        "durationMicroseconds": 63,
+                        "durationMicroseconds": 25,
                         "errorMessage": "Cannot access value for name pathField",
                         "functionName": "onAccepted",
-                        "line": 75
+                        "line": 76
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 109,
+                        "durationMicroseconds": 60,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 80
+                        "line": 81
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 23,
-                        "durationMicroseconds": 184,
+                        "durationMicroseconds": 126,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "subtitle",
-                        "line": 86
+                        "line": 87
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 90,
+                        "durationMicroseconds": 15,
                         "errorMessage": "Cannot retrieve a non-object type by ID: addDlg",
                         "functionName": "onActionClicked",
-                        "line": 88
+                        "line": 89
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 507,
+                        "durationMicroseconds": 310,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "model",
-                        "line": 102
+                        "line": 103
                     },
                     {
                         "codegenSuccessfull": false,
@@ -129,7 +129,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"width\".",
                         "functionName": "width",
-                        "line": 108
+                        "line": 109
                     },
                     {
                         "codegenSuccessfull": false,
@@ -137,7 +137,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"highlighted\".",
                         "functionName": "highlighted",
-                        "line": 110
+                        "line": 111
                     },
                     {
                         "codegenSuccessfull": false,
@@ -145,207 +145,183 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 136
+                        "line": 137
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 32,
-                        "durationMicroseconds": 16,
+                        "durationMicroseconds": 8,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "color",
-                        "line": 112
+                        "line": 113
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 41,
-                        "durationMicroseconds": 16,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "left",
-                        "line": 115
+                        "line": 116
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 86,
-                        "durationMicroseconds": 7,
+                        "durationMicroseconds": 3,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "verticalCenter",
-                        "line": 115
+                        "line": 116
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 39,
-                        "durationMicroseconds": 375,
+                        "durationMicroseconds": 264,
                         "errorMessage": "Cannot access value for name pathValid",
                         "functionName": "text",
-                        "line": 120
+                        "line": 121
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 40,
-                        "durationMicroseconds": 368,
+                        "durationMicroseconds": 244,
                         "errorMessage": "Cannot access value for name pathValid",
                         "functionName": "color",
-                        "line": 122
+                        "line": 123
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 39,
-                        "durationMicroseconds": 231,
+                        "durationMicroseconds": 154,
                         "errorMessage": "Cannot access value for name name",
                         "functionName": "text",
-                        "line": 125
+                        "line": 126
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 35,
-                        "durationMicroseconds": 305,
+                        "durationMicroseconds": 210,
                         "errorMessage": "Cannot access value for name backend",
                         "functionName": "text",
-                        "line": 131
+                        "line": 132
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 152,
+                        "durationMicroseconds": 90,
                         "errorMessage": "",
                         "functionName": "height",
-                        "line": 141
+                        "line": 142
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 36,
-                        "durationMicroseconds": 190,
+                        "durationMicroseconds": 108,
                         "errorMessage": "",
                         "functionName": "right",
-                        "line": 140
+                        "line": 141
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 30,
-                        "durationMicroseconds": 208,
+                        "durationMicroseconds": 123,
                         "errorMessage": "",
                         "functionName": "visible",
-                        "line": 154
+                        "line": 155
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 65,
+                        "durationMicroseconds": 40,
                         "errorMessage": "",
                         "functionName": "centerIn",
-                        "line": 153
+                        "line": 154
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 30,
-                        "durationMicroseconds": 138,
+                        "durationMicroseconds": 98,
                         "errorMessage": "",
                         "functionName": "visible",
-                        "line": 163
+                        "line": 164
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 199,
+                        "durationMicroseconds": 141,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "binId",
-                        "line": 164
+                        "line": 165
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 35,
-                        "durationMicroseconds": 65,
+                        "durationMicroseconds": 41,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 162
+                        "line": 163
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 31,
-                        "durationMicroseconds": 166,
+                        "durationMicroseconds": 121,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "binData",
-                        "line": 176
+                        "line": 177
                     },
                     {
-                        "codegenSuccessfull": true,
-                        "column": 29,
-                        "durationMicroseconds": 85,
-                        "errorMessage": "",
-                        "functionName": "fill",
+                        "codegenSuccessfull": false,
+                        "column": 25,
+                        "durationMicroseconds": 16,
+                        "errorMessage": "Cannot retrieve a non-object type by ID: nameEditField",
+                        "functionName": "onBinIdChanged",
                         "line": 179
                     },
                     {
                         "codegenSuccessfull": false,
-                        "column": 23,
-                        "durationMicroseconds": 31,
-                        "errorMessage": "Cannot access value for name binData",
-                        "functionName": "text",
+                        "column": 27,
+                        "durationMicroseconds": 13,
+                        "errorMessage": "Cannot retrieve a non-object type by ID: nameEditField",
+                        "functionName": "onBinDataChanged",
+                        "line": 180
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 29,
+                        "durationMicroseconds": 41,
+                        "errorMessage": "",
+                        "functionName": "fill",
                         "line": 183
                     },
                     {
                         "codegenSuccessfull": false,
-                        "column": 30,
-                        "durationMicroseconds": 28,
-                        "errorMessage": "Cannot access value for name binData",
+                        "column": 27,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"text\".",
                         "functionName": "text",
+                        "line": 192
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 21,
+                        "durationMicroseconds": 26,
+                        "errorMessage": "Cannot retrieve a non-object type by ID: nameEditField",
+                        "functionName": "applyRename",
+                        "line": 197
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 43,
+                        "durationMicroseconds": 58,
+                        "errorMessage": "",
+                        "functionName": "onReturnPressed",
                         "line": 195
                     },
                     {
                         "codegenSuccessfull": true,
-                        "column": 98,
-                        "durationMicroseconds": 206,
+                        "column": 42,
+                        "durationMicroseconds": 38,
                         "errorMessage": "",
-                        "functionName": "wrapMode",
-                        "line": 195
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 30,
-                        "durationMicroseconds": 70,
-                        "errorMessage": "Cannot access value for name binData",
-                        "functionName": "text",
-                        "line": 198
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 30,
-                        "durationMicroseconds": 60,
-                        "errorMessage": "Cannot access value for name binData",
-                        "functionName": "text",
-                        "line": 201
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 27,
-                        "durationMicroseconds": 58,
-                        "errorMessage": "Cannot access value for name binData",
-                        "functionName": "text",
-                        "line": 205
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 28,
-                        "durationMicroseconds": 42,
-                        "errorMessage": "Cannot access value for name binData",
-                        "functionName": "color",
-                        "line": 206
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 27,
-                        "durationMicroseconds": 60,
-                        "errorMessage": "Cannot access value for name binData",
-                        "functionName": "text",
-                        "line": 212
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 28,
-                        "durationMicroseconds": 46,
-                        "errorMessage": "Cannot access value for name binData",
-                        "functionName": "color",
-                        "line": 215
+                        "functionName": "onEnterPressed",
+                        "line": 196
                     },
                     {
                         "codegenSuccessfull": false,
@@ -353,7 +329,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"enabled\".",
                         "functionName": "enabled",
-                        "line": 224
+                        "line": 210
                     },
                     {
                         "codegenSuccessfull": false,
@@ -361,50 +337,130 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
+                        "line": 211
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 30,
+                        "durationMicroseconds": 19,
+                        "errorMessage": "Cannot access value for name binData",
+                        "functionName": "text",
+                        "line": 222
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 98,
+                        "durationMicroseconds": 61,
+                        "errorMessage": "",
+                        "functionName": "wrapMode",
+                        "line": 222
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 30,
+                        "durationMicroseconds": 20,
+                        "errorMessage": "Cannot access value for name binData",
+                        "functionName": "text",
                         "line": 225
                     },
                     {
                         "codegenSuccessfull": false,
-                        "column": 32,
-                        "durationMicroseconds": 0,
-                        "errorMessage": "Could not find signal \"clicked\".",
-                        "functionName": "onClicked",
-                        "line": 230
+                        "column": 30,
+                        "durationMicroseconds": 15,
+                        "errorMessage": "Cannot access value for name binData",
+                        "functionName": "text",
+                        "line": 228
                     },
                     {
                         "codegenSuccessfull": false,
-                        "column": 26,
-                        "durationMicroseconds": 36,
+                        "column": 27,
+                        "durationMicroseconds": 14,
                         "errorMessage": "Cannot access value for name binData",
-                        "functionName": "visible",
+                        "functionName": "text",
+                        "line": 232
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 12,
+                        "errorMessage": "Cannot access value for name binData",
+                        "functionName": "color",
+                        "line": 233
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 27,
+                        "durationMicroseconds": 17,
+                        "errorMessage": "Cannot access value for name binData",
+                        "functionName": "text",
                         "line": 239
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 28,
+                        "durationMicroseconds": 12,
+                        "errorMessage": "Cannot access value for name binData",
+                        "functionName": "color",
+                        "line": 242
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 30,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 251
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 32,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 252
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 32,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 257
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 26,
+                        "durationMicroseconds": 22,
+                        "errorMessage": "Cannot access value for name binData",
+                        "functionName": "visible",
+                        "line": 266
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 14,
                         "errorMessage": "Cannot access value for name binData",
                         "functionName": "model",
-                        "line": 249
+                        "line": 276
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 75,
+                        "durationMicroseconds": 44,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 248
+                        "line": 275
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 31,
-                        "durationMicroseconds": 438,
+                        "durationMicroseconds": 274,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "text",
-                        "line": 251
+                        "line": 278
                     }
                 ],
-                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/BinariesPage.qml"
+                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/pages/BinariesPage.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

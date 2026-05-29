@@ -5,22 +5,30 @@
                 "entries": [
                     {
                         "codegenSuccessfull": false,
-                        "column": 23,
-                        "durationMicroseconds": 95,
-                        "errorMessage": "Cannot access value for name root",
-                        "functionName": "color",
-                        "line": 16
+                        "column": 24,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"verticalAlignment\".",
+                        "functionName": "verticalAlignment",
+                        "line": 11
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 23,
-                        "durationMicroseconds": 16,
+                        "durationMicroseconds": 56,
+                        "errorMessage": "Cannot access value for name root",
+                        "functionName": "color",
+                        "line": 17
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 23,
+                        "durationMicroseconds": 9,
                         "errorMessage": "Cannot access value for name root",
                         "functionName": "width",
-                        "line": 17
+                        "line": 18
                     }
                 ],
-                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcTextField.qml"
+                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/components/LcTextField.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

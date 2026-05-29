@@ -334,6 +334,12 @@ ApplicationWindow {
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap
                 }
+                LcButton {
+                    visible: !App.installingOfficialBinary && App.officialBinaryInstallStatus.length > 0
+                    text: "Ver log"
+                    secondary: true
+                    onClicked: installLogPopup.open()
+                }
             }
 
             RowLayout {
@@ -357,6 +363,62 @@ ApplicationWindow {
                 text: "El popup se cierra automáticamente cuando exista al menos 1 binario o 1 modelo."
                 color: "#585b70"
                 font.pixelSize: 12
+            }
+        }
+    }
+
+    Popup {
+        id: installLogPopup
+        parent: Overlay.overlay
+        modal: true
+        clip: true
+        width: Math.min(window.width - 80, 900)
+        height: Math.min(window.height - 80, 520)
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        padding: 14
+
+        background: Rectangle {
+            color: "#1b1d31"
+            radius: 10
+            border.width: 1
+            border.color: "#3a3f5c"
+        }
+
+        contentItem: ColumnLayout {
+            width: installLogPopup.availableWidth
+            height: installLogPopup.availableHeight
+            spacing: 10
+
+            Text {
+                text: "Log de instalación"
+                color: "#cdd6f4"
+                font.pixelSize: 16
+                font.bold: true
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#313244" }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                TextArea {
+                    readOnly: true
+                    wrapMode: TextArea.WrapAnywhere
+                    text: App.officialBinaryInstallLog
+                    color: "#cdd6f4"
+                    font.family: "Consolas"
+                    font.pixelSize: 12
+                    background: Rectangle { color: "#111322"; radius: 6 }
+                }
+            }
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: 8
+                LcButton {
+                    text: "Copiar log"
+                    secondary: true
+                    onClicked: App.copyToClipboard(App.officialBinaryInstallLog)
+                }
+                LcButton { text: "Cerrar"; onClicked: installLogPopup.close() }
             }
         }
     }

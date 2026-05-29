@@ -1,4 +1,4 @@
-C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/UVLADIE3JM/moc_AppController.cpp: C:/Users/Cristian/Documents/GitHub/LlamaCode/src/AppController.h \
+C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/UVLADIE3JM/moc_AppController.cpp: C:/Users/cristian/Documents/LlamaCode/src/AppController.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QAbstractListModel \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QDateTime \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QJsonObject \
@@ -141,13 +141,13 @@ C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Deb
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qversiontagging.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qxptype_traits.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qyieldcpu.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/BinaryRegistry.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/CatalogModel.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/GGUFScanner.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/LlamaBinary.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/ModelCatalog.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/ModelRoot.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/ModelRootRegistry.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/profiles/EffectiveProfileBuilder.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/profiles/ProfileManager.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/profiles/ProfileTypes.h
+  C:/Users/cristian/Documents/LlamaCode/src/core/BinaryRegistry.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/CatalogModel.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/GGUFScanner.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/LlamaBinary.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/ModelCatalog.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/ModelRoot.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/ModelRootRegistry.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/profiles/EffectiveProfileBuilder.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileManager.h \
+  C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileTypes.h

@@ -9,7 +9,7 @@ endif()
 
 _qt_internal_deploy_qml_imports_for_target(
     ${__qt_opts}
-    IMPORTS_FILE "C:/Users/Cristian/Documents/GitHub/LlamaCode/build/.qt/qml_imports/LlamaCode_build.cmake"
+    IMPORTS_FILE "C:/Users/cristian/Documents/LlamaCode/build/.qt/qml_imports/LlamaCode_build.cmake"
     PLUGINS_FOUND __qt_internal_plugins_found
     QML_DIR     "${arg_QML_DIR}"
     PLUGINS_DIR "${arg_PLUGINS_DIR}"

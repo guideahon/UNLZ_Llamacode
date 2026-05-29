@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 235,
+                        "durationMicroseconds": 140,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "warnings",
                         "line": 14
@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 26,
-                        "durationMicroseconds": 78,
+                        "durationMicroseconds": 38,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "errors",
                         "line": 15
@@ -22,15 +22,15 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 55,
-                        "errorMessage": "Cannot load property length from (component in C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/CommandPreview.qml)::errors with type QVariant.",
+                        "durationMicroseconds": 36,
+                        "errorMessage": "Cannot load property length from (component in C:/Users/cristian/Documents/LlamaCode/qml/components/CommandPreview.qml)::errors with type QVariant.",
                         "functionName": "isValid",
                         "line": 16
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 117,
+                        "durationMicroseconds": 62,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 19
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 448,
+                        "durationMicroseconds": 236,
                         "errorMessage": "",
                         "functionName": "text",
                         "line": 33
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 498,
+                        "durationMicroseconds": 260,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 35
@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 125,
+                        "durationMicroseconds": 63,
                         "errorMessage": "",
                         "functionName": "wrapMode",
                         "line": 36
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 102,
+                        "durationMicroseconds": 46,
                         "errorMessage": "",
                         "functionName": "elide",
                         "line": 38
@@ -86,15 +86,15 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 37,
-                        "errorMessage": "Type (component in C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/CommandPreview.qml)::parent with type QObject does not have a property text for writing",
+                        "durationMicroseconds": 19,
+                        "errorMessage": "Type (component in C:/Users/cristian/Documents/LlamaCode/qml/components/CommandPreview.qml)::parent with type QObject does not have a property text for writing",
                         "functionName": "onTriggered",
                         "line": 51
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 131,
+                        "durationMicroseconds": 69,
                         "errorMessage": "",
                         "functionName": "model",
                         "line": 58
@@ -102,7 +102,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 615,
+                        "durationMicroseconds": 355,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "text",
                         "line": 62
@@ -110,7 +110,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 89,
-                        "durationMicroseconds": 110,
+                        "durationMicroseconds": 96,
                         "errorMessage": "",
                         "functionName": "wrapMode",
                         "line": 62
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 122,
+                        "durationMicroseconds": 63,
                         "errorMessage": "",
                         "functionName": "model",
                         "line": 68
@@ -126,7 +126,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 388,
+                        "durationMicroseconds": 262,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "text",
                         "line": 72
@@ -134,13 +134,13 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 89,
-                        "durationMicroseconds": 105,
+                        "durationMicroseconds": 53,
                         "errorMessage": "",
                         "functionName": "wrapMode",
                         "line": 72
                     }
                 ],
-                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/CommandPreview.qml"
+                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/components/CommandPreview.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

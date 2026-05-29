@@ -12,13 +12,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 9,
+                    "index": 11,
                     "name": "startServer",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 10,
+                    "index": 12,
                     "name": "stopServer",
                     "returnType": "void"
                 },
@@ -30,13 +30,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 11,
+                    "index": 13,
                     "name": "computeEffectiveProfile",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 12,
+                    "index": 14,
                     "name": "clearLog",
                     "returnType": "void"
                 },
@@ -48,25 +48,59 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 13,
+                    "index": 15,
                     "name": "copyToClipboard",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 14,
+                    "index": 16,
                     "name": "installOfficialBinary",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 15,
+                    "index": 17,
                     "name": "cancelOfficialBinaryInstall",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 16,
+                    "arguments": [
+                        {
+                            "name": "launchProfileId",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 18,
+                    "name": "smokeTestServer",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 19,
+                    "name": "smokeTestRunning",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "binaryId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "flag",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 20,
+                    "name": "resolveFlag",
+                    "returnType": "QString"
+                },
+                {
+                    "access": "public",
+                    "index": 21,
                     "name": "version",
                     "returnType": "QString"
                 }
@@ -222,6 +256,20 @@
                     "stored": true,
                     "type": "QString",
                     "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 11,
+                    "name": "officialBinaryInstallLog",
+                    "notify": "officialBinaryInstallLogChanged",
+                    "read": "officialBinaryInstallLog",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
                 }
             ],
             "qualifiedClassName": "AppController",
@@ -270,6 +318,12 @@
                 },
                 {
                     "access": "public",
+                    "index": 7,
+                    "name": "officialBinaryInstallLogChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
                     "arguments": [
                         {
                             "name": "success",
@@ -284,7 +338,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 7,
+                    "index": 8,
                     "name": "officialBinaryInstallFinished",
                     "returnType": "void"
                 },
@@ -296,8 +350,24 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 8,
+                    "index": 9,
                     "name": "serverError",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "passed",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "output",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 10,
+                    "name": "smokeTestFinished",
                     "returnType": "void"
                 }
             ],

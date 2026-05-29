@@ -13,13 +13,16 @@ Item {
     property string backendNameCurrent: ""
     property string modelNameCurrent: ""
     property string runtimeNameCurrent: ""
+    property bool mmprojEnabled: false
+    property bool draftEnabled: false
+    property bool smokeTestRunning: false
 
     function splitArgs(raw) {
-        const lines = raw.split("\n")
         const out = []
+        const lines = raw.split("\n")
         for (let i = 0; i < lines.length; ++i) {
-            const t = lines[i].trim()
-            if (t.length > 0) out.push(t)
+            const tokens = lines[i].trim().split(/\s+/).filter(s => s.length > 0)
+            for (let j = 0; j < tokens.length; ++j) out.push(tokens[j])
         }
         return out
     }
@@ -59,6 +62,54 @@ Item {
         return out
     }
 
+    function selectProfile(id) {
+        if (!id || id.length === 0) return
+        const count = App.profileManager.launchProfiles.rowCount()
+        for (let i = 0; i < count; ++i) {
+            const idx = App.profileManager.launchProfiles.index(i, 0)
+            const pid = App.profileManager.launchProfiles.data(idx, 257) ?? ""
+            if (pid === id) { launchCombo.currentIndex = i; break }
+        }
+        selectedLaunchId = id
+        loadLaunch()
+    }
+
+    function newProfile() {
+        const bId = App.profileManager.addBackend("Backend", "", "127.0.0.1", 8080)
+        const mId = App.profileManager.addModelProfile("Model", "", "", "")
+        const rId = App.profileManager.addRuntimePreset("Runtime", 4096, 512, -1, false, true)
+        const lId = App.profileManager.addLaunchProfile("Nuevo perfil", bId, mId, rId)
+        selectProfile(lId)
+    }
+
+    function duplicateProfile() {
+        if (!selectedLaunchId || selectedLaunchId.length === 0) return
+        const lp = App.profileManager.getLaunchProfile(selectedLaunchId)
+        const bp = App.profileManager.getBackend(lp.backendProfileId ?? "")
+        const mp = App.profileManager.getModelProfile(lp.modelProfileId ?? "")
+        const rt = App.profileManager.getRuntimePreset(lp.runtimePresetId ?? "")
+
+        const bId = App.profileManager.addBackend(bp.name ?? "Backend", bp.binaryId ?? "", bp.host ?? "127.0.0.1", bp.port ?? 8080)
+        const mId = App.profileManager.addModelProfile(mp.name ?? "Model", mp.modelId ?? "", mp.mmprojId ?? "", mp.draftModelId ?? "")
+        const rId = App.profileManager.addRuntimePreset(rt.name ?? "Runtime", rt.ctx ?? 4096, rt.batch ?? 512, rt.gpuLayers ?? -1, rt.flashAttention ?? false, rt.contBatching ?? true)
+        App.profileManager.updateRuntimePreset({
+            "id": rId, "name": rt.name ?? "Runtime",
+            "ctx": rt.ctx ?? 4096, "batch": rt.batch ?? 512, "ubatch": rt.ubatch ?? 512,
+            "threads": rt.threads ?? -1, "gpuLayers": rt.gpuLayers ?? -1,
+            "flashAttention": rt.flashAttention ?? false, "mmap": rt.mmap ?? true,
+            "mlock": rt.mlock ?? false, "contBatching": rt.contBatching ?? true,
+            "cacheType": rt.cacheType ?? "f16", "parallelSlots": rt.parallelSlots ?? 1
+        })
+
+        const lId = App.profileManager.addLaunchProfile((lp.name ?? "Perfil") + " (copia)", bId, mId, rId)
+        App.profileManager.updateLaunchProfile({
+            "id": lId, "name": (lp.name ?? "Perfil") + " (copia)",
+            "backendProfileId": bId, "modelProfileId": mId, "runtimePresetId": rId,
+            "extraArgs": lp.extraArgs ?? [], "envOverrides": lp.envOverrides ?? {}
+        })
+        selectProfile(lId)
+    }
+
     function loadLaunch() {
         if (!selectedLaunchId || selectedLaunchId.length === 0) return
 
@@ -86,7 +137,9 @@ Item {
         const mp = App.profileManager.getModelProfile(modelProfileId)
         modelNameCurrent = mp.name ?? ""
         modelMain.currentIndex = Math.max(0, modelMain.indexOfValue(mp.modelId ?? ""))
+        mmprojEnabled = (mp.mmprojId ?? "").length > 0
         modelMmproj.currentIndex = Math.max(0, modelMmproj.indexOfValue(mp.mmprojId ?? ""))
+        draftEnabled = (mp.draftModelId ?? "").length > 0
         modelDraft.currentIndex = Math.max(0, modelDraft.indexOfValue(mp.draftModelId ?? ""))
 
         const rt = App.profileManager.getRuntimePreset(runtimeId)
@@ -163,8 +216,8 @@ Item {
             modelProfileId,
             modelNameCurrent,
             modelMain.currentValue ?? "",
-            modelMmproj.currentValue ?? "",
-            modelDraft.currentValue ?? ""
+            mmprojEnabled ? (modelMmproj.currentValue ?? "") : "",
+            draftEnabled  ? (modelDraft.currentValue  ?? "") : ""
         )
         if (!mpOk) {
             App.serverError("No se pudo guardar Model Profile.")
@@ -191,23 +244,28 @@ Item {
             return
         }
 
+        const bp = App.profileManager.getBackend(backendId)
+        const binId = bp.binaryId ?? ""
+        function rf(flag) { return binId.length > 0 ? App.resolveFlag(binId, flag) : flag }
+
         const rebuiltArgs = []
-        if (aliasField.text.trim().length > 0) rebuiltArgs.push("--alias", aliasField.text.trim())
-        if (nPredictField.text.trim().length > 0) rebuiltArgs.push("--n-predict", nPredictField.text.trim())
-        if (cacheTypeVField.text.trim().length > 0) rebuiltArgs.push("--cache-type-v", cacheTypeVField.text.trim())
-        if (tempField.text.trim().length > 0) rebuiltArgs.push("--temp", tempField.text.trim())
-        if (topPField.text.trim().length > 0) rebuiltArgs.push("--top-p", topPField.text.trim())
-        if (topKField.text.trim().length > 0) rebuiltArgs.push("--top-k", topKField.text.trim())
-        if (repeatPenaltyField.text.trim().length > 0) rebuiltArgs.push("--repeat-penalty", repeatPenaltyField.text.trim())
-        if (presencePenaltyField.text.trim().length > 0) rebuiltArgs.push("--presence-penalty", presencePenaltyField.text.trim())
-        if (noContextShiftCheck.checked) rebuiltArgs.push("--no-context-shift")
-        if (metricsCheck.checked) rebuiltArgs.push("--metrics")
-        if (noWarmupCheck.checked) rebuiltArgs.push("--no-warmup")
-        if (cacheRamField.text.trim().length > 0) rebuiltArgs.push("--cache-ram", cacheRamField.text.trim())
-        if (cacheReuseField.text.trim().length > 0) rebuiltArgs.push("--cache-reuse", cacheReuseField.text.trim())
+        if (aliasField.text.trim().length > 0) rebuiltArgs.push(rf("--alias"), aliasField.text.trim())
+        if (nPredictField.text.trim().length > 0) rebuiltArgs.push(rf("--n-predict"), nPredictField.text.trim())
+        if (cacheTypeVField.text.trim().length > 0) rebuiltArgs.push(rf("--cache-type-v"), cacheTypeVField.text.trim())
+        if (tempField.text.trim().length > 0) rebuiltArgs.push(rf("--temp"), tempField.text.trim())
+        if (topPField.text.trim().length > 0) rebuiltArgs.push(rf("--top-p"), topPField.text.trim())
+        if (topKField.text.trim().length > 0) rebuiltArgs.push(rf("--top-k"), topKField.text.trim())
+        if (repeatPenaltyField.text.trim().length > 0) rebuiltArgs.push(rf("--repeat-penalty"), repeatPenaltyField.text.trim())
+        if (presencePenaltyField.text.trim().length > 0) rebuiltArgs.push(rf("--presence-penalty"), presencePenaltyField.text.trim())
+        if (noContextShiftCheck.checked) rebuiltArgs.push(rf("--no-context-shift"))
+        if (metricsCheck.checked) rebuiltArgs.push(rf("--metrics"))
+        if (noWarmupCheck.checked) rebuiltArgs.push(rf("--no-warmup"))
+        if (cacheRamField.text.trim().length > 0) rebuiltArgs.push(rf("--cache-ram"), cacheRamField.text.trim())
+        if (cacheReuseField.text.trim().length > 0) rebuiltArgs.push(rf("--cache-reuse"), cacheReuseField.text.trim())
 
         const manual = splitArgs(manualExtraArgsArea.text)
-        for (let i = 0; i < manual.length; ++i) rebuiltArgs.push(manual[i])
+        for (let i = 0; i < manual.length; ++i)
+            rebuiltArgs.push(manual[i].startsWith('-') ? rf(manual[i]) : manual[i])
 
         const lpOk = App.profileManager.updateLaunchProfile({
             "id": selectedLaunchId,
@@ -282,8 +340,134 @@ Item {
                                 color: "#cdd6f4"; font.pixelSize: 13; leftPadding: 10; verticalAlignment: Text.AlignVCenter
                             }
                         }
+                        LcButton {
+                            text: smokeTestRunning ? "Testeando..." : "Smoke-Test"
+                            secondary: true
+                            enabled: selectedLaunchId.length > 0 && !smokeTestRunning && !App.serverRunning
+                            onClicked: {
+                                saveAll()
+                                smokeTestRunning = true
+                                App.smokeTestServer(selectedLaunchId)
+                            }
+                        }
+                        LcButton { text: "Nuevo"; secondary: true; onClicked: newProfile() }
+                        LcButton {
+                            text: "Duplicar"; secondary: true
+                            enabled: selectedLaunchId.length > 0
+                            onClicked: duplicateProfile()
+                        }
+                        LcButton {
+                            text: "Renombrar"; secondary: true
+                            enabled: selectedLaunchId.length > 0
+                            onClicked: { renameField.text = launchCombo.displayText; renameDialog.open() }
+                        }
                         LcButton { text: "Cancelar"; secondary: true; onClicked: loadLaunch() }
                         LcButton { text: "Guardar"; onClicked: saveAll() }
+                        LcButton {
+                            text: "Eliminar"
+                            danger: true
+                            enabled: selectedLaunchId.length > 0
+                            onClicked: deleteDialog.open()
+                        }
+                    }
+                }
+
+                LcDialog {
+                    id: deleteDialog
+                    title: "Eliminar perfil"
+                    width: 440
+                    height: 190
+                    contentItem: Text {
+                        width: 404
+                        text: "¿Eliminar \"" + launchCombo.displayText + "\"? Esta acción no se puede deshacer."
+                        color: "#cdd6f4"
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                    }
+                    onAccepted: {
+                        const idToDelete = selectedLaunchId
+                        App.profileManager.removeLaunchProfile(idToDelete)
+                        selectedLaunchId = ""
+                        if (App.profileManager.launchProfiles.rowCount() > 0) {
+                            const idx = App.profileManager.launchProfiles.index(0, 0)
+                            selectedLaunchId = App.profileManager.launchProfiles.data(idx, 257) ?? ""
+                            launchCombo.currentIndex = 0
+                            loadLaunch()
+                        }
+                    }
+                }
+
+                LcDialog {
+                    id: smokeTestResultDialog
+                    property bool passed: false
+                    property string output: ""
+                    title: passed ? "✓ Smoke-Test pasó" : "✗ Smoke-Test falló"
+                    width: 520
+                    height: 320
+                    contentItem: Item {
+                        width: 484
+                        height: 220
+                        Rectangle {
+                            anchors.fill: parent
+                            color: "#11111b"
+                            radius: 6
+                            border.color: smokeTestResultDialog.passed ? "#a6e3a1" : "#f38ba8"
+                            clip: true
+                            ScrollView {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                                TextArea {
+                                    readOnly: true
+                                    text: smokeTestResultDialog.output
+                                    color: smokeTestResultDialog.passed ? "#a6e3a1" : "#f38ba8"
+                                    font { family: "Consolas,monospace"; pixelSize: 11 }
+                                    wrapMode: TextArea.WrapAnywhere
+                                    background: null
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Connections {
+                    target: App
+                    function onSmokeTestFinished(passed, output) {
+                        smokeTestRunning = false
+                        smokeTestResultDialog.passed = passed
+                        smokeTestResultDialog.output = output
+                        smokeTestResultDialog.open()
+                    }
+                }
+
+                LcDialog {
+                    id: renameDialog
+                    title: "Renombrar perfil"
+                    width: 440
+                    height: 200
+                    contentItem: Item {
+                        width: 404
+                        height: 40
+                        LcTextField {
+                            id: renameField
+                            anchors.fill: parent
+                            Keys.onReturnPressed: renameDialog.accept()
+                            Keys.onEnterPressed: renameDialog.accept()
+                        }
+                    }
+                    onAccepted: {
+                        const newName = renameField.text.trim()
+                        if (newName.length === 0) return
+                        const lp = App.profileManager.getLaunchProfile(selectedLaunchId)
+                        App.profileManager.updateLaunchProfile({
+                            "id": selectedLaunchId,
+                            "name": newName,
+                            "backendProfileId": lp.backendProfileId ?? "",
+                            "modelProfileId": lp.modelProfileId ?? "",
+                            "runtimePresetId": lp.runtimePresetId ?? "",
+                            "extraArgs": lp.extraArgs ?? [],
+                            "envOverrides": lp.envOverrides ?? {}
+                        })
                     }
                 }
 
@@ -328,10 +512,11 @@ Item {
                         id: modelGrid
                         anchors.fill: parent
                         anchors.margins: 10
-                        columns: 2
+                        columns: 3
                         rowSpacing: 8
                         columnSpacing: 10
 
+                        Item { implicitWidth: 20 }
                         Text { text: "Main model"; color: "#a6adc8"; font.pixelSize: 12 }
                         ComboBox {
                             id: modelMain
@@ -342,20 +527,38 @@ Item {
                             background: Rectangle { color: "#11111b"; radius: 6; border.color: "#313244" }
                             contentItem: Text { text: modelMain.displayText; color: "#cdd6f4"; font.pixelSize: 13; leftPadding: 10; verticalAlignment: Text.AlignVCenter }
                         }
-                        Text { text: "mmproj"; color: "#a6adc8"; font.pixelSize: 12 }
+
+                        CheckBox {
+                            id: mmprojCheck
+                            checked: mmprojEnabled
+                            onCheckedChanged: mmprojEnabled = checked
+                            padding: 0
+                        }
+                        Text { text: "mmproj"; color: mmprojEnabled ? "#a6adc8" : "#585b70"; font.pixelSize: 12 }
                         ComboBox {
                             id: modelMmproj
                             Layout.fillWidth: true
+                            enabled: mmprojEnabled
+                            opacity: mmprojEnabled ? 1.0 : 0.4
                             model: App.modelCatalog
                             textRole: "fileName"
                             valueRole: "modelId"
                             background: Rectangle { color: "#11111b"; radius: 6; border.color: "#313244" }
                             contentItem: Text { text: modelMmproj.displayText; color: "#cdd6f4"; font.pixelSize: 13; leftPadding: 10; verticalAlignment: Text.AlignVCenter }
                         }
-                        Text { text: "Draft model"; color: "#a6adc8"; font.pixelSize: 12 }
+
+                        CheckBox {
+                            id: draftCheck
+                            checked: draftEnabled
+                            onCheckedChanged: draftEnabled = checked
+                            padding: 0
+                        }
+                        Text { text: "Draft model"; color: draftEnabled ? "#a6adc8" : "#585b70"; font.pixelSize: 12 }
                         ComboBox {
                             id: modelDraft
                             Layout.fillWidth: true
+                            enabled: draftEnabled
+                            opacity: draftEnabled ? 1.0 : 0.4
                             model: App.modelCatalog
                             textRole: "fileName"
                             valueRole: "modelId"

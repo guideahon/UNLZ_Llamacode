@@ -1,16 +1,16 @@
 <RCC>
   <qresource prefix="/LlamaCode/">
-    <file alias="qml/Main.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/Main.qml</file>
-    <file alias="qml/pages/BinariesPage.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/BinariesPage.qml</file>
-    <file alias="qml/pages/ModelRootsPage.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ModelRootsPage.qml</file>
-    <file alias="qml/pages/ProfilesPage.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ProfilesPage.qml</file>
-    <file alias="qml/pages/LaunchPage.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/LaunchPage.qml</file>
-    <file alias="qml/components/NavBar.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/NavBar.qml</file>
-    <file alias="qml/components/PageHeader.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/PageHeader.qml</file>
-    <file alias="qml/components/CommandPreview.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/CommandPreview.qml</file>
-    <file alias="qml/components/LcButton.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcButton.qml</file>
-    <file alias="qml/components/LcTextField.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcTextField.qml</file>
-    <file alias="qml/components/LcDialog.qml">C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcDialog.qml</file>
+    <file alias="qml/Main.qml">C:/Users/cristian/Documents/LlamaCode/qml/Main.qml</file>
+    <file alias="qml/pages/BinariesPage.qml">C:/Users/cristian/Documents/LlamaCode/qml/pages/BinariesPage.qml</file>
+    <file alias="qml/pages/ModelRootsPage.qml">C:/Users/cristian/Documents/LlamaCode/qml/pages/ModelRootsPage.qml</file>
+    <file alias="qml/pages/ProfilesPage.qml">C:/Users/cristian/Documents/LlamaCode/qml/pages/ProfilesPage.qml</file>
+    <file alias="qml/pages/LaunchPage.qml">C:/Users/cristian/Documents/LlamaCode/qml/pages/LaunchPage.qml</file>
+    <file alias="qml/components/NavBar.qml">C:/Users/cristian/Documents/LlamaCode/qml/components/NavBar.qml</file>
+    <file alias="qml/components/PageHeader.qml">C:/Users/cristian/Documents/LlamaCode/qml/components/PageHeader.qml</file>
+    <file alias="qml/components/CommandPreview.qml">C:/Users/cristian/Documents/LlamaCode/qml/components/CommandPreview.qml</file>
+    <file alias="qml/components/LcButton.qml">C:/Users/cristian/Documents/LlamaCode/qml/components/LcButton.qml</file>
+    <file alias="qml/components/LcTextField.qml">C:/Users/cristian/Documents/LlamaCode/qml/components/LcTextField.qml</file>
+    <file alias="qml/components/LcDialog.qml">C:/Users/cristian/Documents/LlamaCode/qml/components/LcDialog.qml</file>
   </qresource>
 </RCC>
 

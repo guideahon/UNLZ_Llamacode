@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 43,
-                        "durationMicroseconds": 101,
+                        "durationMicroseconds": 73,
                         "errorMessage": "Cannot access value for name scanCombo",
                         "functionName": "text",
                         "line": 47
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 140,
-                        "durationMicroseconds": 320,
+                        "durationMicroseconds": 270,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
                         "line": 47
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 25,
-                        "durationMicroseconds": 48,
+                        "durationMicroseconds": 40,
                         "errorMessage": "Cannot access value for name pathField",
                         "functionName": "onAccepted",
                         "line": 54
@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 177,
+                        "durationMicroseconds": 153,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 59
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 23,
-                        "durationMicroseconds": 198,
+                        "durationMicroseconds": 143,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "subtitle",
                         "line": 65
@@ -78,7 +78,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 156,
+                        "durationMicroseconds": 116,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "onActionClicked",
                         "line": 67
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 550,
+                        "durationMicroseconds": 366,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "model",
                         "line": 81
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 32,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 12,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "color",
                         "line": 89
@@ -126,7 +126,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 41,
-                        "durationMicroseconds": 9,
+                        "durationMicroseconds": 5,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "left",
                         "line": 92
@@ -134,7 +134,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 86,
-                        "durationMicroseconds": 6,
+                        "durationMicroseconds": 4,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "verticalCenter",
                         "line": 92
@@ -142,7 +142,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 39,
-                        "durationMicroseconds": 433,
+                        "durationMicroseconds": 264,
                         "errorMessage": "Cannot access value for name isOnline",
                         "functionName": "text",
                         "line": 97
@@ -150,7 +150,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 40,
-                        "durationMicroseconds": 351,
+                        "durationMicroseconds": 233,
                         "errorMessage": "Cannot access value for name isOnline",
                         "functionName": "color",
                         "line": 99
@@ -158,7 +158,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 42,
-                        "durationMicroseconds": 256,
+                        "durationMicroseconds": 184,
                         "errorMessage": "Cannot access value for name label",
                         "functionName": "text",
                         "line": 101
@@ -166,7 +166,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 26,
+                        "durationMicroseconds": 15,
                         "errorMessage": "Cannot access value for name rootList",
                         "functionName": "width",
                         "line": 104
@@ -174,7 +174,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 35,
-                        "durationMicroseconds": 228,
+                        "durationMicroseconds": 160,
                         "errorMessage": "Cannot access value for name path",
                         "functionName": "text",
                         "line": 105
@@ -182,7 +182,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 235,
+                        "durationMicroseconds": 158,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "elide",
                         "line": 108
@@ -190,7 +190,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 38,
-                        "durationMicroseconds": 301,
+                        "durationMicroseconds": 229,
                         "errorMessage": "Cannot access value for name scanMode",
                         "functionName": "text",
                         "line": 110
@@ -198,7 +198,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 76,
-                        "durationMicroseconds": 152,
+                        "durationMicroseconds": 105,
                         "errorMessage": "",
                         "functionName": "height",
                         "line": 118
@@ -206,7 +206,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 44,
-                        "durationMicroseconds": 125,
+                        "durationMicroseconds": 89,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 118
@@ -214,7 +214,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 30,
-                        "durationMicroseconds": 170,
+                        "durationMicroseconds": 110,
                         "errorMessage": "",
                         "functionName": "visible",
                         "line": 132
@@ -222,7 +222,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 41,
-                        "durationMicroseconds": 120,
+                        "durationMicroseconds": 95,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 135
@@ -230,7 +230,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 86,
-                        "durationMicroseconds": 97,
+                        "durationMicroseconds": 68,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 135
@@ -262,7 +262,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 71,
-                        "durationMicroseconds": 105,
+                        "durationMicroseconds": 86,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 164
@@ -270,7 +270,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 49,
-                        "durationMicroseconds": 107,
+                        "durationMicroseconds": 82,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 164
@@ -278,7 +278,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 41,
-                        "durationMicroseconds": 106,
+                        "durationMicroseconds": 71,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 173
@@ -286,7 +286,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 86,
-                        "durationMicroseconds": 96,
+                        "durationMicroseconds": 65,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 173
@@ -310,7 +310,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 55,
-                        "durationMicroseconds": 18,
+                        "durationMicroseconds": 9,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
                         "line": 183
@@ -318,7 +318,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 119,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 6,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "leftPadding",
                         "line": 183
@@ -326,7 +326,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 71,
-                        "durationMicroseconds": 97,
+                        "durationMicroseconds": 61,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 187
@@ -334,7 +334,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 49,
-                        "durationMicroseconds": 101,
+                        "durationMicroseconds": 104,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 187
@@ -342,7 +342,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 454,
+                        "durationMicroseconds": 329,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "model",
                         "line": 196
@@ -350,7 +350,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 32,
-                        "durationMicroseconds": 30,
+                        "durationMicroseconds": 18,
                         "errorMessage": "Cannot access value for name modelList",
                         "functionName": "width",
                         "line": 200
@@ -358,7 +358,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 32,
-                        "durationMicroseconds": 26,
+                        "durationMicroseconds": 16,
                         "errorMessage": "Cannot access value for name modelList",
                         "functionName": "color",
                         "line": 202
@@ -366,15 +366,15 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 58,
-                        "durationMicroseconds": 34,
-                        "errorMessage": "Type (component in C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ModelRootsPage.qml)::parent with type QQuickItem does not have a property hovered for writing",
+                        "durationMicroseconds": 24,
+                        "errorMessage": "Type (component in C:/Users/cristian/Documents/LlamaCode/qml/pages/ModelRootsPage.qml)::parent with type QQuickItem does not have a property hovered for writing",
                         "functionName": "onHoveredChanged",
                         "line": 204
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 70,
-                        "durationMicroseconds": 29,
+                        "durationMicroseconds": 17,
                         "errorMessage": "Cannot access value for name modelList",
                         "functionName": "onClicked",
                         "line": 206
@@ -382,7 +382,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 51,
-                        "durationMicroseconds": 66,
+                        "durationMicroseconds": 44,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 206
@@ -390,7 +390,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 45,
-                        "durationMicroseconds": 107,
+                        "durationMicroseconds": 76,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 209
@@ -398,7 +398,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 90,
-                        "durationMicroseconds": 99,
+                        "durationMicroseconds": 67,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 209
@@ -406,7 +406,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 47,
-                        "durationMicroseconds": 369,
+                        "durationMicroseconds": 357,
                         "errorMessage": "Cannot access value for name isVision",
                         "functionName": "text",
                         "line": 217
@@ -414,7 +414,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 47,
-                        "durationMicroseconds": 361,
+                        "durationMicroseconds": 381,
                         "errorMessage": "Cannot access value for name fileName",
                         "functionName": "text",
                         "line": 221
@@ -422,7 +422,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 48,
-                        "durationMicroseconds": 409,
+                        "durationMicroseconds": 296,
                         "errorMessage": "Cannot access value for name isAvailable",
                         "functionName": "color",
                         "line": 223
@@ -430,7 +430,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 50,
-                        "durationMicroseconds": 281,
+                        "durationMicroseconds": 201,
                         "errorMessage": "Cannot access value for name family",
                         "functionName": "text",
                         "line": 228
@@ -438,7 +438,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 50,
-                        "durationMicroseconds": 239,
+                        "durationMicroseconds": 176,
                         "errorMessage": "Cannot access value for name quant",
                         "functionName": "text",
                         "line": 229
@@ -446,7 +446,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 50,
-                        "durationMicroseconds": 347,
+                        "durationMicroseconds": 262,
                         "errorMessage": "Cannot access value for name sizeLabel",
                         "functionName": "text",
                         "line": 230
@@ -454,7 +454,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 75,
-                        "durationMicroseconds": 106,
+                        "durationMicroseconds": 72,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 235
@@ -462,7 +462,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 53,
-                        "durationMicroseconds": 106,
+                        "durationMicroseconds": 77,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 235
@@ -470,15 +470,15 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 80,
-                        "errorMessage": "Cannot load property count from (component in C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ModelRootsPage.qml)::parent with type QQuickItem.",
+                        "durationMicroseconds": 57,
+                        "errorMessage": "Cannot load property count from (component in C:/Users/cristian/Documents/LlamaCode/qml/pages/ModelRootsPage.qml)::parent with type QQuickItem.",
                         "functionName": "visible",
                         "line": 240
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 273,
+                        "durationMicroseconds": 197,
                         "errorMessage": "",
                         "functionName": "text",
                         "line": 241
@@ -486,13 +486,13 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 43,
-                        "durationMicroseconds": 65,
+                        "durationMicroseconds": 44,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 239
                     }
                 ],
-                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ModelRootsPage.qml"
+                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/pages/ModelRootsPage.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

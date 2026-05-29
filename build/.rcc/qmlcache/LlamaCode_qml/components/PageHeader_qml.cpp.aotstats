@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 55,
-                        "durationMicroseconds": 264,
+                        "durationMicroseconds": 244,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 16
@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 33,
-                        "durationMicroseconds": 120,
+                        "durationMicroseconds": 94,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 16
@@ -22,7 +22,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 64,
+                        "durationMicroseconds": 44,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 19
@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 89,
+                        "durationMicroseconds": 56,
                         "errorMessage": "",
                         "functionName": "text",
                         "line": 25
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 26,
-                        "durationMicroseconds": 190,
+                        "durationMicroseconds": 141,
                         "errorMessage": "",
                         "functionName": "visible",
                         "line": 30
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 121,
+                        "durationMicroseconds": 53,
                         "errorMessage": "",
                         "functionName": "text",
                         "line": 31
@@ -68,7 +68,7 @@
                         "line": 40
                     }
                 ],
-                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/PageHeader.qml"
+                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/components/PageHeader.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

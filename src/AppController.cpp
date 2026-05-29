@@ -291,6 +291,72 @@ void AppController::cancelOfficialBinaryInstall()
     emit officialBinaryInstallStatusChanged();
 }
 
+QString AppController::resolveFlag(const QString &binaryId, const QString &flag) const
+{
+    const LlamaBinary bin = m_binaries.findById(binaryId);
+    return bin.resolveFlag(flag);
+}
+
+void AppController::smokeTestServer(const QString &launchProfileId)
+{
+    if (m_smokeTestProc) return;
+
+    computeEffectiveProfile(launchProfileId);
+    if (!m_effectiveProfile.value("isValid", false).toBool()) {
+        const QStringList errors = m_effectiveProfile.value("blockingErrors").toStringList();
+        emit smokeTestFinished(false, "Perfil inválido: " + errors.join("; "));
+        return;
+    }
+
+    const QString binaryPath = m_effectiveProfile["binaryPath"].toString();
+    const QStringList args   = m_effectiveProfile["effectiveArgs"].toStringList();
+
+    m_smokeTestProc = new QProcess(this);
+    m_smokeTestLog.clear();
+    m_smokeTestDone = false;
+
+    connect(m_smokeTestProc, &QProcess::readyReadStandardOutput, this, [this]() {
+        m_smokeTestLog += QString::fromUtf8(m_smokeTestProc->readAllStandardOutput());
+    });
+    connect(m_smokeTestProc, &QProcess::readyReadStandardError, this, [this]() {
+        m_smokeTestLog += QString::fromUtf8(m_smokeTestProc->readAllStandardError());
+    });
+    connect(m_smokeTestProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this](int code, QProcess::ExitStatus) {
+        m_smokeTestProc->deleteLater();
+        m_smokeTestProc = nullptr;
+        if (m_smokeTestTimer) m_smokeTestTimer->stop();
+        finishSmokeTest(false,
+            m_smokeTestLog.trimmed().isEmpty()
+                ? QStringLiteral("Proceso terminó con código %1").arg(code)
+                : m_smokeTestLog.trimmed());
+    });
+
+    m_smokeTestProc->start(binaryPath, args);
+
+    if (!m_smokeTestTimer) {
+        m_smokeTestTimer = new QTimer(this);
+        m_smokeTestTimer->setSingleShot(true);
+        connect(m_smokeTestTimer, &QTimer::timeout, this, [this]() {
+            if (!m_smokeTestProc) return;
+            QProcess *proc = m_smokeTestProc;
+            m_smokeTestProc = nullptr;
+            proc->disconnect(this);
+            proc->terminate();
+            proc->deleteLater();
+            finishSmokeTest(true, "Servidor arrancó correctamente.");
+        });
+    }
+    m_smokeTestTimer->start(5000);
+}
+
+void AppController::finishSmokeTest(bool passed, const QString &output)
+{
+    if (m_smokeTestDone) return;
+    m_smokeTestDone = true;
+    emit smokeTestFinished(passed, output);
+}
+
 void AppController::appendLog(const QString &text)
 {
     m_log.append(text);

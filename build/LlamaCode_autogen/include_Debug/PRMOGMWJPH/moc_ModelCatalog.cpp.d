@@ -1,4 +1,4 @@
-C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_ModelCatalog.cpp: C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/ModelCatalog.h \
+C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_ModelCatalog.cpp: C:/Users/cristian/Documents/LlamaCode/src/core/ModelCatalog.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QAbstractListModel \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QDateTime \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QList \
@@ -120,4 +120,4 @@ C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Deb
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qversiontagging.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qxptype_traits.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qyieldcpu.h \
-  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/CatalogModel.h
+  C:/Users/cristian/Documents/LlamaCode/src/core/CatalogModel.h
