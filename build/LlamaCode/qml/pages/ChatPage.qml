@@ -6,234 +6,301 @@ import LlamaCode 1.0
 Item {
     id: root
 
-    property bool generating: false
-    property var currentXhr: null
-
-    ListModel { id: messagesModel }
-
     function scrollToBottom() { Qt.callLater(() => { msgList.positionViewAtEnd() }) }
 
-    function clearChat() {
-        if (currentXhr) { currentXhr.abort(); currentXhr = null }
-        generating = false
-        messagesModel.clear()
-    }
-
-    function sendMessage() {
-        const text = inputField.text.trim()
-        if (!text.length || generating) return
-        inputField.text = ""
-
-        messagesModel.append({ role: "user", content: text })
-        messagesModel.append({ role: "assistant", content: "" })
-        const assistantIdx = messagesModel.count - 1
-
-        generating = true
-        scrollToBottom()
-
-        const msgs = []
-        for (let i = 0; i < messagesModel.count - 1; ++i)
-            msgs.push({ role: messagesModel.get(i).role, content: messagesModel.get(i).content })
-
-        const url = App.serverBaseUrl + "/v1/chat/completions"
-        messagesModel.setProperty(assistantIdx, "content", "[connecting to " + url + "]")
-
-        const xhr = new XMLHttpRequest()
-        currentXhr = xhr
-        xhr.open("POST", url, true)
-        xhr.setRequestHeader("Content-Type", "application/json")
-
-        const payload = JSON.stringify({ model: "default", messages: msgs, stream: true })
-
-        let processedLength = 0
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState >= 3 && xhr.status === 200) {
-                if (processedLength === 0) messagesModel.setProperty(assistantIdx, "content", "")
-                const chunk = xhr.responseText.substring(processedLength)
-                processedLength = xhr.responseText.length
-                const lines = chunk.split("\n")
-                for (let i = 0; i < lines.length; ++i) {
-                    const trimmed = lines[i].trim()
-                    if (!trimmed.startsWith("data: ")) continue
-                    const data = trimmed.substring(6).trim()
-                    if (data === "[DONE]") continue
-                    try {
-                        const obj = JSON.parse(data)
-                        const delta = (obj.choices?.[0]?.delta?.content) ?? ""
-                        if (delta) {
-                            messagesModel.setProperty(assistantIdx, "content",
-                                messagesModel.get(assistantIdx).content + delta)
-                            scrollToBottom()
-                        }
-                    } catch(e) {}
-                }
-            }
-            if (xhr.readyState === 4) {
-                if (xhr.status !== 200 && messagesModel.count > assistantIdx) {
-                    const cur = messagesModel.get(assistantIdx).content
-                    if (!cur.length) {
-                        let errMsg = "Error " + xhr.status
-                        try {
-                            const e = JSON.parse(xhr.responseText)
-                            if (e.error?.message) errMsg = e.error.message
-                        } catch(_) {}
-                        messagesModel.setProperty(assistantIdx, "content", "[" + errMsg + "]")
-                    }
-                }
-                generating = false
-                currentXhr = null
-                scrollToBottom()
-            }
-        }
-        xhr.send(payload)
-    }
-
-    function stopGeneration() {
-        if (currentXhr) { currentXhr.abort(); currentXhr = null }
-        generating = false
-    }
-
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
         spacing: 0
 
+        // ── Sessions panel ───────────────────────────────────────────────────
         Rectangle {
-            Layout.fillWidth: true
-            height: 48
-            color: Theme.baseBg
-            RowLayout {
-                anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                spacing: 10
-                Text { text: "Chat"; color: Theme.textPrimary; font.pixelSize: 15; font.bold: true }
-                Rectangle { width: 8; height: 8; radius: 4; color: App.serverRunning ? Theme.successText : Theme.errorText }
-                Text {
-                    text: {
-                        const _lang = App.langV
-                        return App.serverRunning ? App.activeLaunchId : App.l("chat.serverStopped")
-                    }
-                    color: App.serverRunning ? Theme.textSecondary : Theme.errorText
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
-                LcButton {
-                    text: (App.langV, App.l("chat.clear"))
-                    secondary: true
-                    visible: messagesModel.count > 0
-                    onClicked: clearChat()
-                }
-            }
-        }
-
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
-
-        ListView {
-            id: msgList
-            Layout.fillWidth: true
+            Layout.preferredWidth: 220
             Layout.fillHeight: true
-            clip: true
-            spacing: 4
-            topMargin: 12
-            bottomMargin: 12
-            model: messagesModel
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            visible: App.serverRunning
+            color: Theme.surfaceBg
 
-            Text {
-                anchors.centerIn: parent
-                visible: messagesModel.count === 0
-                text: {
-                    const _lang = App.langV
-                    return App.serverRunning ? App.l("chat.startMessage") : App.l("chat.startServer")
-                }
-                color: Theme.textMuted
-                font.pixelSize: 14
-            }
-
-            delegate: Item {
-                id: delegateRoot
-                width: msgList.width
-                height: bubbleRect.height + 8
-
-                readonly property bool isUser: model.role === "user"
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
 
                 Rectangle {
-                    id: bubbleRect
-                    anchors {
-                        top: parent.top
-                        right: delegateRoot.isUser ? parent.right : undefined
-                        rightMargin: delegateRoot.isUser ? 16 : undefined
-                        left: delegateRoot.isUser ? undefined : parent.left
-                        leftMargin: delegateRoot.isUser ? undefined : 16
-                    }
-                    width: Math.min(delegateRoot.width - 80, delegateRoot.width * 0.78)
-                    height: msgText.implicitHeight + 22
-                    radius: 10
-                    color: delegateRoot.isUser ? Theme.chatUserBubble : Theme.chatAsstBubble
-                    border.width: delegateRoot.isUser ? 0 : 1
-                    border.color: Theme.borderColor
+                    Layout.fillWidth: true
+                    height: 40
+                    color: Theme.baseBg
 
-                    TextEdit {
-                        id: msgText
-                        anchors { top: parent.top; left: parent.left; right: parent.right; margins: 11 }
-                        text: {
-                            const c = model.content
-                            if (c.length === 0 && model.role === "assistant" && root.generating) return "▌"
-                            return c
+                    RowLayout {
+                        anchors { fill: parent; leftMargin: 10; rightMargin: 8 }
+                        spacing: 6
+                        Text {
+                            text: "Chats"
+                            color: Theme.textPrimary
+                            font { pixelSize: 12; bold: true }
+                            Layout.fillWidth: true
                         }
-                        color: delegateRoot.isUser ? Theme.chatUserText : Theme.chatAsstText
-                        font.family: "Segoe UI"
-                        font.pixelSize: 13
-                        wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
-                        readOnly: true
-                        selectByMouse: true
+                        LcButton {
+                            text: "+"
+                            secondary: true
+                            implicitWidth: 28; implicitHeight: 24
+                            onClicked: App.newChatSession()
+                        }
+                    }
+                }
+
+                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
+
+                ListView {
+                    id: sessionsList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    model: App.chatSessions
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                    section.property: "projectName"
+                    section.criteria: ViewSection.FullString
+
+                    section.delegate: Rectangle {
+                        width: sessionsList.width
+                        height: 28
+                        color: Theme.baseBg
+
+                        RowLayout {
+                            anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                            spacing: 4
+                            Text { text: "📁"; font.pixelSize: 10 }
+                            Text {
+                                Layout.fillWidth: true
+                                text: section
+                                color: Theme.textMuted
+                                font { pixelSize: 10; bold: true }
+                                elide: Text.ElideLeft
+                            }
+                        }
+                    }
+
+                    delegate: Rectangle {
+                        width: sessionsList.width
+                        height: 52
+                        color: modelData.id === (App.chatSessionId ?? "")
+                               ? Theme.highlight : "transparent"
+
+                        Rectangle {
+                            width: 3; height: parent.height
+                            color: modelData.id === (App.chatSessionId ?? "")
+                                   ? Theme.accent : "transparent"
+                        }
+
+                        ColumnLayout {
+                            anchors {
+                                verticalCenter: parent.verticalCenter
+                                left: parent.left; leftMargin: 14
+                                right: parent.right; rightMargin: 8
+                            }
+                            spacing: 2
+                            Text {
+                                Layout.fillWidth: true
+                                text: {
+                                    const t = modelData.title ?? ""
+                                    return t.length > 0 ? t : "Nuevo chat"
+                                }
+                                color: modelData.id === (App.chatSessionId ?? "")
+                                       ? Theme.accent : Theme.textPrimary
+                                font { pixelSize: 12; bold: modelData.id === (App.chatSessionId ?? "") }
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: {
+                                    const ms = modelData.updated ?? modelData.created ?? 0
+                                    return ms > 0 ? new Date(ms).toLocaleDateString(Qt.locale(), "d MMM yyyy") : ""
+                                }
+                                color: Theme.textMuted
+                                font.pixelSize: 10
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: App.switchChatSession(modelData.id)
+                        }
                     }
                 }
             }
         }
 
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
+        Rectangle { width: 1; Layout.fillHeight: true; color: Theme.divider; visible: App.serverRunning }
 
-        Rectangle {
+        // ── Main chat area ───────────────────────────────────────────────────
+        ColumnLayout {
             Layout.fillWidth: true
-            color: Theme.baseBg
-            height: 60
+            Layout.fillHeight: true
+            spacing: 0
 
-            RowLayout {
-                anchors { fill: parent; leftMargin: 12; rightMargin: 12; topMargin: 10; bottomMargin: 10 }
-                spacing: 8
+            // Header
+            Rectangle {
+                Layout.fillWidth: true
+                height: 48
+                color: Theme.baseBg
 
-                TextField {
-                    id: inputField
-                    Layout.fillWidth: true
-                    placeholderText: {
-                        const _lang = App.langV
-                        return generating ? App.l("chat.generating") : App.l("chat.placeholder")
+                RowLayout {
+                    anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
+                    spacing: 10
+                    Text { text: "Chat"; color: Theme.textPrimary; font.pixelSize: 15; font.bold: true }
+                    Rectangle { width: 8; height: 8; radius: 4; color: App.serverRunning ? Theme.successText : Theme.errorText }
+                    Text {
+                        text: {
+                            const _lang = App.langV
+                            if (!App.serverRunning) return App.l("chat.serverStopped")
+                            const title = App.chatSessionTitle ?? ""
+                            return title.length > 0 ? title : App.activeLaunchId
+                        }
+                        color: App.serverRunning ? Theme.textSecondary : Theme.errorText
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
                     }
-                    enabled: App.serverRunning
-                    color: Theme.textPrimary
-                    placeholderTextColor: Theme.textMuted
-                    font.pixelSize: 13
-                    leftPadding: 12
-                    rightPadding: 12
-                    verticalAlignment: TextInput.AlignVCenter
-                    background: Rectangle {
-                        color: Theme.inputBg
-                        radius: 8
-                        border.width: inputField.activeFocus ? 1 : 0
-                        border.color: Theme.inputBorderFocus
-                    }
-                    Keys.onReturnPressed: (event) => {
-                        if (!(event.modifiers & Qt.ShiftModifier)) sendMessage()
+                    LcButton {
+                        text: (App.langV, App.l("chat.clear"))
+                        secondary: true
+                        visible: App.chatMessages.length > 0 && !App.chatGenerating
+                        onClicked: App.newChatSession()
                     }
                 }
+            }
 
-                LcButton {
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
+
+            // Messages
+            ListView {
+                id: msgList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 4
+                topMargin: 12
+                bottomMargin: 12
+                model: App.chatMessages
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: App.chatMessages.length === 0
                     text: {
                         const _lang = App.langV
-                        return generating ? App.l("chat.stop") : App.l("chat.send")
+                        return App.serverRunning ? App.l("chat.startMessage") : App.l("chat.startServer")
                     }
-                    enabled: App.serverRunning && (generating || inputField.text.trim().length > 0)
-                    onClicked: generating ? stopGeneration() : sendMessage()
+                    color: Theme.textMuted
+                    font.pixelSize: 14
+                }
+
+                delegate: Item {
+                    id: delegateRoot
+                    width: msgList.width
+                    height: bubbleRect.height + 8
+
+                    readonly property bool isUser: modelData.role === "user"
+                    readonly property string content: modelData.content ?? ""
+                    readonly property bool isTyping: modelData.typing ?? false
+
+                    Rectangle {
+                        id: bubbleRect
+                        anchors {
+                            top: parent.top
+                            right: delegateRoot.isUser ? parent.right : undefined
+                            rightMargin: delegateRoot.isUser ? 16 : undefined
+                            left: delegateRoot.isUser ? undefined : parent.left
+                            leftMargin: delegateRoot.isUser ? undefined : 16
+                        }
+                        width: Math.min(delegateRoot.width - 80, delegateRoot.width * 0.78)
+                        height: Math.max(msgText.implicitHeight + 22, 44)
+                        radius: 10
+                        color: delegateRoot.isUser ? Theme.chatUserBubble : Theme.chatAsstBubble
+                        border.width: delegateRoot.isUser ? 0 : 1
+                        border.color: Theme.borderColor
+
+                        TextEdit {
+                            id: msgText
+                            anchors { top: parent.top; left: parent.left; right: parent.right; margins: 11 }
+                            text: {
+                                if (delegateRoot.isTyping && delegateRoot.content.length === 0)
+                                    return "⏳ Procesando..."
+                                if (delegateRoot.isTyping)
+                                    return delegateRoot.content + "▌"
+                                return delegateRoot.content
+                            }
+                            color: {
+                                if (delegateRoot.isTyping && delegateRoot.content.length === 0)
+                                    return Theme.textMuted
+                                return delegateRoot.isUser ? Theme.chatUserText : Theme.chatAsstText
+                            }
+                            font.family: "Segoe UI"
+                            font.pixelSize: 13
+                            font.italic: delegateRoot.isTyping && delegateRoot.content.length === 0
+                            wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
+                            readOnly: true
+                            selectByMouse: true
+                        }
+                    }
+
+                    Component.onCompleted: Qt.callLater(() => { msgList.positionViewAtEnd() })
+                }
+
+                onCountChanged: Qt.callLater(() => { msgList.positionViewAtEnd() })
+                onModelChanged: Qt.callLater(() => { msgList.positionViewAtEnd() })
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
+
+            // Input bar
+            Rectangle {
+                Layout.fillWidth: true
+                color: Theme.baseBg
+                height: 60
+
+                RowLayout {
+                    anchors { fill: parent; leftMargin: 12; rightMargin: 12; topMargin: 10; bottomMargin: 10 }
+                    spacing: 8
+
+                    TextField {
+                        id: inputField
+                        Layout.fillWidth: true
+                        placeholderText: {
+                            const _lang = App.langV
+                            return App.chatGenerating ? App.l("chat.generating") : App.l("chat.placeholder")
+                        }
+                        enabled: App.serverRunning && !App.chatGenerating
+                        color: Theme.textPrimary
+                        placeholderTextColor: Theme.textMuted
+                        font.pixelSize: 13
+                        leftPadding: 12; rightPadding: 12
+                        verticalAlignment: TextInput.AlignVCenter
+                        background: Rectangle {
+                            color: Theme.inputBg; radius: 8
+                            border.width: inputField.activeFocus ? 1 : 0
+                            border.color: Theme.inputBorderFocus
+                        }
+                        Keys.onReturnPressed: (event) => {
+                            if (!(event.modifiers & Qt.ShiftModifier)) {
+                                const t = inputField.text.trim()
+                                if (t.length > 0) { App.sendChatMessage(t); inputField.text = "" }
+                            }
+                        }
+                    }
+
+                    LcButton {
+                        text: {
+                            const _lang = App.langV
+                            return App.chatGenerating ? App.l("chat.stop") : App.l("chat.send")
+                        }
+                        danger: App.chatGenerating
+                        enabled: App.serverRunning && (App.chatGenerating || inputField.text.trim().length > 0)
+                        onClicked: {
+                            if (App.chatGenerating) { App.stopChatGeneration(); return }
+                            const t = inputField.text.trim()
+                            if (t.length > 0) { App.sendChatMessage(t); inputField.text = "" }
+                        }
+                    }
                 }
             }
         }

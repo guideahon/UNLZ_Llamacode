@@ -82,6 +82,80 @@ Item {
         selectProfile(lId)
     }
 
+    function tokenizeArgs(raw) {
+        // Join continuation lines (\<newline>), then tokenize respecting quotes
+        const cleaned = raw.replace(/\\\s*\n/g, ' ').replace(/\n/g, ' ')
+        const tokens = []; let cur = ''; let inQ = false; let qch = ''
+        for (let i = 0; i < cleaned.length; i++) {
+            const ch = cleaned[i]
+            if ((ch === '"' || ch === "'") && !inQ) { inQ = true; qch = ch }
+            else if (ch === qch && inQ)             { inQ = false }
+            else if (ch === ' ' && !inQ)            { if (cur.length) { tokens.push(cur); cur = '' } }
+            else                                    { cur += ch }
+        }
+        if (cur.length) tokens.push(cur)
+        return tokens
+    }
+
+    function importFromArgs(profileName, rawArgs) {
+        const tokens = tokenizeArgs(rawArgs)
+        // Skip binary / script name (first token not starting with -)
+        let i = (tokens.length > 0 && !tokens[0].startsWith('-')) ? 1 : 0
+
+        let host = '127.0.0.1', port = 8080, modelPath = ''
+        let ctx = 4096, batch = 512, ubatch = 512, threads = -1, gpuLayers = -1
+        let flashAttn = false, useMmap = true, useMlock = false, contBatch = true
+        let parallel = 1, cacheType = 'f16'
+        const extra = []
+
+        while (i < tokens.length) {
+            const t = tokens[i]
+            const next = tokens[i + 1] ?? ''
+            // Pair flags
+            if ((t === '--host') && next)                         { host = next;               i += 2 }
+            else if ((t === '--port') && next)                    { port = parseInt(next)||8080; i += 2 }
+            else if ((t === '--model' || t === '-m') && next)     { modelPath = next;           i += 2 }
+            else if ((t === '--ctx-size' || t === '-c' || t === '--ctx') && next)
+                                                                  { ctx = parseInt(next)||4096; i += 2 }
+            else if (t === '--batch-size' && next)                { batch = parseInt(next)||512; i += 2 }
+            else if (t === '--ubatch-size' && next)               { ubatch = parseInt(next)||512; i += 2 }
+            else if ((t === '--threads' || t === '-t') && next)   { threads = parseInt(next)||-1; i += 2 }
+            else if ((t === '--n-gpu-layers' || t === '-ngl' || t === '--n_gpu_layers') && next)
+                                                                  { gpuLayers = parseInt(next); i += 2 }
+            else if ((t === '--parallel' || t === '-np') && next) { parallel = parseInt(next)||1; i += 2 }
+            else if (t === '--cache-type-k' && next)              { cacheType = next;            i += 2 }
+            // Bool flags
+            else if (t === '--flash-attn' || t === '-fa')         { flashAttn = true;  i++ }
+            else if (t === '--no-mmap')                           { useMmap   = false; i++ }
+            else if (t === '--mlock')                             { useMlock  = true;  i++ }
+            else if (t === '--cont-batching' || t === '-cb')      { contBatch = true;  i++ }
+            // Unknown → extra
+            else                                                  { extra.push(t); i++ }
+        }
+
+        const bId = App.profileManager.addBackend(profileName + " · Backend", "", host, port)
+        const mId = App.profileManager.addModelProfile(profileName + " · Model", "", "", "")
+        const rId = App.profileManager.addRuntimePreset(profileName + " · Runtime", ctx, batch, gpuLayers, flashAttn, contBatch)
+        App.profileManager.updateRuntimePreset({
+            "id": rId, "name": profileName + " · Runtime",
+            "ctx": ctx, "batch": batch, "ubatch": ubatch,
+            "threads": threads, "gpuLayers": gpuLayers,
+            "flashAttention": flashAttn, "mmap": useMmap, "mlock": useMlock,
+            "contBatching": contBatch, "cacheType": cacheType, "parallelSlots": parallel
+        })
+        const lId = App.profileManager.addLaunchProfile(profileName, bId, mId, rId)
+        // Put unparsed args + model path as extraArgs if needed
+        const extras = extra.slice()
+        if (modelPath.length > 0) extras.unshift(modelPath, '--model')
+        if (extras.length > 0)
+            App.profileManager.updateLaunchProfile({
+                "id": lId, "name": profileName,
+                "backendProfileId": bId, "modelProfileId": mId, "runtimePresetId": rId,
+                "extraArgs": extras, "envOverrides": {}
+            })
+        selectProfile(lId)
+    }
+
     function duplicateProfile() {
         if (!selectedLaunchId || selectedLaunchId.length === 0) return
         const lp = App.profileManager.getLaunchProfile(selectedLaunchId)
@@ -321,6 +395,7 @@ Item {
                             onClicked: { saveAll(); smokeTestRunning = true; App.smokeTestServer(selectedLaunchId) }
                         }
                         LcButton { text: (App.langV, App.l("profiles.new")); secondary: true; onClicked: newProfile() }
+                        LcButton { text: "Importar"; secondary: true; onClicked: importDialog.open() }
                         LcButton {
                             text: (App.langV, App.l("profiles.duplicate")); secondary: true
                             enabled: selectedLaunchId.length > 0
@@ -441,6 +516,112 @@ Item {
                             "envOverrides": lp.envOverrides ?? {}
                         })
                     }
+                }
+
+                // ── Import dialog ─────────────────────────────────────────────
+                Dialog {
+                    id: importDialog
+                    title: "Importar perfil desde argumentos"
+                    modal: true
+                    parent: Overlay.overlay
+                    x: Math.round((parent.width - width) / 2)
+                    y: Math.round((parent.height - height) / 2)
+                    width: 560
+                    height: 420
+                    closePolicy: Popup.CloseOnEscape
+
+                    background: Rectangle {
+                        color: Theme.popupBg; radius: 12
+                        border.color: Theme.popupBorderColor; border.width: 1
+                    }
+                    Overlay.modal: Rectangle { color: Theme.overlayColor }
+
+                    header: Rectangle {
+                        color: Theme.popupHeaderBg; height: 56; radius: 12
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1;  color: Theme.popupHeaderBorder }
+                        Text {
+                            anchors { left: parent.left; leftMargin: 22; verticalCenter: parent.verticalCenter }
+                            text: "Importar perfil desde argumentos"
+                            font { pixelSize: 14; bold: true }
+                            color: Theme.textPrimary
+                        }
+                    }
+
+                    footer: Rectangle {
+                        color: Theme.popupHeaderBg; height: 56; radius: 12
+                        Rectangle { anchors.top: parent.top; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+                        Rectangle { anchors.top: parent.top; width: parent.width; height: 1;  color: Theme.popupHeaderBorder }
+                        Row {
+                            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                            spacing: 10
+                            LcButton {
+                                text: "Cancelar"; secondary: true
+                                onClicked: { importDialog.close(); importNameField.text = ""; importArgsArea.text = "" }
+                            }
+                            LcButton {
+                                text: "Importar"
+                                enabled: importNameField.text.trim().length > 0 && importArgsArea.text.trim().length > 0
+                                onClicked: {
+                                    importFromArgs(importNameField.text.trim(), importArgsArea.text)
+                                    importDialog.close()
+                                    importNameField.text = ""
+                                    importArgsArea.text = ""
+                                }
+                            }
+                        }
+                    }
+
+                    contentItem: ColumnLayout {
+                        spacing: 12
+                        width: 520
+
+                        Text { text: "Nombre del perfil:"; color: Theme.textSecondary; font.pixelSize: 12 }
+                        LcTextField {
+                            id: importNameField
+                            Layout.fillWidth: true
+                            placeholderText: "Mi servidor local"
+                            Keys.onTabPressed: importArgsArea.forceActiveFocus()
+                        }
+
+                        Text {
+                            text: "Pegar argumentos (desde terminal, script, o README):"
+                            color: Theme.textSecondary; font.pixelSize: 12
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            color: Theme.inputBg; radius: 8
+                            border.color: importArgsArea.activeFocus ? Theme.inputBorderFocus : Theme.borderColor
+                            border.width: 1
+                            clip: true
+
+                            ScrollView {
+                                anchors.fill: parent; anchors.margins: 2
+                                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                                TextArea {
+                                    id: importArgsArea
+                                    placeholderText: "./llama-server --model /ruta/al/modelo.gguf --ctx-size 8192 --port 8080 --n-gpu-layers 99 --flash-attn"
+                                    color: Theme.textPrimary
+                                    placeholderTextColor: Theme.textMuted
+                                    font { family: "Consolas,monospace"; pixelSize: 12 }
+                                    wrapMode: TextArea.WrapAnywhere
+                                    background: null
+                                    padding: 10
+                                    selectByMouse: true
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: "Se parsearán: --host --port --model --ctx-size --batch-size --ubatch-size --threads --n-gpu-layers --flash-attn --no-mmap --mlock --parallel --cache-type-k"
+                            color: Theme.textMuted; font.pixelSize: 10
+                            wrapMode: Text.WordWrap; Layout.fillWidth: true
+                        }
+                    }
+
+                    onOpened: importNameField.forceActiveFocus()
                 }
 
                 Rectangle {

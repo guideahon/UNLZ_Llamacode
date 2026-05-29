@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick Sql Concurrent Network)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick Sql Concurrent Network Widgets)
 
 qt_standard_project_setup(REQUIRES 6.4)
 
@@ -91,6 +91,7 @@ target_link_libraries(LlamaCode
     Qt6::Sql
     Qt6::Concurrent
     Qt6::Network
+    Qt6::Widgets
 )
 
 set_target_properties(LlamaCode PROPERTIES

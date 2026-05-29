@@ -107,11 +107,13 @@ Item {
                     LcButton {
                         text: {
                             const _lang = App.langV
+                            if (App.serverStopping) return "Deteniendo..."
                             return App.serverRunning ? App.l("launch.stopServer") : App.l("launch.startServer")
                         }
-                        danger: App.serverRunning
+                        danger: App.serverRunning && !App.serverStopping
+                        secondary: App.serverStopping
                         Layout.fillWidth: true
-                        enabled: launchCombo.currentValue !== undefined || App.serverRunning
+                        enabled: !App.serverStopping && (launchCombo.currentValue !== undefined || App.serverRunning)
                         onClicked: {
                             if (App.serverRunning) App.stopServer()
                             else App.startServer(launchCombo.currentValue ?? "")
@@ -150,9 +152,10 @@ Item {
                         Text {
                             text: {
                                 const _lang = App.langV
+                                if (App.serverStopping) return "Deteniendo servidor..."
                                 return App.serverRunning ? App.l("launch.running") : App.l("launch.stopped")
                             }
-                            color: App.serverRunning ? Theme.successText : Theme.errorText
+                            color: App.serverStopping ? Theme.textMuted : (App.serverRunning ? Theme.successText : Theme.errorText)
                             font.pixelSize: 13
                             anchors.verticalCenter: parent.verticalCenter
                         }

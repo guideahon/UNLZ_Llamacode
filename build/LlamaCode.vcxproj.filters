@@ -314,6 +314,9 @@
     <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6concurrent_metatypes.json">
       <Filter>Source Files\Generated</Filter>
     </None>
+    <None Include="C:\Qt\6.8.3\msvc2022_64\metatypes\qt6widgets_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="C:\Users\cristian\Documents\LlamaCode\app_icon.rc">

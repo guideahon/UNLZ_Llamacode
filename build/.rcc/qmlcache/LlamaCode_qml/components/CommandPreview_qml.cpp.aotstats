@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 12,
-                        "durationMicroseconds": 362,
+                        "durationMicroseconds": 225,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 8
@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 126,
+                        "durationMicroseconds": 112,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "warnings",
                         "line": 14
@@ -22,7 +22,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 26,
-                        "durationMicroseconds": 82,
+                        "durationMicroseconds": 37,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "errors",
                         "line": 15
@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 33,
+                        "durationMicroseconds": 30,
                         "errorMessage": "Cannot load property length from (component in C:/Users/cristian/Documents/LlamaCode/qml/components/CommandPreview.qml)::errors with type QVariant.",
                         "functionName": "isValid",
                         "line": 16
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 19,
-                        "durationMicroseconds": 260,
+                        "durationMicroseconds": 129,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 10
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 84,
+                        "durationMicroseconds": 65,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 19
@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 234,
+                        "durationMicroseconds": 226,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 27
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 23,
-                        "durationMicroseconds": 188,
+                        "durationMicroseconds": 178,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "text",
                         "line": 32
@@ -70,7 +70,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 230,
+                        "durationMicroseconds": 222,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 37
@@ -78,7 +78,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 74,
+                        "durationMicroseconds": 75,
                         "errorMessage": "",
                         "functionName": "wrapMode",
                         "line": 38
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 48,
+                        "durationMicroseconds": 47,
                         "errorMessage": "",
                         "functionName": "elide",
                         "line": 40
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 27,
+                        "durationMicroseconds": 20,
                         "errorMessage": "Type (component in C:/Users/cristian/Documents/LlamaCode/qml/components/CommandPreview.qml)::parent with type QObject does not have a property copied for writing",
                         "functionName": "onTriggered",
                         "line": 54
@@ -134,7 +134,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 62,
-                        "durationMicroseconds": 198,
+                        "durationMicroseconds": 202,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 63
@@ -142,7 +142,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 247,
+                        "durationMicroseconds": 296,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "text",
                         "line": 64
@@ -150,7 +150,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 68,
-                        "durationMicroseconds": 177,
+                        "durationMicroseconds": 200,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 64
@@ -158,7 +158,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 94,
-                        "durationMicroseconds": 54,
+                        "durationMicroseconds": 77,
                         "errorMessage": "",
                         "functionName": "wrapMode",
                         "line": 64
@@ -166,7 +166,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 74,
                         "errorMessage": "",
                         "functionName": "model",
                         "line": 69
@@ -174,7 +174,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 62,
-                        "durationMicroseconds": 197,
+                        "durationMicroseconds": 217,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 72
@@ -182,7 +182,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 249,
+                        "durationMicroseconds": 287,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "text",
                         "line": 73
@@ -190,7 +190,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 68,
-                        "durationMicroseconds": 173,
+                        "durationMicroseconds": 223,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
                         "line": 73
@@ -198,7 +198,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 95,
-                        "durationMicroseconds": 55,
+                        "durationMicroseconds": 68,
                         "errorMessage": "",
                         "functionName": "wrapMode",
                         "line": 73

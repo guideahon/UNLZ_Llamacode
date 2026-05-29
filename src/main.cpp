@@ -1,13 +1,13 @@
 #include "AppController.h"
 #include "ThemeProvider.h"
-#include <QGuiApplication>
+#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QIcon>
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
     app.setWindowIcon(QIcon(":/assets/app_icon.png"));
     app.setApplicationName("LlamaCode");
     app.setOrganizationName("LlamaCode");

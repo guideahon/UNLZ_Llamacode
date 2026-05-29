@@ -17,12 +17,15 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QDesktopServices>
+#include <QFileDialog>
 #include <QUrl>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QCoreApplication>
+#include <QUuid>
+#include <functional>
 #include <QFile>
 #include <QStandardPaths>
 
@@ -33,6 +36,7 @@ AppController::AppController(QObject *parent) : QObject(parent)
 
     killManagedOrphans();
     createJobObject();
+    loadChatSessions();
 
     m_binaries.refresh();
     m_roots.refresh();
@@ -79,6 +83,8 @@ void AppController::startServer(const QString &launchProfileId)
             this, [this](int code, QProcess::ExitStatus) {
         appendLog(QStringLiteral("\n[Server exited with code %1]\n").arg(code));
         clearServiceState(QStringLiteral("server"));
+        if (m_stopKillTimer) { m_stopKillTimer->stop(); m_stopKillTimer->deleteLater(); m_stopKillTimer = nullptr; }
+        m_serverStopping = false;
         m_proc->deleteLater();
         m_proc = nullptr;
         emit serverRunningChanged();
@@ -105,11 +111,20 @@ void AppController::startServer(const QString &launchProfileId)
 
 void AppController::stopServer()
 {
-    if (!m_proc) return;
+    if (!m_proc || m_serverStopping) return;
+    m_serverStopping = true;
+    emit serverRunningChanged();
     appendLog("\n[Stopping server...]\n");
     m_proc->terminate();
-    if (!m_proc->waitForFinished(5000))
-        m_proc->kill();
+    // Kill after 5s if process hasn't exited
+    m_stopKillTimer = new QTimer(this);
+    m_stopKillTimer->setSingleShot(true);
+    connect(m_stopKillTimer, &QTimer::timeout, this, [this]() {
+        if (m_proc) m_proc->kill();
+        m_stopKillTimer->deleteLater();
+        m_stopKillTimer = nullptr;
+    });
+    m_stopKillTimer->start(5000);
 }
 
 void AppController::computeEffectiveProfile(const QString &launchProfileId)
@@ -527,7 +542,9 @@ void AppController::startAgent(const QString &launchProfileId)
     m_agentProc = new QProcess(this);
     m_agentProc->setProcessEnvironment(env);
 
-    const QString cwd = ctx.workspace.cwd.trimmed();
+    const QString cwd = m_agentCwdOverride.isEmpty()
+        ? ctx.workspace.cwd.trimmed() : m_agentCwdOverride;
+    m_agentCwdOverride.clear();
     if (!cwd.isEmpty() && QFileInfo(cwd).isDir())
         m_agentProc->setWorkingDirectory(cwd);
 
@@ -562,6 +579,9 @@ void AppController::startAgent(const QString &launchProfileId)
             m_opencodeEventReply = nullptr;
         }
         m_opencodeSessionId.clear();
+        m_agentMessages.clear();
+        m_currentAssistantIdx = -1;
+        emit agentMessagesChanged();
         clearServiceState(QStringLiteral("harness"));
         m_activeAgentAdapter.clear();
         m_agentPid = 0;
@@ -655,6 +675,20 @@ void AppController::sendToAgent(const QString &text)
     emit agentLogChanged();
 
     if (m_activeAgentAdapter == QLatin1String("opencode")) {
+        // Append user + empty assistant message to structured model
+        QVariantMap userMsg;
+        userMsg[QStringLiteral("role")]    = QStringLiteral("user");
+        userMsg[QStringLiteral("content")] = text;
+        userMsg[QStringLiteral("typing")]  = false;
+        m_agentMessages.append(userMsg);
+        QVariantMap asstMsg;
+        asstMsg[QStringLiteral("role")]    = QStringLiteral("assistant");
+        asstMsg[QStringLiteral("content")] = QString();
+        asstMsg[QStringLiteral("typing")]  = true;
+        m_agentMessages.append(asstMsg);
+        m_currentAssistantIdx = m_agentMessages.size() - 1;
+        emit agentMessagesChanged();
+
         if (m_opencodeSessionId.isEmpty()) {
             m_agentLog += QStringLiteral("[waiting: opencode session not ready yet]\n");
             emit agentLogChanged();
@@ -683,12 +717,82 @@ void AppController::sendToAgent(const QString &text)
 void AppController::clearAgentLog()
 {
     m_agentLog.clear();
+    m_agentMessages.clear();
+    m_currentAssistantIdx = -1;
     emit agentLogChanged();
+    emit agentMessagesChanged();
 }
 
 void AppController::initOpencodeSession()
 {
     if (!m_nam) m_nam = new QNetworkAccessManager(this);
+    loadOpencodeSessionList([this]() { resumeOrCreateOpencodeSession(); });
+}
+
+void AppController::loadOpencodeSessionList(std::function<void()> then)
+{
+    if (!m_nam) m_nam = new QNetworkAccessManager(this);
+    auto *reply = m_nam->get(QNetworkRequest(QUrl(m_opencodeAttachUrl + QStringLiteral("/session"))));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, then]() {
+        reply->deleteLater();
+        if (reply->error() == QNetworkReply::NoError) {
+            const QJsonArray arr = QJsonDocument::fromJson(reply->readAll()).array();
+            // Sort newest-first client-side
+            QVector<QJsonObject> sorted;
+            sorted.reserve(arr.size());
+            for (const QJsonValue &v : arr) sorted.append(v.toObject());
+            std::sort(sorted.begin(), sorted.end(), [](const QJsonObject &a, const QJsonObject &b) {
+                return a.value(QStringLiteral("time")).toObject().value(QStringLiteral("created")).toDouble()
+                     > b.value(QStringLiteral("time")).toObject().value(QStringLiteral("created")).toDouble();
+            });
+            m_agentSessions.clear();
+            for (const QJsonObject &s : sorted) {
+                const QString dir  = s.value(QStringLiteral("directory")).toString();
+                const QString path = s.value(QStringLiteral("path")).toString();
+                // Project display name = last two path segments of directory
+                const QStringList parts = QDir::toNativeSeparators(dir).split(QDir::separator(), Qt::SkipEmptyParts);
+                const QString projectName = parts.size() >= 2
+                    ? parts[parts.size()-2] + QStringLiteral("/") + parts.last()
+                    : (parts.isEmpty() ? QStringLiteral("(sin proyecto)") : parts.last());
+                QVariantMap entry;
+                entry[QStringLiteral("id")]          = s.value(QStringLiteral("id")).toString();
+                entry[QStringLiteral("title")]        = s.value(QStringLiteral("title")).toString();
+                entry[QStringLiteral("created")]      = s.value(QStringLiteral("time")).toObject()
+                                                          .value(QStringLiteral("created")).toDouble();
+                entry[QStringLiteral("projectId")]    = s.value(QStringLiteral("projectID")).toString();
+                entry[QStringLiteral("projectName")]  = projectName;
+                entry[QStringLiteral("projectDir")]   = dir;
+                m_agentSessions.append(entry);
+            }
+            emit agentSessionsChanged();
+        }
+        if (then) then();
+    });
+}
+
+void AppController::resumeOrCreateOpencodeSession()
+{
+    QSettings s;
+    const QString savedId = s.value(QStringLiteral("opencode/lastSessionId")).toString();
+    if (!savedId.isEmpty()) {
+        for (const QVariant &v : std::as_const(m_agentSessions)) {
+            if (v.toMap().value(QStringLiteral("id")).toString() == savedId) {
+                m_opencodeSessionId = savedId;
+                m_opencodeSessionTitle = v.toMap().value(QStringLiteral("title")).toString();
+                emit agentSessionsChanged();
+                m_agentLog += QStringLiteral("[opencode session resumed]\n");
+                emit agentLogChanged();
+                loadOpencodeSessionMessages(savedId);
+                subscribeOpencodeEvents();
+                return;
+            }
+        }
+    }
+    doCreateOpencodeSession();
+}
+
+void AppController::doCreateOpencodeSession()
+{
     QNetworkRequest req(QUrl(m_opencodeAttachUrl + QStringLiteral("/session")));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
     auto *reply = m_nam->post(req, QByteArrayLiteral("{}"));
@@ -700,12 +804,135 @@ void AppController::initOpencodeSession()
             emit agentLogChanged();
             return;
         }
-        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-        m_opencodeSessionId = doc.object().value(QStringLiteral("id")).toString();
+        const QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+        m_opencodeSessionId    = obj.value(QStringLiteral("id")).toString();
+        m_opencodeSessionTitle = obj.value(QStringLiteral("title")).toString();
+        QSettings().setValue(QStringLiteral("opencode/lastSessionId"), m_opencodeSessionId);
+        // Prepend to session list (reload full list to get project info from server)
+        const QString cwd = m_agentProc ? m_agentProc->workingDirectory() : QString();
+        const QStringList cwdParts = QDir::toNativeSeparators(cwd).split(QDir::separator(), Qt::SkipEmptyParts);
+        const QString projectName = cwdParts.size() >= 2
+            ? cwdParts[cwdParts.size()-2] + QStringLiteral("/") + cwdParts.last()
+            : (cwdParts.isEmpty() ? QStringLiteral("(sin proyecto)") : cwdParts.last());
+        QVariantMap entry;
+        entry[QStringLiteral("id")]         = m_opencodeSessionId;
+        entry[QStringLiteral("title")]      = m_opencodeSessionTitle;
+        entry[QStringLiteral("created")]    = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+        entry[QStringLiteral("projectId")]  = obj.value(QStringLiteral("projectID")).toString();
+        entry[QStringLiteral("projectName")]= projectName;
+        entry[QStringLiteral("projectDir")] = cwd;
+        m_agentSessions.prepend(entry);
+        emit agentSessionsChanged();
         m_agentLog += QStringLiteral("[opencode session ready]\n");
         emit agentLogChanged();
         subscribeOpencodeEvents();
     });
+}
+
+void AppController::loadOpencodeSessionMessages(const QString &sessionId)
+{
+    if (!m_nam) return;
+    const QUrl url(m_opencodeAttachUrl + QStringLiteral("/session/") + sessionId + QStringLiteral("/message"));
+    auto *reply = m_nam->get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+        const QJsonArray msgs = QJsonDocument::fromJson(reply->readAll()).array();
+        m_agentMessages.clear();
+        m_currentAssistantIdx = -1;
+        for (const QJsonValue &mv : msgs) {
+            const QJsonObject msg = mv.toObject();
+            const QString role = msg.value(QStringLiteral("info")).toObject()
+                                     .value(QStringLiteral("role")).toString();
+            QString text;
+            const QJsonArray parts = msg.value(QStringLiteral("parts")).toArray();
+            for (const QJsonValue &pv : parts) {
+                const QJsonObject part = pv.toObject();
+                if (part.value(QStringLiteral("type")).toString() == QLatin1String("text"))
+                    text += part.value(QStringLiteral("text")).toString();
+            }
+            if (role.isEmpty() || text.isEmpty()) continue;
+            QVariantMap entry;
+            entry[QStringLiteral("role")]    = role;
+            entry[QStringLiteral("content")] = text;
+            entry[QStringLiteral("typing")]  = false;
+            m_agentMessages.append(entry);
+        }
+        emit agentMessagesChanged();
+    });
+}
+
+void AppController::newOpencodeSession()
+{
+    if (!m_nam || m_opencodeAttachUrl.isEmpty()) return;
+    m_agentMessages.clear();
+    m_currentAssistantIdx = -1;
+    m_opencodeSessionId.clear();
+    m_opencodeSessionTitle.clear();
+    emit agentMessagesChanged();
+    emit agentSessionsChanged();
+    doCreateOpencodeSession();
+}
+
+void AppController::switchOpencodeSession(const QString &sessionId)
+{
+    if (sessionId == m_opencodeSessionId) return;
+    m_opencodeSessionId = sessionId;
+    m_agentMessages.clear();
+    m_currentAssistantIdx = -1;
+    for (const QVariant &v : std::as_const(m_agentSessions)) {
+        const QVariantMap m = v.toMap();
+        if (m.value(QStringLiteral("id")).toString() == sessionId) {
+            m_opencodeSessionTitle = m.value(QStringLiteral("title")).toString();
+            break;
+        }
+    }
+    QSettings().setValue(QStringLiteral("opencode/lastSessionId"), sessionId);
+    emit agentSessionsChanged();
+    emit agentMessagesChanged();
+    loadOpencodeSessionMessages(sessionId);
+}
+
+void AppController::refreshOpencodeSessionList()
+{
+    loadOpencodeSessionList(nullptr);
+}
+
+QString AppController::pickDirectory(const QString &title)
+{
+    const QString dir = QFileDialog::getExistingDirectory(
+        nullptr,
+        title.isEmpty() ? QStringLiteral("Seleccionar carpeta del proyecto") : title,
+        QDir::homePath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    return dir;
+}
+
+void AppController::changeAgentProject(const QString &directory)
+{
+    if (directory.isEmpty()) return;
+    m_agentCwdOverride = directory;
+
+    if (!agentRunning()) return;
+
+    // Restart agent with new CWD — remember launch ID
+    m_pendingAgentLaunchId = m_activeAgentAdapter.isEmpty()
+        ? m_activeLaunchId : m_pendingAgentLaunchId;
+
+    // When current agent stops, restart with override
+    connect(this, &AppController::agentRunningChanged, this, [this]() {
+        if (agentRunning()) return;  // wait until stopped
+        disconnect(this, &AppController::agentRunningChanged, this, nullptr);
+        if (!m_agentCwdOverride.isEmpty() && !m_activeLaunchId.isEmpty()) {
+            const QString launchId = m_activeLaunchId.isEmpty()
+                ? m_pendingAgentLaunchId : m_activeLaunchId;
+            QTimer::singleShot(300, this, [this, launchId]() {
+                startAgent(launchId);
+            });
+        }
+    }, Qt::SingleShotConnection);
+
+    stopAgent();
 }
 
 void AppController::subscribeOpencodeEvents()
@@ -719,8 +946,6 @@ void AppController::subscribeOpencodeEvents()
     connect(m_opencodeEventReply, &QNetworkReply::readyRead, this, [this]() {
         if (!m_opencodeEventReply) return;
         const QByteArray data = m_opencodeEventReply->readAll();
-        m_agentLog += QStringLiteral("[sse: %1 bytes]\n").arg(data.size());
-        emit agentLogChanged();
         bool changed = false;
         for (const QByteArray &raw : data.split('\n')) {
             const QByteArray line = raw.trimmed();
@@ -733,15 +958,61 @@ void AppController::subscribeOpencodeEvents()
             if (type == QLatin1String("message.part.delta")) {
                 if (props.value(QStringLiteral("field")).toString() == QLatin1String("text")) {
                     const QString delta = props.value(QStringLiteral("delta")).toString();
-                    if (!delta.isEmpty()) { m_agentLog += delta; changed = true; }
+                    if (!delta.isEmpty()) {
+                        m_agentLog += delta;
+                        if (m_currentAssistantIdx >= 0 && m_currentAssistantIdx < m_agentMessages.size()) {
+                            auto msg = m_agentMessages[m_currentAssistantIdx].toMap();
+                            msg[QStringLiteral("content")] = msg[QStringLiteral("content")].toString() + delta;
+                            m_agentMessages[m_currentAssistantIdx] = msg;
+                            emit agentMessagesChanged();
+                        }
+                        changed = true;
+                    }
                 }
-            } else if (type == QLatin1String("session.idle") || type == QLatin1String("session.status")) {
+            } else if (type == QLatin1String("session.updated")) {
+                const QJsonObject info = props.value(QStringLiteral("info")).toObject();
+                const QString title = info.value(QStringLiteral("title")).toString();
+                const QString sid   = info.value(QStringLiteral("id")).toString();
+                if (!title.isEmpty() && sid == m_opencodeSessionId) {
+                    m_opencodeSessionTitle = title;
+                    for (int i = 0; i < m_agentSessions.size(); ++i) {
+                        auto sm = m_agentSessions[i].toMap();
+                        if (sm.value(QStringLiteral("id")).toString() == sid) {
+                            sm[QStringLiteral("title")] = title;
+                            m_agentSessions[i] = sm;
+                            break;
+                        }
+                    }
+                    emit agentSessionsChanged();
+                }
+            } else if (type == QLatin1String("session.status")) {
                 const QString status = props.value(QStringLiteral("status"))
                                             .toObject().value(QStringLiteral("type")).toString();
-                if (status == QLatin1String("idle")) { m_agentLog += QLatin1Char('\n'); changed = true; }
+                if (status == QLatin1String("idle")) {
+                    m_agentLog += QLatin1Char('\n');
+                    if (m_currentAssistantIdx >= 0 && m_currentAssistantIdx < m_agentMessages.size()) {
+                        auto msg = m_agentMessages[m_currentAssistantIdx].toMap();
+                        msg[QStringLiteral("typing")] = false;
+                        m_agentMessages[m_currentAssistantIdx] = msg;
+                        emit agentMessagesChanged();
+                    }
+                    m_currentAssistantIdx = -1;
+                    changed = true;
+                }
             } else if (type.contains(QLatin1String("error"))) {
-                const QString msg = props.value(QStringLiteral("message")).toString();
-                if (!msg.isEmpty()) { m_agentLog += QStringLiteral("[error: %1]\n").arg(msg); changed = true; }
+                const QString errMsg = props.value(QStringLiteral("message")).toString();
+                if (!errMsg.isEmpty()) {
+                    m_agentLog += QStringLiteral("[error: %1]\n").arg(errMsg);
+                    if (m_currentAssistantIdx >= 0 && m_currentAssistantIdx < m_agentMessages.size()) {
+                        auto msg = m_agentMessages[m_currentAssistantIdx].toMap();
+                        msg[QStringLiteral("content")] = QStringLiteral("[error: %1]").arg(errMsg);
+                        msg[QStringLiteral("typing")] = false;
+                        m_agentMessages[m_currentAssistantIdx] = msg;
+                        emit agentMessagesChanged();
+                    }
+                    m_currentAssistantIdx = -1;
+                    changed = true;
+                }
             }
         }
         if (changed) emit agentLogChanged();
@@ -803,6 +1074,244 @@ void AppController::writeSetting(const QString &key, const QVariant &value)
 {
     QSettings s;
     s.setValue(key, value);
+}
+
+// ── Chat sessions ─────────────────────────────────────────────────────────────
+
+QString AppController::chatStorageDir() const
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
+                        + QStringLiteral("/chat");
+    QDir().mkpath(dir);
+    return dir;
+}
+
+void AppController::loadChatSessions()
+{
+    QFile f(chatStorageDir() + QStringLiteral("/index.json"));
+    if (!f.open(QIODevice::ReadOnly)) return;
+    const QJsonArray arr = QJsonDocument::fromJson(f.readAll()).array();
+    m_chatSessions.clear();
+    QVector<QVariantMap> sorted;
+    for (const QJsonValue &v : arr) {
+        const QJsonObject o = v.toObject();
+        QVariantMap s;
+        s[QStringLiteral("id")]          = o.value(QStringLiteral("id")).toString();
+        s[QStringLiteral("title")]       = o.value(QStringLiteral("title")).toString();
+        s[QStringLiteral("projectId")]   = o.value(QStringLiteral("projectId")).toString();
+        s[QStringLiteral("projectName")] = o.value(QStringLiteral("projectName")).toString();
+        s[QStringLiteral("created")]     = o.value(QStringLiteral("created")).toDouble();
+        s[QStringLiteral("updated")]     = o.value(QStringLiteral("updated")).toDouble();
+        sorted.append(s);
+    }
+    std::sort(sorted.begin(), sorted.end(), [](const QVariantMap &a, const QVariantMap &b) {
+        return a.value(QStringLiteral("updated")).toDouble() > b.value(QStringLiteral("updated")).toDouble();
+    });
+    for (const auto &s : sorted) m_chatSessions.append(s);
+    emit chatSessionsChanged();
+}
+
+void AppController::saveChatSession()
+{
+    if (m_chatSessionId.isEmpty()) return;
+
+    // Update index
+    QFile idxFile(chatStorageDir() + QStringLiteral("/index.json"));
+    QJsonArray idx;
+    if (idxFile.open(QIODevice::ReadOnly)) { idx = QJsonDocument::fromJson(idxFile.readAll()).array(); idxFile.close(); }
+    bool found = false;
+    const double now = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+    for (int i = 0; i < idx.size(); ++i) {
+        QJsonObject o = idx[i].toObject();
+        if (o.value(QStringLiteral("id")).toString() == m_chatSessionId) {
+            o[QStringLiteral("title")]   = m_chatSessionTitle;
+            o[QStringLiteral("updated")] = now;
+            idx[i] = o; found = true; break;
+        }
+    }
+    if (!found) {
+        const QString projId   = m_activeLaunchId;
+        const QString projName = [&]() -> QString {
+            const auto profiles = m_profiles.launchProfiles();
+            for (int i = 0; i < profiles->rowCount(); ++i) {
+                const auto idx2 = profiles->index(i, 0);
+                if (profiles->data(idx2, 257).toString() == projId)
+                    return profiles->data(idx2, Qt::DisplayRole).toString();
+            }
+            return projId;
+        }();
+        idx.append(QJsonObject{
+            {QStringLiteral("id"),          m_chatSessionId},
+            {QStringLiteral("title"),       m_chatSessionTitle},
+            {QStringLiteral("projectId"),   projId},
+            {QStringLiteral("projectName"), projName},
+            {QStringLiteral("created"),     now},
+            {QStringLiteral("updated"),     now}
+        });
+    }
+    if (idxFile.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        idxFile.write(QJsonDocument(idx).toJson());
+
+    // Save session file with messages
+    QJsonArray msgsJson;
+    for (const QVariant &mv : std::as_const(m_chatMessages)) {
+        const QVariantMap m = mv.toMap();
+        msgsJson.append(QJsonObject{
+            {QStringLiteral("role"),    m.value(QStringLiteral("role")).toString()},
+            {QStringLiteral("content"), m.value(QStringLiteral("content")).toString()}
+        });
+    }
+    QFile sf(chatStorageDir() + QStringLiteral("/") + m_chatSessionId + QStringLiteral(".json"));
+    if (sf.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        sf.write(QJsonDocument(QJsonObject{
+            {QStringLiteral("id"),       m_chatSessionId},
+            {QStringLiteral("title"),    m_chatSessionTitle},
+            {QStringLiteral("messages"), msgsJson}
+        }).toJson());
+
+    loadChatSessions();
+}
+
+void AppController::loadChatSessionMessages(const QString &id)
+{
+    QFile f(chatStorageDir() + QStringLiteral("/") + id + QStringLiteral(".json"));
+    if (!f.open(QIODevice::ReadOnly)) { emit chatMessagesChanged(); return; }
+    const QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
+    m_chatMessages.clear();
+    for (const QJsonValue &v : obj.value(QStringLiteral("messages")).toArray()) {
+        const QJsonObject m = v.toObject();
+        QVariantMap entry;
+        entry[QStringLiteral("role")]    = m.value(QStringLiteral("role")).toString();
+        entry[QStringLiteral("content")] = m.value(QStringLiteral("content")).toString();
+        entry[QStringLiteral("typing")]  = false;
+        m_chatMessages.append(entry);
+    }
+    emit chatMessagesChanged();
+}
+
+void AppController::newChatSession()
+{
+    if (m_chatGenerating) stopChatGeneration();
+    m_chatSessionId    = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    m_chatSessionTitle = QString();
+    m_chatMessages.clear();
+    m_chatAssistantIdx = -1;
+    emit chatSessionsChanged();
+    emit chatMessagesChanged();
+}
+
+void AppController::switchChatSession(const QString &id)
+{
+    if (id == m_chatSessionId) return;
+    if (m_chatGenerating) stopChatGeneration();
+    m_chatSessionId    = id;
+    m_chatMessages.clear();
+    m_chatAssistantIdx = -1;
+    for (const QVariant &v : std::as_const(m_chatSessions)) {
+        const QVariantMap s = v.toMap();
+        if (s.value(QStringLiteral("id")).toString() == id) {
+            m_chatSessionTitle = s.value(QStringLiteral("title")).toString();
+            break;
+        }
+    }
+    emit chatSessionsChanged();
+    loadChatSessionMessages(id);
+}
+
+void AppController::sendChatMessage(const QString &text)
+{
+    if (text.trimmed().isEmpty() || m_chatGenerating) return;
+    if (m_chatSessionId.isEmpty()) newChatSession();
+    if (!m_nam) m_nam = new QNetworkAccessManager(this);
+
+    QVariantMap userMsg;
+    userMsg[QStringLiteral("role")]    = QStringLiteral("user");
+    userMsg[QStringLiteral("content")] = text;
+    userMsg[QStringLiteral("typing")]  = false;
+    m_chatMessages.append(userMsg);
+
+    QVariantMap asstMsg;
+    asstMsg[QStringLiteral("role")]    = QStringLiteral("assistant");
+    asstMsg[QStringLiteral("content")] = QString();
+    asstMsg[QStringLiteral("typing")]  = true;
+    m_chatMessages.append(asstMsg);
+    m_chatAssistantIdx = m_chatMessages.size() - 1;
+    m_chatGenerating   = true;
+    emit chatMessagesChanged();
+    emit chatGeneratingChanged();
+
+    QJsonArray msgs;
+    for (int i = 0; i < m_chatMessages.size() - 1; ++i) {
+        const QVariantMap &m = m_chatMessages[i].toMap();
+        msgs.append(QJsonObject{{QStringLiteral("role"),    m.value(QStringLiteral("role")).toString()},
+                                {QStringLiteral("content"), m.value(QStringLiteral("content")).toString()}});
+    }
+    QNetworkRequest req(QUrl(serverBaseUrl() + QStringLiteral("/v1/chat/completions")));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
+    const QJsonObject payload{{QStringLiteral("model"),    QStringLiteral("default")},
+                              {QStringLiteral("messages"), msgs},
+                              {QStringLiteral("stream"),   true}};
+    m_chatReply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+
+    auto *buf = new QByteArray();
+    connect(m_chatReply, &QNetworkReply::readyRead, this, [this, buf]() {
+        if (!m_chatReply) return;
+        buf->append(m_chatReply->readAll());
+        int nl;
+        while ((nl = buf->indexOf('\n')) >= 0) {
+            const QByteArray line = buf->left(nl).trimmed();
+            buf->remove(0, nl + 1);
+            if (!line.startsWith("data: ")) continue;
+            const QByteArray json = line.mid(6);
+            if (json == "[DONE]") continue;
+            const QString delta = QJsonDocument::fromJson(json).object()
+                .value(QStringLiteral("choices")).toArray().first().toObject()
+                .value(QStringLiteral("delta")).toObject()
+                .value(QStringLiteral("content")).toString();
+            if (!delta.isEmpty() && m_chatAssistantIdx >= 0 && m_chatAssistantIdx < m_chatMessages.size()) {
+                auto msg = m_chatMessages[m_chatAssistantIdx].toMap();
+                msg[QStringLiteral("content")] = msg[QStringLiteral("content")].toString() + delta;
+                m_chatMessages[m_chatAssistantIdx] = msg;
+                emit chatMessagesChanged();
+            }
+        }
+    });
+
+    connect(m_chatReply, &QNetworkReply::finished, this, [this, buf, text]() {
+        delete buf;
+        if (m_chatAssistantIdx >= 0 && m_chatAssistantIdx < m_chatMessages.size()) {
+            auto msg = m_chatMessages[m_chatAssistantIdx].toMap();
+            if (m_chatReply && m_chatReply->error() != QNetworkReply::NoError
+                    && msg[QStringLiteral("content")].toString().isEmpty())
+                msg[QStringLiteral("content")] = QStringLiteral("[Error: %1]").arg(m_chatReply->errorString());
+            msg[QStringLiteral("typing")] = false;
+            m_chatMessages[m_chatAssistantIdx] = msg;
+        }
+        if (m_chatReply) { m_chatReply->deleteLater(); m_chatReply = nullptr; }
+        m_chatAssistantIdx = -1;
+        m_chatGenerating   = false;
+        emit chatMessagesChanged();
+        emit chatGeneratingChanged();
+        // Auto-title from first user message
+        if (m_chatSessionTitle.isEmpty())
+            m_chatSessionTitle = text.left(50);
+        saveChatSession();
+    });
+}
+
+void AppController::stopChatGeneration()
+{
+    if (m_chatReply) { m_chatReply->abort(); m_chatReply->deleteLater(); m_chatReply = nullptr; }
+    if (m_chatAssistantIdx >= 0 && m_chatAssistantIdx < m_chatMessages.size()) {
+        auto msg = m_chatMessages[m_chatAssistantIdx].toMap();
+        msg[QStringLiteral("typing")] = false;
+        m_chatMessages[m_chatAssistantIdx] = msg;
+    }
+    m_chatAssistantIdx = -1;
+    m_chatGenerating   = false;
+    emit chatMessagesChanged();
+    emit chatGeneratingChanged();
+    saveChatSession();
 }
 
 // ── Managed-process lifecycle ─────────────────────────────────────────────────

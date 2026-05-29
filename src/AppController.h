@@ -20,7 +20,13 @@ class AppController : public QObject
     Q_PROPERTY(ModelRootRegistry*  rootRegistry    READ rootRegistry    CONSTANT)
     Q_PROPERTY(ModelCatalog*       modelCatalog    READ modelCatalog    CONSTANT)
     Q_PROPERTY(ProfileManager*     profileManager  READ profileManager  CONSTANT)
+    Q_PROPERTY(QVariantList chatSessions    READ chatSessions    NOTIFY chatSessionsChanged)
+    Q_PROPERTY(QVariantList chatMessages    READ chatMessages    NOTIFY chatMessagesChanged)
+    Q_PROPERTY(QString      chatSessionId   READ chatSessionId   NOTIFY chatSessionsChanged)
+    Q_PROPERTY(QString      chatSessionTitle READ chatSessionTitle NOTIFY chatSessionsChanged)
+    Q_PROPERTY(bool         chatGenerating  READ chatGenerating  NOTIFY chatGeneratingChanged)
     Q_PROPERTY(bool   serverRunning   READ serverRunning   NOTIFY serverRunningChanged)
+    Q_PROPERTY(bool   serverStopping  READ serverStopping  NOTIFY serverRunningChanged)
     Q_PROPERTY(QString serverLog      READ serverLog       NOTIFY serverLogChanged)
     Q_PROPERTY(QString activeLaunchId READ activeLaunchId  NOTIFY activeLaunchIdChanged)
     Q_PROPERTY(QVariantMap effectiveProfile READ effectiveProfile NOTIFY effectiveProfileChanged)
@@ -33,6 +39,10 @@ class AppController : public QObject
     Q_PROPERTY(int langV READ langV NOTIFY languageChanged)
     Q_PROPERTY(bool agentRunning      READ agentRunning      NOTIFY agentRunningChanged)
     Q_PROPERTY(QString agentLog       READ agentLog          NOTIFY agentLogChanged)
+    Q_PROPERTY(QVariantList agentMessages  READ agentMessages  NOTIFY agentMessagesChanged)
+    Q_PROPERTY(QVariantList agentSessions  READ agentSessions  NOTIFY agentSessionsChanged)
+    Q_PROPERTY(QString opencodeSessionId   READ opencodeSessionId   NOTIFY agentSessionsChanged)
+    Q_PROPERTY(QString opencodeSessionTitle READ opencodeSessionTitle NOTIFY agentSessionsChanged)
     Q_PROPERTY(QString activeAgentAdapter READ activeAgentAdapter NOTIFY agentRunningChanged)
     Q_PROPERTY(bool agentInTerminal   READ agentInTerminal   NOTIFY agentRunningChanged)
     Q_PROPERTY(bool installingHarness READ installingHarness NOTIFY harnessStatusChanged)
@@ -47,7 +57,13 @@ public:
     ModelCatalog      *modelCatalog()    { return &m_catalog; }
     ProfileManager    *profileManager()  { return &m_profiles; }
 
+    QVariantList chatSessions()     const { return m_chatSessions; }
+    QVariantList chatMessages()     const { return m_chatMessages; }
+    QString      chatSessionId()    const { return m_chatSessionId; }
+    QString      chatSessionTitle() const { return m_chatSessionTitle; }
+    bool         chatGenerating()   const { return m_chatGenerating; }
     bool   serverRunning()   const { return m_proc && m_proc->state() != QProcess::NotRunning; }
+    bool   serverStopping()  const { return m_serverStopping; }
     QString serverLog()      const { return m_log; }
     QString activeLaunchId() const { return m_activeLaunchId; }
     QVariantMap effectiveProfile() const { return m_effectiveProfile; }
@@ -72,12 +88,20 @@ public:
         return m_agentInTerminal ? (m_agentPid != 0) : (m_agentProc && m_agentProc->state() != QProcess::NotRunning);
     }
     QString agentLog() const { return m_agentLog; }
+    QVariantList agentMessages()  const { return m_agentMessages; }
+    QVariantList agentSessions()  const { return m_agentSessions; }
+    QString opencodeSessionId()   const { return m_opencodeSessionId; }
+    QString opencodeSessionTitle() const { return m_opencodeSessionTitle; }
     QString activeAgentAdapter() const { return m_activeAgentAdapter; }
     bool agentInTerminal() const { return m_agentInTerminal; }
     bool installingHarness() const { return m_installingHarness; }
     QString harnessInstallStatus() const { return m_harnessInstallStatus; }
     int harnessCheckV() const { return 0; }
 
+    Q_INVOKABLE void newChatSession();
+    Q_INVOKABLE void switchChatSession(const QString &id);
+    Q_INVOKABLE void sendChatMessage(const QString &text);
+    Q_INVOKABLE void stopChatGeneration();
     Q_INVOKABLE void startServer(const QString &launchProfileId);
     Q_INVOKABLE void stopServer();
     Q_INVOKABLE void computeEffectiveProfile(const QString &launchProfileId);
@@ -101,6 +125,11 @@ public:
     Q_INVOKABLE void clearAgentLog();
     Q_INVOKABLE QString agentNativeLogDir(const QString &adapter) const;
     Q_INVOKABLE void openAgentLogDir(const QString &adapter) const;
+    Q_INVOKABLE void newOpencodeSession();
+    Q_INVOKABLE void switchOpencodeSession(const QString &sessionId);
+    Q_INVOKABLE void refreshOpencodeSessionList();
+    Q_INVOKABLE QString pickDirectory(const QString &title = QString());
+    Q_INVOKABLE void changeAgentProject(const QString &directory);
 
 signals:
     void serverRunningChanged();
@@ -117,8 +146,13 @@ signals:
     void languageChanged();
     void harnessStatusChanged();
     void harnessInstallFinished(bool success, const QString &adapter, const QString &message);
+    void chatSessionsChanged();
+    void chatMessagesChanged();
+    void chatGeneratingChanged();
     void agentRunningChanged();
     void agentLogChanged();
+    void agentMessagesChanged();
+    void agentSessionsChanged();
 
 private:
     void appendLog(const QString &text);
@@ -138,6 +172,8 @@ private:
     bool      m_smokeTestDone = false;
     QString   m_log;
     QString   m_activeLaunchId;
+    bool      m_serverStopping = false;
+    QTimer   *m_stopKillTimer = nullptr;
     QVariantMap m_effectiveProfile;
     bool m_installingOfficialBinary = false;
     QString m_officialBinaryInstallStatus;
@@ -156,10 +192,33 @@ private:
     QTimer   *m_agentPollTimer = nullptr;
     QString   m_agentLog;
     QString   m_activeAgentAdapter;
-    QString   m_opencodeAttachUrl = QStringLiteral("http://127.0.0.1:4096");
+    QString   m_opencodeAttachUrl  = QStringLiteral("http://127.0.0.1:4096");
+    QString   m_agentCwdOverride;   // directory for next/current agent start
+    QString   m_pendingAgentLaunchId; // used when restarting for project change
+    // Chat session state
+    QVariantList  m_chatSessions;
+    QVariantList  m_chatMessages;
+    QString       m_chatSessionId;
+    QString       m_chatSessionTitle;
+    bool          m_chatGenerating = false;
+    QNetworkReply *m_chatReply = nullptr;
+    int           m_chatAssistantIdx = -1;
+    QString       chatStorageDir() const;
+    void          loadChatSessions();
+    void          saveChatSession();
+    void          loadChatSessionMessages(const QString &id);
+
     QNetworkAccessManager *m_nam = nullptr;
     QString   m_opencodeSessionId;
     QNetworkReply *m_opencodeEventReply = nullptr;
+    QVariantList m_agentMessages;
+    int       m_currentAssistantIdx = -1;
+    QVariantList m_agentSessions;
+    QString   m_opencodeSessionTitle;
+    void loadOpencodeSessionList(std::function<void()> then = nullptr);
+    void resumeOrCreateOpencodeSession();
+    void doCreateOpencodeSession();
+    void loadOpencodeSessionMessages(const QString &sessionId);
     void initOpencodeSession();
     void subscribeOpencodeEvents();
 

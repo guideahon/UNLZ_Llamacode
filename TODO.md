@@ -22,13 +22,7 @@
 
 ## P0 - Perfiles compuestos ✅
 
-- [x] Separar entidades:
-  - [x] `BackendProfile`
-  - [x] `ModelProfile`
-  - [x] `RuntimePreset`
-  - [x] `HarnessProfile`
-  - [x] `WorkspaceProfile`
-  - [x] `LaunchProfile`
+- [x] Separar entidades: `BackendProfile`, `ModelProfile`, `RuntimePreset`, `HarnessProfile`, `WorkspaceProfile`, `LaunchProfile`
 - [x] Implementar `EffectiveProfileBuilder`
 - [x] Resolver merge + overrides
 - [x] Salida: `effectiveArgs`, `effectiveEnv`, `warnings`, `blockingErrors`
@@ -37,31 +31,33 @@
 ## P0 - UI base ✅
 
 - [x] App Qt Quick arranca sin errores (`WIN32_EXECUTABLE`)
-- [x] NavBar + 4 páginas (Binaries, Model Roots, Profiles, Launch)
+- [x] NavBar + páginas (Binaries, Model Roots, Profiles, Launch, Chat, Agente)
 - [x] Tema Catppuccin Mocha
-- [x] `LcButton`, `LcTextField`, `LcDialog`, `PageHeader`, `CommandPreview`
-- [x] `LaunchPage` con selector de perfil, preview de comando, log de servidor
+- [x] `LcButton`, `LcTextField`, `LcDialog`, `NavBar`, `PageHeader`, `CommandPreview`
 
-## P1 - Validación y compatibilidad
+## P1 - Validación y compatibilidad ✅
 
-- [x] Matriz flag/capability por binario (en `EffectiveProfileBuilder.addFlag`)
+- [x] Matriz flag/capability por binario (`EffectiveProfileBuilder.addFlag`)
 - [x] Reglas de degradación (warning) vs bloqueo (error)
 - [x] Validar modelo/mmproj/draft antes de start
-- [ ] Validar colisión de puerto antes de start
+- [ ] Validar colisión de puerto antes de start (detectado y matado al levantar agente; falta en server)
 - [ ] Diagnóstico temprano: verificar que el binario existe y es ejecutable
 
-## P1 - Ejecución y observabilidad
+## P1 - Ejecución y observabilidad (parcial)
 
 - [ ] `LlamaProcessManager` dedicado (extraer de `AppController`)
-- [ ] Logs en vivo stdout/stderr con buffer circular (actualmente raw en AppController)
-- [ ] Filtros de log por nivel (error/warn/info)
-- [ ] Detecciones automáticas por regex en log:
-  - [ ] modelo no encontrado
-  - [ ] OOM / CUDA out of memory
-  - [ ] fallback a RAM detectado
-  - [ ] puerto ocupado (`Address already in use`)
-  - [ ] modelo cargado con éxito (tiempo de carga)
-- [x] Botón copiar comando (`CommandPreview.qml` → `App.copyToClipboard`)
+- [x] Logs en vivo stdout/stderr (en AppController + AgentPage Vista terminal)
+- [ ] Filtros de log por nivel
+- [ ] Detecciones automáticas por regex en log (OOM, port busy, modelo cargado, etc.)
+- [x] Botón copiar comando
+
+## P1 - Process lifecycle ✅
+
+- [x] Windows Job Object: hijos mueren al cerrar LlamaCode
+- [x] Env vars de trazabilidad: `LLAMACODE_MANAGED`, `LLAMACODE_ROLE`, `LLAMACODE_APP_PID`
+- [x] PID state file (`services.json`): detecta y mata orphans al iniciar
+- [x] Pre-kill de puerto 4096 al levantar opencode
+- [x] Stop asíncrono: `serverStopping` property + botón "Deteniendo..." + kill fallback 5s (UI no se congela)
 
 ## P1 - Endpoint health
 
@@ -70,13 +66,16 @@
 - [ ] Medir latencia first-token
 - [ ] UI de estado: iniciando / listo / error
 
-## P2 - UX de perfiles masivos
+## P2 - UX de perfiles (parcial)
 
-- [ ] Clonar perfil
+- [x] Duplicar perfil
+- [x] Renombrar perfil
+- [x] Eliminar perfil
+- [x] **Importar perfil desde argumentos CLI** (parsea --host, --port, --model, --ctx-size, --batch-size, --ubatch-size, --threads, --n-gpu-layers, --flash-attn, --no-mmap, --mlock, --parallel, --cache-type-k)
 - [ ] Plantillas de perfil
 - [ ] Etiquetas y búsqueda por perfil
 - [ ] Favoritos y último usado
-- [ ] Import/Export de perfiles (JSON)
+- [ ] Export/Import de perfiles completos (JSON)
 - [ ] Historial de cambios por perfil
 
 ## P2 - Model Catalog avanzado
@@ -86,21 +85,38 @@
 - [ ] Marcar compatibilidad vision/draft manualmente
 - [ ] Asociación rápida modelo → perfil
 
-## P3 - Harness externo
+## P3 - Harness opencode ✅
 
-- [ ] Interfaz `IHarnessAdapter`
-- [ ] `CustomCliAdapter`
-- [ ] `OpenCodeCliAdapter`
+- [x] Integración HTTP API nativa (POST `/session`, `/session/{id}/prompt_async`, GET `/event` SSE)
+- [x] Eliminado conflicto de DB SQLite (no más subproceso `opencode run`)
+- [x] Vista Agente: chat bubbles con streaming en tiempo real (`message.part.delta` SSE)
+- [x] Vista terminal: log raw para debug
+- [x] Indicador "⏳ Procesando..." + cursor `▌` durante streaming
+- [x] Panel lateral de sesiones con agrupación por proyecto (directorio)
+- [x] Resume automático de última sesión (QSettings `opencode/lastSessionId`)
+- [x] Creación de nueva sesión desde UI
+- [x] Switch entre sesiones con carga de historial (`GET /session/{id}/message`)
+- [x] Actualización de título de sesión en tiempo real vía SSE `session.updated`
+- [x] Limpieza de sesión/SSE al detener agente
 - [ ] `AiderCliAdapter`
 - [ ] Templates args/env por harness
-- [ ] Vista de logs de harness separada
+- [ ] Adjuntar archivos al mensaje (phase 2 de agente)
 
-## P4 - Chat integrado
+## P4 - Chat integrado ✅
 
-- [ ] Chat streaming local (SSE)
-- [ ] Historial en SQLite
-- [ ] Sampling configurable por sesión
+- [x] Chat streaming directo a `llama-server` vía `/v1/chat/completions` SSE
+- [x] Estado gestionado en `AppController` (no en QML): `chatMessages`, `chatGenerating`, `sendChatMessage`, `stopChatGeneration`
+- [x] Sesiones persistidas en JSON (`AppLocalData/LlamaCode/chat/{id}.json`)
+- [x] Índice de sesiones (`index.json`) con título, fecha, projectId
+- [x] Auto-título desde primer mensaje del usuario
+- [x] Panel lateral de chats agrupado por proyecto (launch profile)
+- [x] Switch entre chats con carga de historial
+- [x] Nueva sesión desde UI
+- [x] Stop de generación con guardado
+- [x] Indicador "⏳ Procesando..." + cursor `▌`
+- [ ] Sampling configurable por sesión (temp, top-p, etc.)
 - [ ] Export conversación (Markdown/JSON)
+- [ ] Búsqueda en historial
 
 ## P5 - Built-in agent mínimo
 
@@ -118,14 +134,17 @@
 - [ ] Tests `ModelRootRegistry`
 - [ ] Tests `EffectiveProfileBuilder`
 - [ ] Tests `GGUFScanner` (inferencia familia/quant)
-- [ ] Integración `LlamaProcessManager`
+- [ ] Tests `AppController` chat session CRUD
 
 ## Definition of Done MVP real
 
 - [ ] 3+ binarios registrados y seleccionables
 - [ ] 3+ roots GGUF escaneadas y navegables
 - [ ] 10+ perfiles compuestos persistidos y recargables
-- [ ] Start/Stop con comando reproducible
+- [x] Start/Stop con comando reproducible
 - [x] Command Preview exacto y copiable
-- [ ] Test API exitoso desde perfil activo
-- [ ] Reapertura de app sin pérdida de estado
+- [x] Chat streaming funcionando con historial
+- [x] Harness opencode con sesiones y proyectos
+- [ ] Test API exitoso desde perfil activo (health check automático)
+- [x] Reapertura de app sin pérdida de estado (chat + sesiones opencode)
+- [x] Subprocesos orphan limpiados al reiniciar

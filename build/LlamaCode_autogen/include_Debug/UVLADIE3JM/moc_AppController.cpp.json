@@ -6,19 +6,55 @@
             "methods": [
                 {
                     "access": "public",
+                    "index": 21,
+                    "name": "newChatSession",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 22,
+                    "name": "switchChatSession",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "text",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 23,
+                    "name": "sendChatMessage",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 24,
+                    "name": "stopChatGeneration",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
                     "arguments": [
                         {
                             "name": "launchProfileId",
                             "type": "QString"
                         }
                     ],
-                    "index": 16,
+                    "index": 25,
                     "name": "startServer",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 17,
+                    "index": 26,
                     "name": "stopServer",
                     "returnType": "void"
                 },
@@ -30,13 +66,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 18,
+                    "index": 27,
                     "name": "computeEffectiveProfile",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 19,
+                    "index": 28,
                     "name": "clearLog",
                     "returnType": "void"
                 },
@@ -48,19 +84,19 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 20,
+                    "index": 29,
                     "name": "copyToClipboard",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 21,
+                    "index": 30,
                     "name": "installOfficialBinary",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 22,
+                    "index": 31,
                     "name": "cancelOfficialBinaryInstall",
                     "returnType": "void"
                 },
@@ -72,13 +108,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 23,
+                    "index": 32,
                     "name": "smokeTestServer",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 24,
+                    "index": 33,
                     "name": "smokeTestRunning",
                     "returnType": "bool"
                 },
@@ -94,13 +130,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 25,
+                    "index": 34,
                     "name": "resolveFlag",
                     "returnType": "QString"
                 },
                 {
                     "access": "public",
-                    "index": 26,
+                    "index": 35,
                     "name": "version",
                     "returnType": "QString"
                 },
@@ -112,7 +148,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 27,
+                    "index": 36,
                     "name": "l",
                     "returnType": "QString"
                 },
@@ -128,7 +164,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 28,
+                    "index": 37,
                     "name": "lf",
                     "returnType": "QString"
                 },
@@ -144,7 +180,7 @@
                             "type": "QVariant"
                         }
                     ],
-                    "index": 29,
+                    "index": 38,
                     "name": "readSetting",
                     "returnType": "QVariant"
                 },
@@ -156,7 +192,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 30,
+                    "index": 39,
                     "isCloned": true,
                     "name": "readSetting",
                     "returnType": "QVariant"
@@ -173,7 +209,7 @@
                             "type": "QVariant"
                         }
                     ],
-                    "index": 31,
+                    "index": 40,
                     "name": "writeSetting",
                     "returnType": "void"
                 },
@@ -185,7 +221,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 32,
+                    "index": 41,
                     "name": "isHarnessInstalled",
                     "returnType": "bool"
                 },
@@ -197,7 +233,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 33,
+                    "index": 42,
                     "name": "installHarness",
                     "returnType": "void"
                 },
@@ -209,13 +245,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 34,
+                    "index": 43,
                     "name": "startAgent",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 35,
+                    "index": 44,
                     "name": "stopAgent",
                     "returnType": "void"
                 },
@@ -227,13 +263,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 36,
+                    "index": 45,
                     "name": "sendToAgent",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 37,
+                    "index": 46,
                     "name": "clearAgentLog",
                     "returnType": "void"
                 },
@@ -245,7 +281,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 38,
+                    "index": 47,
                     "name": "agentNativeLogDir",
                     "returnType": "QString"
                 },
@@ -257,8 +293,63 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 39,
+                    "index": 48,
                     "name": "openAgentLogDir",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 49,
+                    "name": "newOpencodeSession",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "sessionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 50,
+                    "name": "switchOpencodeSession",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 51,
+                    "name": "refreshOpencodeSessionList",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "title",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 52,
+                    "name": "pickDirectory",
+                    "returnType": "QString"
+                },
+                {
+                    "access": "public",
+                    "index": 53,
+                    "isCloned": true,
+                    "name": "pickDirectory",
+                    "returnType": "QString"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "directory",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 54,
+                    "name": "changeAgentProject",
                     "returnType": "void"
                 }
             ],
@@ -321,6 +412,76 @@
                     "designable": true,
                     "final": false,
                     "index": 4,
+                    "name": "chatSessions",
+                    "notify": "chatSessionsChanged",
+                    "read": "chatSessions",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QVariantList",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 5,
+                    "name": "chatMessages",
+                    "notify": "chatMessagesChanged",
+                    "read": "chatMessages",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QVariantList",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 6,
+                    "name": "chatSessionId",
+                    "notify": "chatSessionsChanged",
+                    "read": "chatSessionId",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 7,
+                    "name": "chatSessionTitle",
+                    "notify": "chatSessionsChanged",
+                    "read": "chatSessionTitle",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 8,
+                    "name": "chatGenerating",
+                    "notify": "chatGeneratingChanged",
+                    "read": "chatGenerating",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 9,
                     "name": "serverRunning",
                     "notify": "serverRunningChanged",
                     "read": "serverRunning",
@@ -334,7 +495,21 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 5,
+                    "index": 10,
+                    "name": "serverStopping",
+                    "notify": "serverRunningChanged",
+                    "read": "serverStopping",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 11,
                     "name": "serverLog",
                     "notify": "serverLogChanged",
                     "read": "serverLog",
@@ -348,7 +523,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 6,
+                    "index": 12,
                     "name": "activeLaunchId",
                     "notify": "activeLaunchIdChanged",
                     "read": "activeLaunchId",
@@ -362,7 +537,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 7,
+                    "index": 13,
                     "name": "effectiveProfile",
                     "notify": "effectiveProfileChanged",
                     "read": "effectiveProfile",
@@ -376,7 +551,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 8,
+                    "index": 14,
                     "name": "needsSetup",
                     "notify": "setupStateChanged",
                     "read": "needsSetup",
@@ -390,7 +565,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 9,
+                    "index": 15,
                     "name": "serverBaseUrl",
                     "notify": "serverRunningChanged",
                     "read": "serverBaseUrl",
@@ -404,7 +579,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 10,
+                    "index": 16,
                     "name": "installingOfficialBinary",
                     "notify": "installingOfficialBinaryChanged",
                     "read": "installingOfficialBinary",
@@ -418,7 +593,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 11,
+                    "index": 17,
                     "name": "officialBinaryInstallStatus",
                     "notify": "officialBinaryInstallStatusChanged",
                     "read": "officialBinaryInstallStatus",
@@ -432,7 +607,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 12,
+                    "index": 18,
                     "name": "officialBinaryInstallLog",
                     "notify": "officialBinaryInstallLogChanged",
                     "read": "officialBinaryInstallLog",
@@ -446,7 +621,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 13,
+                    "index": 19,
                     "name": "language",
                     "notify": "languageChanged",
                     "read": "language",
@@ -461,7 +636,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 14,
+                    "index": 20,
                     "name": "langV",
                     "notify": "languageChanged",
                     "read": "langV",
@@ -475,7 +650,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 15,
+                    "index": 21,
                     "name": "agentRunning",
                     "notify": "agentRunningChanged",
                     "read": "agentRunning",
@@ -489,7 +664,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 16,
+                    "index": 22,
                     "name": "agentLog",
                     "notify": "agentLogChanged",
                     "read": "agentLog",
@@ -503,7 +678,63 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 17,
+                    "index": 23,
+                    "name": "agentMessages",
+                    "notify": "agentMessagesChanged",
+                    "read": "agentMessages",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QVariantList",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 24,
+                    "name": "agentSessions",
+                    "notify": "agentSessionsChanged",
+                    "read": "agentSessions",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QVariantList",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 25,
+                    "name": "opencodeSessionId",
+                    "notify": "agentSessionsChanged",
+                    "read": "opencodeSessionId",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 26,
+                    "name": "opencodeSessionTitle",
+                    "notify": "agentSessionsChanged",
+                    "read": "opencodeSessionTitle",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 27,
                     "name": "activeAgentAdapter",
                     "notify": "agentRunningChanged",
                     "read": "activeAgentAdapter",
@@ -517,7 +748,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 18,
+                    "index": 28,
                     "name": "agentInTerminal",
                     "notify": "agentRunningChanged",
                     "read": "agentInTerminal",
@@ -531,7 +762,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 19,
+                    "index": 29,
                     "name": "installingHarness",
                     "notify": "harnessStatusChanged",
                     "read": "installingHarness",
@@ -545,7 +776,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 20,
+                    "index": 30,
                     "name": "harnessInstallStatus",
                     "notify": "harnessStatusChanged",
                     "read": "harnessInstallStatus",
@@ -559,7 +790,7 @@
                     "constant": false,
                     "designable": true,
                     "final": false,
-                    "index": 21,
+                    "index": 31,
                     "name": "harnessCheckV",
                     "notify": "harnessStatusChanged",
                     "read": "harnessCheckV",
@@ -703,13 +934,43 @@
                 {
                     "access": "public",
                     "index": 14,
-                    "name": "agentRunningChanged",
+                    "name": "chatSessionsChanged",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
                     "index": 15,
+                    "name": "chatMessagesChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 16,
+                    "name": "chatGeneratingChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 17,
+                    "name": "agentRunningChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 18,
                     "name": "agentLogChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 19,
+                    "name": "agentMessagesChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 20,
+                    "name": "agentSessionsChanged",
                     "returnType": "void"
                 }
             ],
