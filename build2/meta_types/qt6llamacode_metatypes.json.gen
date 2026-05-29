@@ -1,0 +1,1335 @@
+[
+    {
+        "classes": [
+            {
+                "className": "BinaryRegistry",
+                "lineNumber": 6,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "path",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "flavor",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "backend",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "versionHint",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 3,
+                        "name": "add",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 4,
+                        "name": "remove",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "flavor",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "backend",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "versionHint",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "workingDir",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 5,
+                        "name": "update",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 6,
+                        "name": "detectCapabilities",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 7,
+                        "name": "get",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "index": 8,
+                        "name": "refresh",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 9,
+                        "name": "supportedFlags",
+                        "returnType": "QStringList"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "count",
+                        "notify": "countChanged",
+                        "read": "count",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "BinaryRegistry",
+                "signals": [
+                    {
+                        "access": "public",
+                        "index": 0,
+                        "name": "countChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "error",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 1,
+                        "name": "capabilitiesDetected",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 2,
+                        "name": "errorOccurred",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QAbstractListModel"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "BinaryRegistry.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "GGUFScanner",
+                "lineNumber": 7,
+                "object": true,
+                "qualifiedClassName": "GGUFScanner",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "rootId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "found",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 0,
+                        "name": "progress",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "GGUFScanner.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "ModelCatalog",
+                "lineNumber": 6,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "model",
+                                "type": "CatalogModel"
+                            }
+                        ],
+                        "index": 2,
+                        "name": "addOrUpdate",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "models",
+                                "type": "QList<CatalogModel>"
+                            }
+                        ],
+                        "index": 3,
+                        "name": "addBatch",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "rootId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 4,
+                        "name": "markRootUnavailable",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "rootId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 5,
+                        "name": "removeByRootId",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 6,
+                        "name": "get",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "row",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 7,
+                        "name": "getAt",
+                        "returnType": "QVariantMap"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "count",
+                        "notify": "countChanged",
+                        "read": "count",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "filterRootId",
+                        "notify": "filterChanged",
+                        "read": "filterRootId",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false,
+                        "write": "setFilterRootId"
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "filterFamily",
+                        "notify": "filterChanged",
+                        "read": "filterFamily",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false,
+                        "write": "setFilterFamily"
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "filterVisionOnly",
+                        "notify": "filterChanged",
+                        "read": "filterVisionOnly",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false,
+                        "write": "setFilterVisionOnly"
+                    }
+                ],
+                "qualifiedClassName": "ModelCatalog",
+                "signals": [
+                    {
+                        "access": "public",
+                        "index": 0,
+                        "name": "countChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 1,
+                        "name": "filterChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QAbstractListModel"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "ModelCatalog.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "ModelRootRegistry",
+                "lineNumber": 8,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "path",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "label",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "scanMode",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "tags",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "index": 5,
+                        "name": "add",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 6,
+                        "name": "remove",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "label",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "scanMode",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "enabled",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "priority",
+                                "type": "int"
+                            },
+                            {
+                                "name": "tags",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "index": 7,
+                        "name": "update",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 8,
+                        "name": "scan",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 9,
+                        "name": "scanAll",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 10,
+                        "name": "refresh",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 11,
+                        "name": "get",
+                        "returnType": "QVariantMap"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "count",
+                        "notify": "countChanged",
+                        "read": "count",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "scanning",
+                        "notify": "scanningChanged",
+                        "read": "scanning",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ModelRootRegistry",
+                "signals": [
+                    {
+                        "access": "public",
+                        "index": 0,
+                        "name": "countChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 1,
+                        "name": "scanningChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "rootId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 2,
+                        "name": "scanStarted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "rootId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "modelsFound",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 3,
+                        "name": "scanFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 4,
+                        "name": "errorOccurred",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QAbstractListModel"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "ModelRootRegistry.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "AppController",
+                "lineNumber": 12,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "launchProfileId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 10,
+                        "name": "startServer",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 11,
+                        "name": "stopServer",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "launchProfileId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 12,
+                        "name": "computeEffectiveProfile",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 13,
+                        "name": "clearLog",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "text",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 14,
+                        "name": "copyToClipboard",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 15,
+                        "name": "installOfficialBinary",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 16,
+                        "name": "cancelOfficialBinaryInstall",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 17,
+                        "name": "version",
+                        "returnType": "QString"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "binaryRegistry",
+                        "read": "binaryRegistry",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "BinaryRegistry*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "rootRegistry",
+                        "read": "rootRegistry",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "ModelRootRegistry*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "modelCatalog",
+                        "read": "modelCatalog",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "ModelCatalog*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "profileManager",
+                        "read": "profileManager",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "ProfileManager*",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "serverRunning",
+                        "notify": "serverRunningChanged",
+                        "read": "serverRunning",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "name": "serverLog",
+                        "notify": "serverLogChanged",
+                        "read": "serverLog",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 6,
+                        "name": "activeLaunchId",
+                        "notify": "activeLaunchIdChanged",
+                        "read": "activeLaunchId",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 7,
+                        "name": "effectiveProfile",
+                        "notify": "effectiveProfileChanged",
+                        "read": "effectiveProfile",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantMap",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 8,
+                        "name": "needsSetup",
+                        "notify": "setupStateChanged",
+                        "read": "needsSetup",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 9,
+                        "name": "installingOfficialBinary",
+                        "notify": "installingOfficialBinaryChanged",
+                        "read": "installingOfficialBinary",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 10,
+                        "name": "officialBinaryInstallStatus",
+                        "notify": "officialBinaryInstallStatusChanged",
+                        "read": "officialBinaryInstallStatus",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 11,
+                        "name": "officialBinaryInstallLog",
+                        "notify": "officialBinaryInstallLogChanged",
+                        "read": "officialBinaryInstallLog",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "AppController",
+                "signals": [
+                    {
+                        "access": "public",
+                        "index": 0,
+                        "name": "serverRunningChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 1,
+                        "name": "serverLogChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 2,
+                        "name": "activeLaunchIdChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 3,
+                        "name": "effectiveProfileChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 4,
+                        "name": "setupStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 5,
+                        "name": "installingOfficialBinaryChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 6,
+                        "name": "officialBinaryInstallStatusChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 7,
+                        "name": "officialBinaryInstallLogChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "binaryPath",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 8,
+                        "name": "officialBinaryInstallFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 9,
+                        "name": "serverError",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "AppController.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "ProfileManager",
+                "lineNumber": 69,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "binaryId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "host",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "port",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 1,
+                        "name": "addBackend",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 2,
+                        "name": "removeBackend",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "binaryId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "host",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "port",
+                                "type": "int"
+                            },
+                            {
+                                "name": "baseArgs",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "index": 3,
+                        "name": "updateBackend",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 4,
+                        "name": "getBackend",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "modelId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "mmprojId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "draftId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 5,
+                        "name": "addModelProfile",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 6,
+                        "name": "removeModelProfile",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "modelId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "mmprojId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "draftId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 7,
+                        "name": "updateModelProfile",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 8,
+                        "name": "getModelProfile",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "ctx",
+                                "type": "int"
+                            },
+                            {
+                                "name": "batch",
+                                "type": "int"
+                            },
+                            {
+                                "name": "gpuLayers",
+                                "type": "int"
+                            },
+                            {
+                                "name": "flashAttn",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "contBatch",
+                                "type": "bool"
+                            }
+                        ],
+                        "index": 9,
+                        "name": "addRuntimePreset",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 10,
+                        "name": "removeRuntimePreset",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 11,
+                        "name": "updateRuntimePreset",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 12,
+                        "name": "getRuntimePreset",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "backendId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "modelId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "runtimeId",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 13,
+                        "name": "addLaunchProfile",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 14,
+                        "name": "removeLaunchProfile",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 15,
+                        "name": "updateLaunchProfile",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 16,
+                        "name": "getLaunchProfile",
+                        "returnType": "QVariantMap"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "backendProfiles",
+                        "read": "backendProfiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QAbstractListModel*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "modelProfiles",
+                        "read": "modelProfiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QAbstractListModel*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "runtimePresets",
+                        "read": "runtimePresets",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QAbstractListModel*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "harnessProfiles",
+                        "read": "harnessProfiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QAbstractListModel*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "workspaceProfiles",
+                        "read": "workspaceProfiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QAbstractListModel*",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "name": "launchProfiles",
+                        "read": "launchProfiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QAbstractListModel*",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ProfileManager",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 0,
+                        "name": "errorOccurred",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "ProfileManager.h",
+        "outputRevision": 68
+    }
+]

@@ -6,6 +6,7 @@
 #include "core/profiles/EffectiveProfileBuilder.h"
 #include <QObject>
 #include <QProcess>
+#include <QTimer>
 #include <QVariantMap>
 
 class AppController : public QObject
@@ -21,6 +22,8 @@ class AppController : public QObject
     Q_PROPERTY(QVariantMap effectiveProfile READ effectiveProfile NOTIFY effectiveProfileChanged)
     Q_PROPERTY(bool needsSetup READ needsSetup NOTIFY setupStateChanged)
     Q_PROPERTY(bool installingOfficialBinary READ installingOfficialBinary NOTIFY installingOfficialBinaryChanged)
+    Q_PROPERTY(QString officialBinaryInstallStatus READ officialBinaryInstallStatus NOTIFY officialBinaryInstallStatusChanged)
+    Q_PROPERTY(QString officialBinaryInstallLog READ officialBinaryInstallLog NOTIFY officialBinaryInstallLogChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -36,6 +39,8 @@ public:
     QVariantMap effectiveProfile() const { return m_effectiveProfile; }
     bool needsSetup() const { return m_binaries.count() == 0 && m_catalog.count() == 0; }
     bool installingOfficialBinary() const { return m_installingOfficialBinary; }
+    QString officialBinaryInstallStatus() const { return m_officialBinaryInstallStatus; }
+    QString officialBinaryInstallLog() const { return m_officialBinaryInstallLog; }
 
     Q_INVOKABLE void startServer(const QString &launchProfileId);
     Q_INVOKABLE void stopServer();
@@ -43,6 +48,7 @@ public:
     Q_INVOKABLE void clearLog();
     Q_INVOKABLE void copyToClipboard(const QString &text);
     Q_INVOKABLE void installOfficialBinary();
+    Q_INVOKABLE void cancelOfficialBinaryInstall();
     Q_INVOKABLE QString version() const { return QStringLiteral("0.1.0"); }
 
 signals:
@@ -52,6 +58,8 @@ signals:
     void effectiveProfileChanged();
     void setupStateChanged();
     void installingOfficialBinaryChanged();
+    void officialBinaryInstallStatusChanged();
+    void officialBinaryInstallLogChanged();
     void officialBinaryInstallFinished(bool success, const QString &message, const QString &binaryPath);
     void serverError(const QString &message);
 
@@ -70,4 +78,10 @@ private:
     QString   m_activeLaunchId;
     QVariantMap m_effectiveProfile;
     bool m_installingOfficialBinary = false;
+    QString m_officialBinaryInstallStatus;
+    QString m_officialBinaryInstallLog;
+    bool m_cancelingOfficialBinaryInstall = false;
+    bool m_timeoutOfficialBinaryInstall = false;
+    QDateTime m_lastInstallProgressAt;
+    QTimer *m_installWatchdog = nullptr;
 };

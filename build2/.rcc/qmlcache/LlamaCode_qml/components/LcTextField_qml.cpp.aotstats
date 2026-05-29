@@ -1,0 +1,28 @@
+[
+    {
+        "moduleFiles": [
+            {
+                "entries": [
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 23,
+                        "durationMicroseconds": 99,
+                        "errorMessage": "Cannot access value for name root",
+                        "functionName": "color",
+                        "line": 16
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 23,
+                        "durationMicroseconds": 17,
+                        "errorMessage": "Cannot access value for name root",
+                        "functionName": "width",
+                        "line": 17
+                    }
+                ],
+                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcTextField.qml"
+            }
+        ],
+        "moduleId": "LlamaCode(LlamaCode)"
+    }
+]

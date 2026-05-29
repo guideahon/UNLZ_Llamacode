@@ -2,7 +2,7 @@
     "classes": [
         {
             "className": "AppController",
-            "lineNumber": 11,
+            "lineNumber": 12,
             "methods": [
                 {
                     "access": "public",
@@ -12,13 +12,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 8,
+                    "index": 9,
                     "name": "startServer",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 9,
+                    "index": 10,
                     "name": "stopServer",
                     "returnType": "void"
                 },
@@ -30,13 +30,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 10,
+                    "index": 11,
                     "name": "computeEffectiveProfile",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 11,
+                    "index": 12,
                     "name": "clearLog",
                     "returnType": "void"
                 },
@@ -48,19 +48,25 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 12,
+                    "index": 13,
                     "name": "copyToClipboard",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 13,
+                    "index": 14,
                     "name": "installOfficialBinary",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 14,
+                    "index": 15,
+                    "name": "cancelOfficialBinaryInstall",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 16,
                     "name": "version",
                     "returnType": "QString"
                 }
@@ -202,6 +208,20 @@
                     "stored": true,
                     "type": "bool",
                     "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 10,
+                    "name": "officialBinaryInstallStatus",
+                    "notify": "officialBinaryInstallStatusChanged",
+                    "read": "officialBinaryInstallStatus",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
                 }
             ],
             "qualifiedClassName": "AppController",
@@ -244,6 +264,12 @@
                 },
                 {
                     "access": "public",
+                    "index": 6,
+                    "name": "officialBinaryInstallStatusChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
                     "arguments": [
                         {
                             "name": "success",
@@ -258,7 +284,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 6,
+                    "index": 7,
                     "name": "officialBinaryInstallFinished",
                     "returnType": "void"
                 },
@@ -270,7 +296,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 7,
+                    "index": 8,
                     "name": "serverError",
                     "returnType": "void"
                 }

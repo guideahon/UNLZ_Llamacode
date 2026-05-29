@@ -1,0 +1,190 @@
+{
+    "classes": [
+        {
+            "className": "BinaryRegistry",
+            "lineNumber": 6,
+            "methods": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "path",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "name",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "flavor",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "backend",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "versionHint",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 3,
+                    "name": "add",
+                    "returnType": "QString"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 4,
+                    "name": "remove",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "name",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "flavor",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "backend",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "versionHint",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "workingDir",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 5,
+                    "name": "update",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 6,
+                    "name": "detectCapabilities",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 7,
+                    "name": "get",
+                    "returnType": "QVariantMap"
+                },
+                {
+                    "access": "public",
+                    "index": 8,
+                    "name": "refresh",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 9,
+                    "name": "supportedFlags",
+                    "returnType": "QStringList"
+                }
+            ],
+            "object": true,
+            "properties": [
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 0,
+                    "name": "count",
+                    "notify": "countChanged",
+                    "read": "count",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                }
+            ],
+            "qualifiedClassName": "BinaryRegistry",
+            "signals": [
+                {
+                    "access": "public",
+                    "index": 0,
+                    "name": "countChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "success",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "error",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 1,
+                    "name": "capabilitiesDetected",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "message",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 2,
+                    "name": "errorOccurred",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QAbstractListModel"
+                }
+            ]
+        }
+    ],
+    "inputFile": "BinaryRegistry.h",
+    "outputRevision": 68
+}

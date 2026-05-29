@@ -1,9 +1,9 @@
 --resource
-C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/qmake_LlamaCode.qrc
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/.qt/rcc/qmake_LlamaCode.qrc
 --resource
-C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/LlamaCode_raw_qml_0.qrc
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/.qt/rcc/LlamaCode_raw_qml_0.qrc
 --resource
-C:/Users/cristian/Documents/LlamaCode/build/.qt/rcc/llamacode_assets.qrc
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/.qt/rcc/llamacode_assets.qrc
 /LlamaCode/qml/Main.qml
 /LlamaCode/qml/pages/BinariesPage.qml
 /LlamaCode/qml/pages/ModelRootsPage.qml

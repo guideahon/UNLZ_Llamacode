@@ -45,6 +45,7 @@ static constexpr auto qt_meta_stringdata_ZN13AppControllerE = QtMocHelpers::stri
     "effectiveProfileChanged",
     "setupStateChanged",
     "installingOfficialBinaryChanged",
+    "officialBinaryInstallStatusChanged",
     "officialBinaryInstallFinished",
     "success",
     "message",
@@ -58,6 +59,7 @@ static constexpr auto qt_meta_stringdata_ZN13AppControllerE = QtMocHelpers::stri
     "copyToClipboard",
     "text",
     "installOfficialBinary",
+    "cancelOfficialBinaryInstall",
     "version",
     "binaryRegistry",
     "BinaryRegistry*",
@@ -73,7 +75,8 @@ static constexpr auto qt_meta_stringdata_ZN13AppControllerE = QtMocHelpers::stri
     "effectiveProfile",
     "QVariantMap",
     "needsSetup",
-    "installingOfficialBinary"
+    "installingOfficialBinary",
+    "officialBinaryInstallStatus"
 );
 #else  // !QT_MOC_HAS_STRINGDATA
 #error "qtmochelpers.h not found or too old."
@@ -85,31 +88,33 @@ Q_CONSTINIT static const uint qt_meta_data_ZN13AppControllerE[] = {
       12,       // revision
        0,       // classname
        0,    0, // classinfo
-      15,   14, // methods
-      10,  133, // properties
+      17,   14, // methods
+      11,  147, // properties
        0,    0, // enums/sets
        0,    0, // constructors
        0,       // flags
-       8,       // signalCount
+       9,       // signalCount
 
  // signals: name, argc, parameters, tag, flags, initial metatype offsets
-       1,    0,  104,    2, 0x06,   11 /* Public */,
-       3,    0,  105,    2, 0x06,   12 /* Public */,
-       4,    0,  106,    2, 0x06,   13 /* Public */,
-       5,    0,  107,    2, 0x06,   14 /* Public */,
-       6,    0,  108,    2, 0x06,   15 /* Public */,
-       7,    0,  109,    2, 0x06,   16 /* Public */,
-       8,    3,  110,    2, 0x06,   17 /* Public */,
-      12,    1,  117,    2, 0x06,   21 /* Public */,
+       1,    0,  116,    2, 0x06,   12 /* Public */,
+       3,    0,  117,    2, 0x06,   13 /* Public */,
+       4,    0,  118,    2, 0x06,   14 /* Public */,
+       5,    0,  119,    2, 0x06,   15 /* Public */,
+       6,    0,  120,    2, 0x06,   16 /* Public */,
+       7,    0,  121,    2, 0x06,   17 /* Public */,
+       8,    0,  122,    2, 0x06,   18 /* Public */,
+       9,    3,  123,    2, 0x06,   19 /* Public */,
+      13,    1,  130,    2, 0x06,   23 /* Public */,
 
  // methods: name, argc, parameters, tag, flags, initial metatype offsets
-      13,    1,  120,    2, 0x02,   23 /* Public */,
-      15,    0,  123,    2, 0x02,   25 /* Public */,
-      16,    1,  124,    2, 0x02,   26 /* Public */,
-      17,    0,  127,    2, 0x02,   28 /* Public */,
-      18,    1,  128,    2, 0x02,   29 /* Public */,
-      20,    0,  131,    2, 0x02,   31 /* Public */,
-      21,    0,  132,    2, 0x102,   32 /* Public | MethodIsConst  */,
+      14,    1,  133,    2, 0x02,   25 /* Public */,
+      16,    0,  136,    2, 0x02,   27 /* Public */,
+      17,    1,  137,    2, 0x02,   28 /* Public */,
+      18,    0,  140,    2, 0x02,   30 /* Public */,
+      19,    1,  141,    2, 0x02,   31 /* Public */,
+      21,    0,  144,    2, 0x02,   33 /* Public */,
+      22,    0,  145,    2, 0x02,   34 /* Public */,
+      23,    0,  146,    2, 0x102,   35 /* Public | MethodIsConst  */,
 
  // signals: parameters
     QMetaType::Void,
@@ -118,29 +123,32 @@ Q_CONSTINIT static const uint qt_meta_data_ZN13AppControllerE[] = {
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
-    QMetaType::Void, QMetaType::Bool, QMetaType::QString, QMetaType::QString,    9,   10,   11,
-    QMetaType::Void, QMetaType::QString,   10,
+    QMetaType::Void,
+    QMetaType::Void, QMetaType::Bool, QMetaType::QString, QMetaType::QString,   10,   11,   12,
+    QMetaType::Void, QMetaType::QString,   11,
 
  // methods: parameters
-    QMetaType::Void, QMetaType::QString,   14,
+    QMetaType::Void, QMetaType::QString,   15,
     QMetaType::Void,
-    QMetaType::Void, QMetaType::QString,   14,
+    QMetaType::Void, QMetaType::QString,   15,
     QMetaType::Void,
-    QMetaType::Void, QMetaType::QString,   19,
+    QMetaType::Void, QMetaType::QString,   20,
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::QString,
 
  // properties: name, type, flags, notifyId, revision
-      22, 0x80000000 | 23, 0x00015409, uint(-1), 0,
       24, 0x80000000 | 25, 0x00015409, uint(-1), 0,
       26, 0x80000000 | 27, 0x00015409, uint(-1), 0,
       28, 0x80000000 | 29, 0x00015409, uint(-1), 0,
-      30, QMetaType::Bool, 0x00015001, uint(0), 0,
-      31, QMetaType::QString, 0x00015001, uint(1), 0,
-      32, QMetaType::QString, 0x00015001, uint(2), 0,
-      33, 0x80000000 | 34, 0x00015009, uint(3), 0,
-      35, QMetaType::Bool, 0x00015001, uint(4), 0,
-      36, QMetaType::Bool, 0x00015001, uint(5), 0,
+      30, 0x80000000 | 31, 0x00015409, uint(-1), 0,
+      32, QMetaType::Bool, 0x00015001, uint(0), 0,
+      33, QMetaType::QString, 0x00015001, uint(1), 0,
+      34, QMetaType::QString, 0x00015001, uint(2), 0,
+      35, 0x80000000 | 36, 0x00015009, uint(3), 0,
+      37, QMetaType::Bool, 0x00015001, uint(4), 0,
+      38, QMetaType::Bool, 0x00015001, uint(5), 0,
+      39, QMetaType::QString, 0x00015001, uint(6), 0,
 
        0        // eod
 };
@@ -172,6 +180,8 @@ Q_CONSTINIT const QMetaObject AppController::staticMetaObject = { {
         QtPrivate::TypeAndForceComplete<bool, std::true_type>,
         // property 'installingOfficialBinary'
         QtPrivate::TypeAndForceComplete<bool, std::true_type>,
+        // property 'officialBinaryInstallStatus'
+        QtPrivate::TypeAndForceComplete<QString, std::true_type>,
         // Q_OBJECT / Q_GADGET
         QtPrivate::TypeAndForceComplete<AppController, std::true_type>,
         // method 'serverRunningChanged'
@@ -185,6 +195,8 @@ Q_CONSTINIT const QMetaObject AppController::staticMetaObject = { {
         // method 'setupStateChanged'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'installingOfficialBinaryChanged'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        // method 'officialBinaryInstallStatusChanged'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'officialBinaryInstallFinished'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
@@ -209,6 +221,8 @@ Q_CONSTINIT const QMetaObject AppController::staticMetaObject = { {
         QtPrivate::TypeAndForceComplete<const QString &, std::false_type>,
         // method 'installOfficialBinary'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        // method 'cancelOfficialBinaryInstall'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'version'
         QtPrivate::TypeAndForceComplete<QString, std::false_type>
     >,
@@ -226,15 +240,17 @@ void AppController::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
         case 3: _t->effectiveProfileChanged(); break;
         case 4: _t->setupStateChanged(); break;
         case 5: _t->installingOfficialBinaryChanged(); break;
-        case 6: _t->officialBinaryInstallFinished((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[3]))); break;
-        case 7: _t->serverError((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 8: _t->startServer((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 9: _t->stopServer(); break;
-        case 10: _t->computeEffectiveProfile((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 11: _t->clearLog(); break;
-        case 12: _t->copyToClipboard((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 13: _t->installOfficialBinary(); break;
-        case 14: { QString _r = _t->version();
+        case 6: _t->officialBinaryInstallStatusChanged(); break;
+        case 7: _t->officialBinaryInstallFinished((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[3]))); break;
+        case 8: _t->serverError((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 9: _t->startServer((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 10: _t->stopServer(); break;
+        case 11: _t->computeEffectiveProfile((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 12: _t->clearLog(); break;
+        case 13: _t->copyToClipboard((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 14: _t->installOfficialBinary(); break;
+        case 15: _t->cancelOfficialBinaryInstall(); break;
+        case 16: { QString _r = _t->version();
             if (_a[0]) *reinterpret_cast< QString*>(_a[0]) = std::move(_r); }  break;
         default: ;
         }
@@ -284,16 +300,23 @@ void AppController::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
             }
         }
         {
+            using _q_method_type = void (AppController::*)();
+            if (_q_method_type _q_method = &AppController::officialBinaryInstallStatusChanged; *reinterpret_cast<_q_method_type *>(_a[1]) == _q_method) {
+                *result = 6;
+                return;
+            }
+        }
+        {
             using _q_method_type = void (AppController::*)(bool , const QString & , const QString & );
             if (_q_method_type _q_method = &AppController::officialBinaryInstallFinished; *reinterpret_cast<_q_method_type *>(_a[1]) == _q_method) {
-                *result = 6;
+                *result = 7;
                 return;
             }
         }
         {
             using _q_method_type = void (AppController::*)(const QString & );
             if (_q_method_type _q_method = &AppController::serverError; *reinterpret_cast<_q_method_type *>(_a[1]) == _q_method) {
-                *result = 7;
+                *result = 8;
                 return;
             }
         }
@@ -324,6 +347,7 @@ void AppController::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
         case 7: *reinterpret_cast< QVariantMap*>(_v) = _t->effectiveProfile(); break;
         case 8: *reinterpret_cast< bool*>(_v) = _t->needsSetup(); break;
         case 9: *reinterpret_cast< bool*>(_v) = _t->installingOfficialBinary(); break;
+        case 10: *reinterpret_cast< QString*>(_v) = _t->officialBinaryInstallStatus(); break;
         default: break;
         }
     }
@@ -348,20 +372,20 @@ int AppController::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 15)
+        if (_id < 17)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 15;
+        _id -= 17;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 15)
+        if (_id < 17)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 15;
+        _id -= 17;
     }
     if (_c == QMetaObject::ReadProperty || _c == QMetaObject::WriteProperty
             || _c == QMetaObject::ResetProperty || _c == QMetaObject::BindableProperty
             || _c == QMetaObject::RegisterPropertyMetaType) {
         qt_static_metacall(this, _c, _id, _a);
-        _id -= 10;
+        _id -= 11;
     }
     return _id;
 }
@@ -403,16 +427,22 @@ void AppController::installingOfficialBinaryChanged()
 }
 
 // SIGNAL 6
-void AppController::officialBinaryInstallFinished(bool _t1, const QString & _t2, const QString & _t3)
+void AppController::officialBinaryInstallStatusChanged()
 {
-    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))) };
-    QMetaObject::activate(this, &staticMetaObject, 6, _a);
+    QMetaObject::activate(this, &staticMetaObject, 6, nullptr);
 }
 
 // SIGNAL 7
+void AppController::officialBinaryInstallFinished(bool _t1, const QString & _t2, const QString & _t3)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))) };
+    QMetaObject::activate(this, &staticMetaObject, 7, _a);
+}
+
+// SIGNAL 8
 void AppController::serverError(const QString & _t1)
 {
     void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
-    QMetaObject::activate(this, &staticMetaObject, 7, _a);
+    QMetaObject::activate(this, &staticMetaObject, 8, _a);
 }
 QT_WARNING_POP

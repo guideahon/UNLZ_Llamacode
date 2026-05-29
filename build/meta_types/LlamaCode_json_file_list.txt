@@ -1,6 +1,6 @@
-C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_BinaryRegistry.cpp.json
-C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_GGUFScanner.cpp.json
-C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_ModelCatalog.cpp.json
-C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_ModelRootRegistry.cpp.json
-C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/UVLADIE3JM/moc_AppController.cpp.json
-C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/Z72Q5EQNIP/moc_ProfileManager.cpp.json
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_BinaryRegistry.cpp.json
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_GGUFScanner.cpp.json
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_ModelCatalog.cpp.json
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/PRMOGMWJPH/moc_ModelRootRegistry.cpp.json
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/UVLADIE3JM/moc_AppController.cpp.json
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/Z72Q5EQNIP/moc_ProfileManager.cpp.json

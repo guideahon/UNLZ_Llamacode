@@ -1,6 +1,6 @@
 <RCC>
   <qresource prefix="/">
-    <file alias="/LlamaCode">C:/Users/cristian/Documents/LlamaCode/build/LlamaCode</file>
+    <file alias="/LlamaCode">C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode</file>
 
   </qresource>
 </RCC>

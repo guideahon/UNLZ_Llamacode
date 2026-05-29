@@ -1,0 +1,24 @@
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\9AC4E46F885D300E3C044E926510CA00\LLAMACODE_AUTOGEN.RULE
+setlocal
+cd C:\Users\Cristian\Documents\GitHub\LlamaCode\build2
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E cmake_autogen C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/CMakeFiles/LlamaCode_autogen.dir/AutogenInfo.json Debug
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Cristian/Documents/GitHub/LlamaCode -BC:/Users/Cristian/Documents/GitHub/LlamaCode/build2 --check-stamp-file C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

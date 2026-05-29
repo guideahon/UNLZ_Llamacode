@@ -1,17 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\dd9940addcd48fbda16c7ae09026646b\LlamaCode_qmllint_json.rule">
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build\CMakeFiles\201f833df0f2cdacad81eca5d82e0f19\LlamaCode_qmllint_json.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\CMakeLists.txt" />
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\LlamaCode_qmllint_json" />
+    <None Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build\CMakeFiles\LlamaCode_qmllint_json" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="CMake Rules">
-      <UniqueIdentifier>{3F04F7EE-27A1-34FD-A893-AE9CFEC1765A}</UniqueIdentifier>
+      <UniqueIdentifier>{599A593B-7566-38CB-980C-620D7976D167}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

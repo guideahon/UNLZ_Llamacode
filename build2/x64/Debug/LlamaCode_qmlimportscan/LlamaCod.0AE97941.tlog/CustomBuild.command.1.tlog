@@ -1,0 +1,32 @@
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\215213AF93EBFE0031930D3D88D00764\LLAMACODE_BUILD.CMAKE.RULE
+setlocal
+cd C:\Users\Cristian\Documents\GitHub\LlamaCode
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+call C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\.qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlimportscanner.exe @C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/qml_imports/LlamaCode_build.rsp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\9AC4E46F885D300E3C044E926510CA00\LLAMACODE_QMLIMPORTSCAN.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Cristian/Documents/GitHub/LlamaCode -BC:/Users/Cristian/Documents/GitHub/LlamaCode/build2 --check-stamp-file C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

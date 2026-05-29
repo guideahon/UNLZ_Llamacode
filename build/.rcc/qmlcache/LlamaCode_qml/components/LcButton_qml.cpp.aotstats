@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 15,
-                        "durationMicroseconds": 54,
+                        "durationMicroseconds": 84,
                         "errorMessage": "Cannot access value for name root",
                         "functionName": "text",
                         "line": 10
@@ -22,7 +22,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 18,
                         "errorMessage": "Cannot access value for name root",
                         "functionName": "color",
                         "line": 12
@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 225,
+                        "durationMicroseconds": 304,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "horizontalAlignment",
                         "line": 13
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 174,
+                        "durationMicroseconds": 226,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
                         "line": 14
@@ -46,13 +46,13 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 14,
+                        "durationMicroseconds": 26,
                         "errorMessage": "Cannot access value for name root",
                         "functionName": "color",
                         "line": 19
                     }
                 ],
-                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/components/LcButton.qml"
+                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcButton.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

@@ -254,9 +254,11 @@ ApplicationWindow {
         id: setupPopup
         parent: Overlay.overlay
         modal: true
+        clip: true
         closePolicy: Popup.NoAutoClose
         width: 620
         height: 300
+        padding: 18
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
 
@@ -268,8 +270,8 @@ ApplicationWindow {
         }
 
         contentItem: ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 18
+            width: setupPopup.availableWidth
+            height: setupPopup.availableHeight
             spacing: 12
 
             Text {
@@ -281,7 +283,11 @@ ApplicationWindow {
             Text {
                 text: "No hay binarios ni modelos registrados. Necesitás instalar/localizar un llama-server y descargar al menos un modelo GGUF."
                 color: "#a6adc8"
-                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+                Layout.preferredWidth: setupPopup.availableWidth
+                Layout.maximumWidth: setupPopup.availableWidth
+                clip: true
+                wrapMode: Text.WordWrap
                 font.pixelSize: 13
             }
 
@@ -302,6 +308,31 @@ ApplicationWindow {
                     text: App.installingOfficialBinary ? "Instalando..." : "Instalar binario"
                     enabled: !App.installingOfficialBinary
                     onClicked: App.installOfficialBinary()
+                }
+                LcButton {
+                    visible: App.installingOfficialBinary
+                    text: "Cancelar"
+                    secondary: true
+                    onClicked: App.cancelOfficialBinaryInstall()
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: App.installingOfficialBinary || App.officialBinaryInstallStatus.length > 0
+                spacing: 8
+                BusyIndicator {
+                    running: App.installingOfficialBinary
+                    visible: App.installingOfficialBinary
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: 22
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: App.officialBinaryInstallStatus
+                    color: App.installingOfficialBinary ? "#89b4fa" : "#f38ba8"
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
                 }
             }
 

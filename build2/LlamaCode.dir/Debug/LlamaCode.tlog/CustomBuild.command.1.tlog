@@ -1,0 +1,208 @@
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\DC46569551672D5068DC0267EEC1470D\QT6LLAMACODE_METATYPES.JSON.GEN.RULE
+setlocal
+C:\Qt\6.8.3\msvc2022_64\bin\moc.exe -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/meta_types/qt6llamacode_metatypes.json.gen --collect-json @C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/meta_types/LlamaCode_json_file_list.txt
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/meta_types/qt6llamacode_metatypes.json.gen C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/meta_types/qt6llamacode_metatypes.json
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\AABFFC9B1609077FBC391DA9A2B2212F\LLAMACODE_QMLTYPEREGISTRATIONS.CPP.RULE
+setlocal
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmltyperegistrar.exe --generate-qmltypes=C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/LlamaCode.qmltypes --import-name=LlamaCode --major-version=1 --minor-version=0 @C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/qmltypes/LlamaCode_foreign_types.txt -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/llamacode_qmltyperegistrations.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/meta_types/qt6llamacode_metatypes.json
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/qmltypes
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/qmltypes/LlamaCode.qmltypes
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\48C8345BD55D17270D3B4343329129E2\QRC_QMAKE_LLAMACODE.CPP.RULE
+setlocal
+C:\Qt\6.8.3\msvc2022_64\bin\rcc.exe --output C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qrc_qmake_LlamaCode.cpp --name qmake_LlamaCode C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --no-zstd
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\9FCF8BAB4F7B96E0C4D06D9922658832\LLAMACODE_QMLCACHE_LOADER.CPP.RULE
+setlocal
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --resource-name qmlcache_LlamaCode -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qmlcache_loader.cpp @C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml_loader_file_list.rsp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\6C1E273B1117B1FB468454FAD8821777\MAIN_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/Main.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/Main_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/Main.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\EFBC426AEA445A668CB49D6126543269\BINARIESPAGE_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/pages/BinariesPage.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages/BinariesPage_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/BinariesPage.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\EFBC426AEA445A668CB49D6126543269\MODELROOTSPAGE_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/pages/ModelRootsPage.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages/ModelRootsPage_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ModelRootsPage.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\EFBC426AEA445A668CB49D6126543269\PROFILESPAGE_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/pages/ProfilesPage.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages/ProfilesPage_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/ProfilesPage.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\EFBC426AEA445A668CB49D6126543269\LAUNCHPAGE_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/pages/LaunchPage.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/pages/LaunchPage_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/pages/LaunchPage.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\DC7CF35EAC9C865E7B9A9E8215686139\NAVBAR_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/components/NavBar.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components/NavBar_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/NavBar.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\DC7CF35EAC9C865E7B9A9E8215686139\PAGEHEADER_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/components/PageHeader.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components/PageHeader_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/PageHeader.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\DC7CF35EAC9C865E7B9A9E8215686139\COMMANDPREVIEW_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/components/CommandPreview.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components/CommandPreview_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/CommandPreview.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\DC7CF35EAC9C865E7B9A9E8215686139\LCBUTTON_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/components/LcButton.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components/LcButton_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcButton.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\DC7CF35EAC9C865E7B9A9E8215686139\LCTEXTFIELD_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/components/LcTextField.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components/LcTextField_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcTextField.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\DC7CF35EAC9C865E7B9A9E8215686139\LCDIALOG_QML.CPP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components
+if %errorlevel% neq 0 goto :cmEnd
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.8.3/msvc2022_64/bin/qmlcachegen.exe --bare --resource-path /LlamaCode/qml/components/LcDialog.qml -I C:/Users/Cristian/Documents/GitHub/LlamaCode/build2 -I C:/Qt/6.8.3/msvc2022_64/qml -i C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/LlamaCode/qmldir --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qmake_LlamaCode.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --resource C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --dump-aot-stats --module-id=LlamaCode(LlamaCode) -o C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.rcc/qmlcache/LlamaCode_qml/components/LcDialog_qml.cpp C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcDialog.qml
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\48C8345BD55D17270D3B4343329129E2\QRC_LLAMACODE_RAW_QML_0.CPP.RULE
+setlocal
+C:\Qt\6.8.3\msvc2022_64\bin\rcc.exe --output C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qrc_LlamaCode_raw_qml_0.cpp --name LlamaCode_raw_qml_0 C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/LlamaCode_raw_qml_0.qrc --no-zstd
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\BUILD2\CMAKEFILES\48C8345BD55D17270D3B4343329129E2\QRC_LLAMACODE_ASSETS.CPP.RULE
+setlocal
+C:\Qt\6.8.3\msvc2022_64\bin\rcc.exe --output C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/qrc_llamacode_assets.cpp --name llamacode_assets C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/.qt/rcc/llamacode_assets.qrc --no-zstd
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\CRISTIAN\DOCUMENTS\GITHUB\LLAMACODE\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Cristian/Documents/GitHub/LlamaCode -BC:/Users/Cristian/Documents/GitHub/LlamaCode/build2 --check-stamp-file C:/Users/Cristian/Documents/GitHub/LlamaCode/build2/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

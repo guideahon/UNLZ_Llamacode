@@ -1,20 +1,20 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\8dc628ec53893cfb9a19f23fa6b8e0b4\all_aotstats.aotstats.rule">
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build\CMakeFiles\f401068c6ca91632b62e10d49bfa5b08\all_aotstats.aotstats.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\dd9940addcd48fbda16c7ae09026646b\all_aotstats.rule">
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build\CMakeFiles\201f833df0f2cdacad81eca5d82e0f19\all_aotstats.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\cristian\Documents\LlamaCode\CMakeLists.txt" />
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="C:\Users\cristian\Documents\LlamaCode\build\CMakeFiles\all_aotstats" />
+    <None Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build\CMakeFiles\all_aotstats" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="CMake Rules">
-      <UniqueIdentifier>{3F04F7EE-27A1-34FD-A893-AE9CFEC1765A}</UniqueIdentifier>
+      <UniqueIdentifier>{599A593B-7566-38CB-980C-620D7976D167}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

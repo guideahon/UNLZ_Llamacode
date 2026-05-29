@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 59,
-                        "durationMicroseconds": 51,
+                        "durationMicroseconds": 82,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "width",
                         "line": 38
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 37,
-                        "durationMicroseconds": 6,
+                        "durationMicroseconds": 9,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "bottom",
                         "line": 38
@@ -70,7 +70,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 59,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 9,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "width",
                         "line": 39
@@ -78,7 +78,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 37,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 7,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "bottom",
                         "line": 39
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 19,
-                        "durationMicroseconds": 16,
+                        "durationMicroseconds": 35,
                         "errorMessage": "Cannot access value for name root",
                         "functionName": "text",
                         "line": 42
@@ -94,7 +94,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 29,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 21,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "left",
                         "line": 41
@@ -102,7 +102,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 74,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 12,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "verticalCenter",
                         "line": 41
@@ -110,7 +110,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 172,
+                        "durationMicroseconds": 332,
                         "errorMessage": "",
                         "functionName": "pixelSize",
                         "line": 43
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 53,
-                        "durationMicroseconds": 7,
+                        "durationMicroseconds": 12,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "width",
                         "line": 53
@@ -126,7 +126,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 5,
+                        "durationMicroseconds": 7,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "top",
                         "line": 53
@@ -134,7 +134,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 53,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 7,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "width",
                         "line": 54
@@ -142,7 +142,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 34,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 6,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "top",
                         "line": 54
@@ -150,7 +150,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 5,
+                        "durationMicroseconds": 9,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "right",
                         "line": 56
@@ -158,7 +158,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 77,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 6,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "verticalCenter",
                         "line": 56
@@ -180,7 +180,7 @@
                         "line": 59
                     }
                 ],
-                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/components/LcDialog.qml"
+                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/components/LcDialog.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

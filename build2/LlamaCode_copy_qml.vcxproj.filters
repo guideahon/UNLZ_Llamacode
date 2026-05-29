@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\52a2f03f4faa1e2da0e9af608f919e17\LlamaCode_qml.txt.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\9ac4e46f885d300e3c044e926510ca00\LlamaCode_copy_qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\LlamaCode_copy_qml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{604AC2FF-B1B2-351E-B1DB-393E486686FE}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

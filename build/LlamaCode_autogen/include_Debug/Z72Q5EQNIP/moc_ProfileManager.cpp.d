@@ -1,4 +1,4 @@
-C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/Z72Q5EQNIP/moc_ProfileManager.cpp: C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileManager.h \
+C:/Users/Cristian/Documents/GitHub/LlamaCode/build/LlamaCode_autogen/include_Debug/Z72Q5EQNIP/moc_ProfileManager.cpp: C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/profiles/ProfileManager.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QAbstractListModel \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QJsonObject \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/QList \
@@ -131,4 +131,4 @@ C:/Users/cristian/Documents/LlamaCode/build/LlamaCode_autogen/include_Debug/Z72Q
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qversiontagging.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qxptype_traits.h \
   C:/Qt/6.8.3/msvc2022_64/include/QtCore/qyieldcpu.h \
-  C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileTypes.h
+  C:/Users/Cristian/Documents/GitHub/LlamaCode/src/core/profiles/ProfileTypes.h

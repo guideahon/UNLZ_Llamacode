@@ -1,0 +1,36 @@
+{
+    "classes": [
+        {
+            "className": "GGUFScanner",
+            "lineNumber": 7,
+            "object": true,
+            "qualifiedClassName": "GGUFScanner",
+            "signals": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "rootId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "found",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 0,
+                    "name": "progress",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QObject"
+                }
+            ]
+        }
+    ],
+    "inputFile": "GGUFScanner.h",
+    "outputRevision": 68
+}

@@ -2,28 +2,28 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\x64\Debug\ZERO_CHECK</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\x64\Debug\ZERO_CHECK</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\x64\Debug\LlamaCode_copy_qml</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\x64\Debug\LlamaCode_copy_qml</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\x64\Debug\LlamaCode_copy_res</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\x64\Debug\LlamaCode_copy_res</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\x64\Debug\LlamaCode_qmlimportscan</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\x64\Debug\LlamaCode_qmlimportscan</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\x64\Debug\LlamaCode_autogen</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\x64\Debug\LlamaCode_autogen</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\x64\Debug\LlamaCode_automoc_json_extraction</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\x64\Debug\LlamaCode_automoc_json_extraction</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\Debug\LlamaCode.exe</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\Debug\LlamaCode.exe</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\cristian\Documents\LlamaCode\build\x64\Debug\ALL_BUILD</FullPath>
+      <FullPath>C:\Users\Cristian\Documents\GitHub\LlamaCode\build\x64\Debug\ALL_BUILD</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

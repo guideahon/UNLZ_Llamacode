@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 AppController::AppController(QObject *parent) : QObject(parent)
 {
@@ -121,30 +122,97 @@ void AppController::installOfficialBinary()
     const QString script = QStringLiteral(R"PS(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$headers = @{ 'User-Agent' = 'LlamaCode' }
-$api = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
-$rel = Invoke-RestMethod -Uri $api -Headers $headers
-$assets = @($rel.assets)
-$pick = $assets | Where-Object { $_.name -match 'bin-win-cuda.*x64.*\.zip$' } | Select-Object -First 1
-if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'bin-win-(avx2|cpu|openblas).*x64.*\.zip$' } | Select-Object -First 1 }
-if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'win.*x64.*\.zip$' } | Select-Object -First 1 }
-if (-not $pick) { throw 'No suitable Windows x64 binary asset found in latest release.' }
+try {
+    $headers = @{ 'User-Agent' = 'LlamaCode' }
+    Write-Output 'STATUS: Consultando release latest de llama.cpp...'
+    $api = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
+    $rel = Invoke-RestMethod -Uri $api -Headers $headers
+    $assets = @($rel.assets)
+    $pick = $assets | Where-Object { $_.name -match 'bin-win-cuda.*x64.*\.zip$' } | Select-Object -First 1
+    if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'bin-win-(avx2|cpu|openblas).*x64.*\.zip$' } | Select-Object -First 1 }
+    if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'win.*x64.*\.zip$' } | Select-Object -First 1 }
+    if (-not $pick) { throw 'No suitable Windows x64 binary asset found in latest release.' }
 
-$dest = '%1'
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-$zip = Join-Path $dest $pick.name
-Invoke-WebRequest -Uri $pick.browser_download_url -Headers $headers -OutFile $zip
-$extract = Join-Path $dest 'llama.cpp-latest'
-if (Test-Path $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
-Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
-$exe = Get-ChildItem -Path $extract -Recurse -Filter 'llama-server.exe' | Select-Object -First 1
-if (-not $exe) { throw 'llama-server.exe not found after extraction.' }
-Write-Output $exe.FullName
+    Write-Output ('STATUS: Descargando asset ' + $pick.name + ' ...')
+    $dest = '%1'
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    $runId = [DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff')
+    $runDir = Join-Path $dest ('llama.cpp-install-' + $runId)
+    New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+    $zip = Join-Path $runDir $pick.name
+    $extract = Join-Path $runDir 'extract'
+    if (Test-Path $extract) { Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue }
+    try {
+        Invoke-WebRequest -Uri $pick.browser_download_url -Headers $headers -OutFile $zip
+    } catch {
+        Start-Sleep -Milliseconds 500
+        Invoke-WebRequest -Uri $pick.browser_download_url -Headers $headers -OutFile $zip
+    }
+    Write-Output 'STATUS: Extrayendo binarios...'
+    Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+    $exe = Get-ChildItem -Path $extract -Recurse -Filter 'llama-server.exe' | Select-Object -First 1
+    if (-not $exe) { throw 'llama-server.exe not found after extraction.' }
+    Write-Output 'STATUS: Registrando binario en LlamaCode...'
+    Write-Output $exe.FullName
+} catch {
+    Write-Output ('ERROR: ' + $_.Exception.Message)
+    exit 1
+}
 )PS").arg(QDir::toNativeSeparators(toolsDir).replace("'", "''"));
 
     m_installerProc = new QProcess(this);
     m_installingOfficialBinary = true;
+    m_cancelingOfficialBinaryInstall = false;
+    m_timeoutOfficialBinaryInstall = false;
+    m_lastInstallProgressAt = QDateTime::currentDateTimeUtc();
+    m_officialBinaryInstallStatus = "Iniciando instalación...";
+    m_officialBinaryInstallLog.clear();
     emit installingOfficialBinaryChanged();
+    emit officialBinaryInstallStatusChanged();
+    emit officialBinaryInstallLogChanged();
+
+    if (!m_installWatchdog) {
+        m_installWatchdog = new QTimer(this);
+        m_installWatchdog->setInterval(5000);
+        connect(m_installWatchdog, &QTimer::timeout, this, [this]() {
+            if (!m_installingOfficialBinary || !m_installerProc)
+                return;
+            if (m_lastInstallProgressAt.secsTo(QDateTime::currentDateTimeUtc()) > 900) {
+                m_timeoutOfficialBinaryInstall = true;
+                m_officialBinaryInstallStatus = "Sin avance por 15 minutos. Cancelando instalación...";
+                emit officialBinaryInstallStatusChanged();
+                m_installerProc->kill();
+            }
+        });
+    }
+    m_installWatchdog->start();
+
+    connect(m_installerProc, &QProcess::readyReadStandardOutput, this, [this]() {
+        const QString chunk = QString::fromUtf8(m_installerProc->readAllStandardOutput());
+        if (!chunk.trimmed().isEmpty())
+            m_lastInstallProgressAt = QDateTime::currentDateTimeUtc();
+        if (!chunk.isEmpty()) {
+            m_officialBinaryInstallLog.append(chunk);
+            emit officialBinaryInstallLogChanged();
+        }
+        const QStringList lines = chunk.split('\n', Qt::SkipEmptyParts);
+        for (const QString &rawLine : lines) {
+            const QString line = rawLine.trimmed();
+            if (line.startsWith("STATUS: ")) {
+                m_officialBinaryInstallStatus = line.mid(8).trimmed();
+                emit officialBinaryInstallStatusChanged();
+            }
+        }
+    });
+    connect(m_installerProc, &QProcess::readyReadStandardError, this, [this]() {
+        const QString chunk = QString::fromUtf8(m_installerProc->readAllStandardError());
+        if (!chunk.trimmed().isEmpty())
+            m_lastInstallProgressAt = QDateTime::currentDateTimeUtc();
+        if (!chunk.isEmpty()) {
+            m_officialBinaryInstallLog.append(chunk);
+            emit officialBinaryInstallLogChanged();
+        }
+    });
 
     connect(m_installerProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int exitCode, QProcess::ExitStatus) {
@@ -166,19 +234,61 @@ Write-Output $exe.FullName
             }
         }
         if (!ok) {
-            message = "Automatic install failed.";
-            if (!stdErr.isEmpty()) message += " " + stdErr;
+            if (m_cancelingOfficialBinaryInstall) {
+                message = "Automatic install canceled by user.";
+            } else if (m_timeoutOfficialBinaryInstall) {
+                message = "Automatic install timed out (no progress for 15 minutes).";
+            } else {
+                message = "Automatic install failed.";
+                const QStringList outLines = stdOut.split('\n', Qt::SkipEmptyParts);
+                for (const QString &line : outLines) {
+                    const QString t = line.trimmed();
+                    if (t.startsWith("ERROR: ")) {
+                        message += " " + t.mid(7).trimmed();
+                        break;
+                    }
+                }
+                if (!stdErr.isEmpty()) {
+                    QString cleaned = stdErr;
+                    const QStringList errLines = stdErr.split('\n', Qt::SkipEmptyParts);
+                    if (!errLines.isEmpty()) {
+                        cleaned = errLines.first().trimmed();
+                        cleaned.remove(QRegularExpression("^\\s*\\+\\s*"));
+                    }
+                    message += " " + cleaned;
+                }
+            }
         }
 
         m_installerProc->deleteLater();
         m_installerProc = nullptr;
+        if (m_installWatchdog)
+            m_installWatchdog->stop();
         m_installingOfficialBinary = false;
+        m_officialBinaryInstallStatus = ok ? "Instalación completada." : message;
+        if (!ok && m_officialBinaryInstallLog.trimmed().isEmpty()) {
+            m_officialBinaryInstallLog = message + "\n";
+            emit officialBinaryInstallLogChanged();
+        }
+        m_cancelingOfficialBinaryInstall = false;
+        m_timeoutOfficialBinaryInstall = false;
         emit installingOfficialBinaryChanged();
+        emit officialBinaryInstallStatusChanged();
         emit setupStateChanged();
         emit officialBinaryInstallFinished(ok, message, installedPath);
     });
 
     m_installerProc->start("powershell", {"-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script});
+}
+
+void AppController::cancelOfficialBinaryInstall()
+{
+    if (!m_installerProc || !m_installingOfficialBinary)
+        return;
+    m_cancelingOfficialBinaryInstall = true;
+    m_installerProc->kill();
+    m_officialBinaryInstallStatus = "Instalación cancelada.";
+    emit officialBinaryInstallStatusChanged();
 }
 
 void AppController::appendLog(const QString &text)

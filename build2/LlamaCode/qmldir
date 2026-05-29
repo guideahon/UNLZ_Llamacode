@@ -1,0 +1,15 @@
+module LlamaCode
+typeinfo LlamaCode.qmltypes
+prefer :/LlamaCode/
+Main 1.0 qml/Main.qml
+BinariesPage 1.0 qml/pages/BinariesPage.qml
+ModelRootsPage 1.0 qml/pages/ModelRootsPage.qml
+ProfilesPage 1.0 qml/pages/ProfilesPage.qml
+LaunchPage 1.0 qml/pages/LaunchPage.qml
+NavBar 1.0 qml/components/NavBar.qml
+PageHeader 1.0 qml/components/PageHeader.qml
+CommandPreview 1.0 qml/components/CommandPreview.qml
+LcButton 1.0 qml/components/LcButton.qml
+LcTextField 1.0 qml/components/LcTextField.qml
+LcDialog 1.0 qml/components/LcDialog.qml
+

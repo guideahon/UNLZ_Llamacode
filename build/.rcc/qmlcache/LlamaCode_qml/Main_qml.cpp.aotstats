@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 38,
-                        "durationMicroseconds": 92,
+                        "durationMicroseconds": 109,
                         "errorMessage": "Cannot access value for name active",
                         "functionName": "frameBorderColor",
                         "line": 17
@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 21,
+                        "durationMicroseconds": 28,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "color",
                         "line": 32
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 119,
+                        "durationMicroseconds": 166,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 29
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 41,
+                        "durationMicroseconds": 66,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 37
@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 21,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "color",
                         "line": 44
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 35,
-                        "durationMicroseconds": 39,
+                        "durationMicroseconds": 64,
                         "errorMessage": "",
                         "functionName": "fill",
                         "line": 47
@@ -70,7 +70,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 43,
-                        "durationMicroseconds": 82,
+                        "durationMicroseconds": 117,
                         "errorMessage": "",
                         "functionName": "alignment",
                         "line": 57
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 35,
-                        "durationMicroseconds": 7,
+                        "durationMicroseconds": 12,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
                         "line": 67
@@ -94,7 +94,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 50,
-                        "durationMicroseconds": 219,
+                        "durationMicroseconds": 277,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "horizontalAlignment",
                         "line": 71
@@ -102,7 +102,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 48,
-                        "durationMicroseconds": 162,
+                        "durationMicroseconds": 224,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
                         "line": 72
@@ -110,7 +110,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 56,
-                        "durationMicroseconds": 5,
+                        "durationMicroseconds": 10,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "color",
                         "line": 74
@@ -134,7 +134,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 35,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 8,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
                         "line": 84
@@ -142,7 +142,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 50,
-                        "durationMicroseconds": 159,
+                        "durationMicroseconds": 218,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "horizontalAlignment",
                         "line": 88
@@ -150,7 +150,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 48,
-                        "durationMicroseconds": 149,
+                        "durationMicroseconds": 237,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
                         "line": 89
@@ -158,7 +158,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 56,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 11,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "color",
                         "line": 91
@@ -174,7 +174,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 35,
-                        "durationMicroseconds": 4,
+                        "durationMicroseconds": 8,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "text",
                         "line": 101
@@ -182,7 +182,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 50,
-                        "durationMicroseconds": 157,
+                        "durationMicroseconds": 221,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "horizontalAlignment",
                         "line": 105
@@ -190,7 +190,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 48,
-                        "durationMicroseconds": 150,
+                        "durationMicroseconds": 206,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "verticalAlignment",
                         "line": 106
@@ -198,7 +198,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 56,
-                        "durationMicroseconds": 5,
+                        "durationMicroseconds": 9,
                         "errorMessage": "Cannot access value for name parent",
                         "functionName": "color",
                         "line": 108
@@ -206,7 +206,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 37,
-                        "durationMicroseconds": 54,
+                        "durationMicroseconds": 32,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onDoubleTapped",
                         "line": 115
@@ -214,7 +214,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 38,
-                        "durationMicroseconds": 27,
+                        "durationMicroseconds": 44,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onActiveChanged",
                         "line": 119
@@ -222,7 +222,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 35,
-                        "durationMicroseconds": 72,
+                        "durationMicroseconds": 116,
                         "errorMessage": "",
                         "functionName": "currentIndex",
                         "line": 130
@@ -230,7 +230,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 79,
+                        "durationMicroseconds": 133,
                         "errorMessage": "",
                         "functionName": "onPageSelected",
                         "line": 131
@@ -238,7 +238,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 32,
+                        "durationMicroseconds": 49,
                         "errorMessage": "",
                         "functionName": "onPageSelected",
                         "line": 131
@@ -246,7 +246,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 20,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "width",
                         "line": 155
@@ -254,7 +254,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 78,
+                        "durationMicroseconds": 106,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 157
@@ -262,7 +262,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 19,
+                        "durationMicroseconds": 24,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 158
@@ -270,7 +270,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 96,
+                        "durationMicroseconds": 117,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 152
@@ -278,7 +278,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 69,
+                        "durationMicroseconds": 102,
                         "errorMessage": "",
                         "functionName": "top",
                         "line": 153
@@ -286,7 +286,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 97,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 154
@@ -294,7 +294,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 20,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "width",
                         "line": 164
@@ -302,7 +302,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 81,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 166
@@ -310,7 +310,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 15,
+                        "durationMicroseconds": 32,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 167
@@ -318,7 +318,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 82,
+                        "durationMicroseconds": 124,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 161
@@ -326,7 +326,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 63,
+                        "durationMicroseconds": 101,
                         "errorMessage": "",
                         "functionName": "top",
                         "line": 162
@@ -334,7 +334,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 103,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 163
@@ -342,7 +342,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 25,
+                        "durationMicroseconds": 30,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "height",
                         "line": 173
@@ -350,7 +350,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 83,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 175
@@ -358,7 +358,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 14,
+                        "durationMicroseconds": 23,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 176
@@ -366,7 +366,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 77,
+                        "durationMicroseconds": 106,
                         "errorMessage": "",
                         "functionName": "top",
                         "line": 170
@@ -374,7 +374,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 95,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 171
@@ -382,7 +382,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 93,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 172
@@ -390,7 +390,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 11,
+                        "durationMicroseconds": 25,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "height",
                         "line": 182
@@ -398,7 +398,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 52,
+                        "durationMicroseconds": 88,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 184
@@ -406,7 +406,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 93,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 185
@@ -414,7 +414,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 103,
+                        "durationMicroseconds": 112,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 179
@@ -422,7 +422,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 66,
+                        "durationMicroseconds": 97,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 180
@@ -430,7 +430,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 64,
+                        "durationMicroseconds": 93,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 181
@@ -438,7 +438,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 20,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "width",
                         "line": 190
@@ -446,7 +446,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 8,
+                        "durationMicroseconds": 14,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "height",
                         "line": 191
@@ -454,7 +454,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 59,
+                        "durationMicroseconds": 89,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 193
@@ -462,7 +462,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 15,
+                        "durationMicroseconds": 29,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 194
@@ -470,7 +470,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 70,
+                        "durationMicroseconds": 145,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 188
@@ -478,7 +478,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 65,
+                        "durationMicroseconds": 119,
                         "errorMessage": "",
                         "functionName": "top",
                         "line": 189
@@ -486,7 +486,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 21,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "width",
                         "line": 199
@@ -494,7 +494,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 8,
+                        "durationMicroseconds": 22,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "height",
                         "line": 200
@@ -502,7 +502,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 55,
+                        "durationMicroseconds": 84,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 202
@@ -510,7 +510,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 14,
+                        "durationMicroseconds": 31,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 203
@@ -518,7 +518,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 74,
+                        "durationMicroseconds": 119,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 197
@@ -526,7 +526,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 93,
+                        "durationMicroseconds": 139,
                         "errorMessage": "",
                         "functionName": "top",
                         "line": 198
@@ -534,7 +534,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 11,
+                        "durationMicroseconds": 22,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "width",
                         "line": 208
@@ -542,7 +542,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 8,
+                        "durationMicroseconds": 14,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "height",
                         "line": 209
@@ -550,7 +550,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 54,
+                        "durationMicroseconds": 84,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 211
@@ -558,7 +558,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 14,
+                        "durationMicroseconds": 29,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 212
@@ -566,7 +566,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 71,
+                        "durationMicroseconds": 111,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 206
@@ -574,7 +574,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 62,
+                        "durationMicroseconds": 96,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 207
@@ -582,7 +582,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 16,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 24,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "width",
                         "line": 217
@@ -590,7 +590,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 8,
+                        "durationMicroseconds": 13,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "height",
                         "line": 218
@@ -598,7 +598,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 56,
+                        "durationMicroseconds": 93,
                         "errorMessage": "",
                         "functionName": "cursorShape",
                         "line": 220
@@ -606,7 +606,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 14,
+                        "durationMicroseconds": 46,
                         "errorMessage": "Cannot retrieve a non-object type by ID: window",
                         "functionName": "onPressed",
                         "line": 221
@@ -614,7 +614,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 73,
+                        "durationMicroseconds": 114,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 215
@@ -622,7 +622,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 122,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 216
@@ -654,7 +654,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 19,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 22,
                         "errorMessage": "Cannot retrieve a non-object type by ID: errorToast",
                         "functionName": "text",
                         "line": 243
@@ -662,7 +662,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 34,
-                        "durationMicroseconds": 53,
+                        "durationMicroseconds": 107,
                         "errorMessage": "",
                         "functionName": "horizontalAlignment",
                         "line": 245
@@ -670,7 +670,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 50,
+                        "durationMicroseconds": 74,
                         "errorMessage": "",
                         "functionName": "wrapMode",
                         "line": 246
@@ -678,7 +678,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 98,
+                        "durationMicroseconds": 154,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 247
@@ -686,7 +686,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 37,
+                        "durationMicroseconds": 61,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 242
@@ -694,7 +694,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 62,
-                        "durationMicroseconds": 16,
+                        "durationMicroseconds": 24,
                         "errorMessage": "Cannot retrieve a non-object type by ID: errorToast",
                         "functionName": "onTriggered",
                         "line": 250
@@ -713,7 +713,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"closePolicy\".",
                         "functionName": "closePolicy",
-                        "line": 257
+                        "line": 258
                     },
                     {
                         "codegenSuccessfull": false,
@@ -721,7 +721,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"x\".",
                         "functionName": "x",
-                        "line": 260
+                        "line": 262
                     },
                     {
                         "codegenSuccessfull": false,
@@ -729,23 +729,47 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"y\".",
                         "functionName": "y",
-                        "line": 261
+                        "line": 263
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 20,
+                        "durationMicroseconds": 24,
+                        "errorMessage": "Cannot access value for name setupPopup",
+                        "functionName": "width",
+                        "line": 273
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 21,
+                        "durationMicroseconds": 15,
+                        "errorMessage": "Cannot access value for name setupPopup",
+                        "functionName": "height",
+                        "line": 274
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 6,
-                        "errorMessage": "Cannot access value for name parent",
-                        "functionName": "fill",
-                        "line": 271
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 27,
-                        "durationMicroseconds": 204,
+                        "durationMicroseconds": 272,
                         "errorMessage": "Cannot access value for name Text",
                         "functionName": "wrapMode",
-                        "line": 284
+                        "line": 290
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 18,
+                        "errorMessage": "Cannot access value for name setupPopup",
+                        "functionName": "preferredWidth",
+                        "line": 287
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 13,
+                        "errorMessage": "Cannot access value for name setupPopup",
+                        "functionName": "maximumWidth",
+                        "line": 288
                     },
                     {
                         "codegenSuccessfull": false,
@@ -753,7 +777,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 296
+                        "line": 302
                     },
                     {
                         "codegenSuccessfull": false,
@@ -761,7 +785,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"text\".",
                         "functionName": "text",
-                        "line": 302
+                        "line": 308
                     },
                     {
                         "codegenSuccessfull": false,
@@ -769,7 +793,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"enabled\".",
                         "functionName": "enabled",
-                        "line": 303
+                        "line": 309
                     },
                     {
                         "codegenSuccessfull": false,
@@ -777,7 +801,15 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 304
+                        "line": 310
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 30,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"visible\".",
+                        "functionName": "visible",
+                        "line": 313
                     },
                     {
                         "codegenSuccessfull": false,
@@ -785,39 +817,95 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 314
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 32,
-                        "durationMicroseconds": 0,
-                        "errorMessage": "Could not find signal \"clicked\".",
-                        "functionName": "onClicked",
-                        "line": 319
+                        "line": 316
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 26,
-                        "durationMicroseconds": 172,
+                        "durationMicroseconds": 141,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "visible",
+                        "line": 322
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 30,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"running\".",
+                        "functionName": "running",
                         "line": 325
                     },
                     {
                         "codegenSuccessfull": false,
-                        "column": 28,
-                        "durationMicroseconds": 37,
+                        "column": 30,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"visible\".",
+                        "functionName": "visible",
+                        "line": 326
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 27,
+                        "durationMicroseconds": 217,
                         "errorMessage": "Cannot access value for name App",
-                        "functionName": "onCompleted",
+                        "functionName": "text",
+                        "line": 332
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 196,
+                        "errorMessage": "Cannot access value for name App",
+                        "functionName": "color",
                         "line": 333
                     },
                     {
                         "codegenSuccessfull": false,
+                        "column": 31,
+                        "durationMicroseconds": 253,
+                        "errorMessage": "Cannot access value for name Text",
+                        "functionName": "wrapMode",
+                        "line": 335
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 32,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 345
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 32,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 350
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 26,
+                        "durationMicroseconds": 323,
+                        "errorMessage": "Cannot access value for name App",
+                        "functionName": "visible",
+                        "line": 356
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 86,
+                        "errorMessage": "Cannot access value for name App",
+                        "functionName": "onCompleted",
+                        "line": 364
+                    },
+                    {
+                        "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 27,
+                        "durationMicroseconds": 79,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "target",
-                        "line": 338
+                        "line": 369
                     },
                     {
                         "codegenSuccessfull": false,
@@ -825,15 +913,15 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "onServerError",
-                        "line": 339
+                        "line": 370
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 9,
-                        "durationMicroseconds": 25,
+                        "durationMicroseconds": 76,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "onSetupStateChanged",
-                        "line": 340
+                        "line": 371
                     },
                     {
                         "codegenSuccessfull": false,
@@ -841,15 +929,15 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "onOfficialBinaryInstallFinished",
-                        "line": 344
+                        "line": 375
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 25,
+                        "durationMicroseconds": 69,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "target",
-                        "line": 352
+                        "line": 383
                     },
                     {
                         "codegenSuccessfull": false,
@@ -857,15 +945,15 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "onCapabilitiesDetected",
-                        "line": 353
+                        "line": 384
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 17,
-                        "durationMicroseconds": 26,
+                        "durationMicroseconds": 66,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "target",
-                        "line": 358
+                        "line": 389
                     },
                     {
                         "codegenSuccessfull": false,
@@ -873,10 +961,10 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Functions without type annotations won't be compiled",
                         "functionName": "onScanFinished",
-                        "line": 359
+                        "line": 390
                     }
                 ],
-                "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/Main.qml"
+                "filepath": "C:/Users/Cristian/Documents/GitHub/LlamaCode/qml/Main.qml"
             }
         ],
         "moduleId": "LlamaCode(LlamaCode)"

@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\6c1e273b1117b1fb468454fad8821777\Main_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\dc7cf35eac9c865e7b9a9e8215686139\CommandPreview_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\dc7cf35eac9c865e7b9a9e8215686139\LcButton_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\dc7cf35eac9c865e7b9a9e8215686139\LcDialog_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\dc7cf35eac9c865e7b9a9e8215686139\LcTextField_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\dc7cf35eac9c865e7b9a9e8215686139\NavBar_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\dc7cf35eac9c865e7b9a9e8215686139\PageHeader_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\efbc426aea445a668cb49d6126543269\BinariesPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\efbc426aea445a668cb49d6126543269\LaunchPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\efbc426aea445a668cb49d6126543269\ModelRootsPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\efbc426aea445a668cb49d6126543269\ProfilesPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\9fcf8bab4f7b96e0c4d06d9922658832\module_LlamaCode.aotstats.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\9ac4e46f885d300e3c044e926510ca00\module_LlamaCode_aotstats_target.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\Cristian\Documents\GitHub\LlamaCode\build2\CMakeFiles\module_LlamaCode_aotstats_target" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{604AC2FF-B1B2-351E-B1DB-393E486686FE}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
