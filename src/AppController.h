@@ -99,6 +99,7 @@ public:
     int harnessCheckV() const { return 0; }
 
     Q_INVOKABLE void newChatSession();
+    Q_INVOKABLE void newChatSessionInProject(const QString &projectId, const QString &projectName);
     Q_INVOKABLE void switchChatSession(const QString &id);
     Q_INVOKABLE void sendChatMessage(const QString &text);
     Q_INVOKABLE void stopChatGeneration();
@@ -196,6 +197,8 @@ private:
     QString   m_agentCwdOverride;   // directory for next/current agent start
     QString   m_pendingAgentLaunchId; // used when restarting for project change
     // Chat session state
+    QString       m_chatProjectIdOverride;
+    QString       m_chatProjectNameOverride;
     QVariantList  m_chatSessions;
     QVariantList  m_chatMessages;
     QString       m_chatSessionId;

@@ -6,7 +6,17 @@ import LlamaCode 1.0
 Item {
     id: root
 
+    property bool newProjectDialogOpen: false
+
     function scrollToBottom() { Qt.callLater(() => { msgList.positionViewAtEnd() }) }
+
+    function projectIdForSection(sectionName) {
+        for (let i = 0; i < App.chatSessions.length; i++) {
+            if ((App.chatSessions[i].projectName ?? "") === sectionName)
+                return App.chatSessions[i].projectId ?? ""
+        }
+        return ""
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -65,7 +75,7 @@ Item {
                         color: Theme.baseBg
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                            anchors { fill: parent; leftMargin: 8; rightMargin: 6 }
                             spacing: 4
                             Text { text: "📁"; font.pixelSize: 10 }
                             Text {
@@ -74,6 +84,26 @@ Item {
                                 color: Theme.textMuted
                                 font { pixelSize: 10; bold: true }
                                 elide: Text.ElideLeft
+                            }
+                            Rectangle {
+                                width: 20; height: 20; radius: 4
+                                color: addChatHover.containsMouse ? Theme.highlight : "transparent"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "+"
+                                    color: Theme.textMuted
+                                    font { pixelSize: 13; bold: true }
+                                }
+                                MouseArea {
+                                    id: addChatHover
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        const pid  = root.projectIdForSection(section)
+                                        App.newChatSessionInProject(pid, section)
+                                    }
+                                }
                             }
                         }
                     }
@@ -125,7 +155,107 @@ Item {
                             onClicked: App.switchChatSession(modelData.id)
                         }
                     }
+
+                    // ── Nuevo proyecto ────────────────────────────────────────
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 40
+                        color: "transparent"
+                        RowLayout {
+                            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                            spacing: 6
+                            Text { text: "📁"; font.pixelSize: 11 }
+                            Text {
+                                text: "Nuevo proyecto"
+                                color: Theme.textMuted
+                                font.pixelSize: 12
+                                Layout.fillWidth: true
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
+                            onEntered: parent.color = Theme.highlight
+                            onExited:  parent.color = "transparent"
+                            onClicked: newProjectPopup.open()
+                        }
+                    }
                 }
+            }
+
+            // ── Nuevo proyecto popup ──────────────────────────────────────────
+            Dialog {
+                id: newProjectPopup
+                modal: true
+                parent: Overlay.overlay
+                x: Math.round((parent.width - width) / 2)
+                y: Math.round((parent.height - height) / 2)
+                width: 420
+                height: 200
+                closePolicy: Popup.CloseOnEscape
+
+                background: Rectangle {
+                    color: Theme.popupBg; radius: 12
+                    border.color: Theme.popupBorderColor; border.width: 1
+                }
+                Overlay.modal: Rectangle { color: Theme.overlayColor }
+
+                header: Rectangle {
+                    color: Theme.popupHeaderBg; height: 50; radius: 12
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1;  color: Theme.popupHeaderBorder }
+                    Text {
+                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                        text: "Nuevo proyecto"
+                        font { pixelSize: 14; bold: true }
+                        color: Theme.textPrimary
+                    }
+                }
+
+                footer: Rectangle {
+                    color: Theme.popupHeaderBg; height: 50; radius: 12
+                    Rectangle { anchors.top: parent.top; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+                    Rectangle { anchors.top: parent.top; width: parent.width; height: 1;  color: Theme.popupHeaderBorder }
+                    Row {
+                        anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                        spacing: 10
+                        LcButton {
+                            text: "Cancelar"; secondary: true
+                            onClicked: { newProjectPopup.close(); newProjNameField.text = "" }
+                        }
+                        LcButton {
+                            text: "Crear"
+                            enabled: newProjNameField.text.trim().length > 0
+                            onClicked: {
+                                const name = newProjNameField.text.trim()
+                                const pid  = "custom-" + name.toLowerCase().replace(/\s+/g, "-")
+                                App.newChatSessionInProject(pid, name)
+                                newProjectPopup.close()
+                                newProjNameField.text = ""
+                            }
+                        }
+                    }
+                }
+
+                contentItem: Item {
+                    width: 380; height: 46
+                    LcTextField {
+                        id: newProjNameField
+                        anchors.fill: parent
+                        placeholderText: "Nombre del proyecto"
+                        Keys.onReturnPressed: {
+                            if (text.trim().length === 0) return
+                            const name = text.trim()
+                            const pid  = "custom-" + name.toLowerCase().replace(/\s+/g, "-")
+                            App.newChatSessionInProject(pid, name)
+                            newProjectPopup.close(); text = ""
+                        }
+                    }
+                }
+
+                onOpened: newProjNameField.forceActiveFocus()
             }
         }
 

@@ -550,7 +550,6 @@ C:/Users/cristian/Documents/LlamaCode/src/core/BinaryRegistry.h
  mdp:C:/Qt/6.8.3/msvc2022_64/include/QtCore/qyieldcpu.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/BinaryRegistry.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/LlamaBinary.h
-C:/Users/cristian/Documents/LlamaCode/src/core/CatalogModel.h
 C:/Users/cristian/Documents/LlamaCode/src/core/ModelRootRegistry.h
  mmc:Q_OBJECT
  mdp:C:/Qt/6.8.3/msvc2022_64/include/QtCore/QAbstractListModel
@@ -691,7 +690,7 @@ C:/Users/cristian/Documents/LlamaCode/src/core/ModelRootRegistry.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/ModelRoot.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/ModelRootRegistry.h
 C:/Users/cristian/Documents/LlamaCode/src/core/CapabilityDetector.h
-C:/Users/cristian/Documents/LlamaCode/src/core/BinaryRegistry.cpp
+C:/Users/cristian/Documents/LlamaCode/src/core/CatalogModel.h
 C:/Users/cristian/Documents/LlamaCode/src/core/GGUFScanner.h
  mmc:Q_OBJECT
  mdp:C:/Qt/6.8.3/msvc2022_64/include/QtCore/QDateTime
@@ -827,11 +826,10 @@ C:/Users/cristian/Documents/LlamaCode/src/core/GGUFScanner.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/CatalogModel.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/GGUFScanner.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/ModelRoot.h
+C:/Users/cristian/Documents/LlamaCode/src/core/BinaryRegistry.cpp
 C:/Users/cristian/Documents/LlamaCode/src/core/LlamaBinary.h
 C:/Users/cristian/Documents/LlamaCode/src/core/ModelRoot.h
 C:/Users/cristian/Documents/LlamaCode/src/core/profiles/EffectiveProfileBuilder.h
-C:/Users/cristian/Documents/LlamaCode/src/core/ModelCatalog.cpp
-C:/Users/cristian/Documents/LlamaCode/src/ThemeProvider.cpp
 C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileManager.h
  mmc:Q_OBJECT
  mdp:C:/Qt/6.8.3/msvc2022_64/include/QtCore/QAbstractListModel
@@ -968,10 +966,12 @@ C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileManager.h
  mdp:C:/Qt/6.8.3/msvc2022_64/include/QtCore/qyieldcpu.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileManager.h
  mdp:C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileTypes.h
+C:/Users/cristian/Documents/LlamaCode/src/ThemeProvider.cpp
+C:/Users/cristian/Documents/LlamaCode/src/core/ModelCatalog.cpp
 C:/Users/cristian/Documents/LlamaCode/src/core/profiles/ProfileTypes.h
 C:/Users/cristian/Documents/LlamaCode/src/AppController.cpp
-C:/Users/cristian/Documents/LlamaCode/src/core/ModelRootRegistry.cpp
 C:/Users/cristian/Documents/LlamaCode/src/core/CapabilityDetector.cpp
+C:/Users/cristian/Documents/LlamaCode/src/core/ModelRootRegistry.cpp
 C:/Users/cristian/Documents/LlamaCode/src/core/CatalogModel.cpp
 C:/Users/cristian/Documents/LlamaCode/src/core/GGUFScanner.cpp
 C:/Users/cristian/Documents/LlamaCode/src/core/LlamaBinary.cpp

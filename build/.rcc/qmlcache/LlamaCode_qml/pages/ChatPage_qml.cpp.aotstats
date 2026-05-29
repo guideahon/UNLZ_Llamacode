@@ -6,66 +6,74 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 390,
+                        "durationMicroseconds": 332,
                         "errorMessage": "Cannot generate efficient code for LoadClosure",
                         "functionName": "scrollToBottom",
-                        "line": 9
+                        "line": 11
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 5,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Functions without type annotations won't be compiled",
+                        "functionName": "projectIdForSection",
+                        "line": 13
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 23,
-                        "durationMicroseconds": 86,
+                        "durationMicroseconds": 84,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 12
+                        "line": 22
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 22,
-                        "durationMicroseconds": 204,
+                        "durationMicroseconds": 182,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "visible",
-                        "line": 19
+                        "line": 29
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 20,
-                        "durationMicroseconds": 169,
+                        "durationMicroseconds": 139,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 20
+                        "line": 30
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 76,
+                        "durationMicroseconds": 54,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 23
+                        "line": 33
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 205,
+                        "durationMicroseconds": 148,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 29
+                        "line": 39
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 41,
-                        "durationMicroseconds": 111,
+                        "durationMicroseconds": 99,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 32
+                        "line": 42
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 290,
+                        "durationMicroseconds": 277,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 36
+                        "line": 46
                     },
                     {
                         "codegenSuccessfull": false,
@@ -73,23 +81,23 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 44
+                        "line": 54
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 71,
-                        "durationMicroseconds": 132,
+                        "durationMicroseconds": 157,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 49
+                        "line": 59
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 345,
+                        "durationMicroseconds": 320,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "model",
-                        "line": 56
+                        "line": 66
                     },
                     {
                         "codegenSuccessfull": false,
@@ -97,15 +105,15 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"policy\".",
                         "functionName": "policy",
-                        "line": 57
+                        "line": 67
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 82,
+                        "durationMicroseconds": 79,
                         "errorMessage": "",
                         "functionName": "criteria",
-                        "line": 60
+                        "line": 70
                     },
                     {
                         "codegenSuccessfull": false,
@@ -113,47 +121,95 @@
                         "durationMicroseconds": 19,
                         "errorMessage": "Cannot access value for name sessionsList",
                         "functionName": "width",
-                        "line": 63
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 32,
-                        "durationMicroseconds": 115,
-                        "errorMessage": "Cannot access value for name Theme",
-                        "functionName": "color",
-                        "line": 65
-                    },
-                    {
-                        "codegenSuccessfull": true,
-                        "column": 45,
-                        "durationMicroseconds": 45,
-                        "errorMessage": "",
-                        "functionName": "fill",
-                        "line": 68
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 39,
-                        "durationMicroseconds": 22,
-                        "errorMessage": "Cannot access value for name section",
-                        "functionName": "text",
                         "line": 73
                     },
                     {
                         "codegenSuccessfull": false,
-                        "column": 40,
-                        "durationMicroseconds": 191,
+                        "column": 32,
+                        "durationMicroseconds": 117,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 74
+                        "line": 75
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 45,
+                        "durationMicroseconds": 44,
+                        "errorMessage": "",
+                        "functionName": "fill",
+                        "line": 78
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 39,
+                        "durationMicroseconds": 21,
+                        "errorMessage": "Cannot access value for name section",
+                        "functionName": "text",
+                        "line": 83
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 196,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 84
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 40,
-                        "durationMicroseconds": 56,
+                        "durationMicroseconds": 82,
                         "errorMessage": "",
                         "functionName": "elide",
-                        "line": 76
+                        "line": 86
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 151,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 90
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 44,
+                        "durationMicroseconds": 188,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 94
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 55,
+                        "durationMicroseconds": 50,
+                        "errorMessage": "",
+                        "functionName": "centerIn",
+                        "line": 92
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 50,
+                        "durationMicroseconds": 68,
+                        "errorMessage": "",
+                        "functionName": "cursorShape",
+                        "line": 101
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 48,
+                        "durationMicroseconds": 33,
+                        "errorMessage": "Cannot access value for name root",
+                        "functionName": "onClicked",
+                        "line": 102
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 51,
+                        "durationMicroseconds": 40,
+                        "errorMessage": "",
+                        "functionName": "fill",
+                        "line": 99
                     },
                     {
                         "codegenSuccessfull": false,
@@ -161,135 +217,455 @@
                         "durationMicroseconds": 18,
                         "errorMessage": "Cannot access value for name sessionsList",
                         "functionName": "width",
-                        "line": 82
+                        "line": 112
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 32,
-                        "durationMicroseconds": 176,
+                        "durationMicroseconds": 170,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "color",
-                        "line": 84
+                        "line": 114
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 47,
-                        "durationMicroseconds": 72,
+                        "durationMicroseconds": 75,
                         "errorMessage": "",
                         "functionName": "height",
-                        "line": 88
+                        "line": 118
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 171,
+                        "durationMicroseconds": 170,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "color",
-                        "line": 89
+                        "line": 119
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 49,
-                        "durationMicroseconds": 80,
+                        "durationMicroseconds": 77,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
-                        "line": 95
-                    },
-                    {
-                        "codegenSuccessfull": true,
-                        "column": 39,
-                        "durationMicroseconds": 67,
-                        "errorMessage": "",
-                        "functionName": "left",
-                        "line": 96
-                    },
-                    {
-                        "codegenSuccessfull": true,
-                        "column": 40,
-                        "durationMicroseconds": 68,
-                        "errorMessage": "",
-                        "functionName": "right",
-                        "line": 97
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 39,
-                        "durationMicroseconds": 278,
-                        "errorMessage": "Cannot access value for name modelData",
-                        "functionName": "text",
-                        "line": 102
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 40,
-                        "durationMicroseconds": 255,
-                        "errorMessage": "Cannot access value for name modelData",
-                        "functionName": "color",
-                        "line": 106
-                    },
-                    {
-                        "codegenSuccessfull": true,
-                        "column": 40,
-                        "durationMicroseconds": 56,
-                        "errorMessage": "",
-                        "functionName": "elide",
-                        "line": 109
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 61,
-                        "durationMicroseconds": 260,
-                        "errorMessage": "Cannot access value for name modelData",
-                        "functionName": "bold",
-                        "line": 108
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 39,
-                        "durationMicroseconds": 392,
-                        "errorMessage": "Cannot access value for name modelData",
-                        "functionName": "text",
-                        "line": 113
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 40,
-                        "durationMicroseconds": 185,
-                        "errorMessage": "Cannot access value for name Theme",
-                        "functionName": "color",
-                        "line": 117
-                    },
-                    {
-                        "codegenSuccessfull": true,
-                        "column": 42,
-                        "durationMicroseconds": 82,
-                        "errorMessage": "",
-                        "functionName": "cursorShape",
-                        "line": 124
-                    },
-                    {
-                        "codegenSuccessfull": false,
-                        "column": 40,
-                        "durationMicroseconds": 162,
-                        "errorMessage": "Cannot access value for name App",
-                        "functionName": "onClicked",
                         "line": 125
                     },
                     {
                         "codegenSuccessfull": true,
+                        "column": 39,
+                        "durationMicroseconds": 70,
+                        "errorMessage": "",
+                        "functionName": "left",
+                        "line": 126
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 40,
+                        "durationMicroseconds": 63,
+                        "errorMessage": "",
+                        "functionName": "right",
+                        "line": 127
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 39,
+                        "durationMicroseconds": 281,
+                        "errorMessage": "Cannot access value for name modelData",
+                        "functionName": "text",
+                        "line": 132
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 259,
+                        "errorMessage": "Cannot access value for name modelData",
+                        "functionName": "color",
+                        "line": 136
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 40,
+                        "durationMicroseconds": 58,
+                        "errorMessage": "",
+                        "functionName": "elide",
+                        "line": 139
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 61,
+                        "durationMicroseconds": 263,
+                        "errorMessage": "Cannot access value for name modelData",
+                        "functionName": "bold",
+                        "line": 138
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 39,
+                        "durationMicroseconds": 277,
+                        "errorMessage": "Cannot access value for name modelData",
+                        "functionName": "text",
+                        "line": 143
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 176,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 147
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 42,
+                        "durationMicroseconds": 71,
+                        "errorMessage": "",
+                        "functionName": "cursorShape",
+                        "line": 154
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 143,
+                        "errorMessage": "Cannot access value for name App",
+                        "functionName": "onClicked",
+                        "line": 155
+                    },
+                    {
+                        "codegenSuccessfull": true,
                         "column": 43,
-                        "durationMicroseconds": 49,
+                        "durationMicroseconds": 44,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 123
+                        "line": 153
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 75,
+                        "durationMicroseconds": 123,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 160
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 45,
+                        "durationMicroseconds": 40,
+                        "errorMessage": "",
+                        "functionName": "fill",
+                        "line": 166
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 192,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 171
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 42,
+                        "durationMicroseconds": 57,
+                        "errorMessage": "",
+                        "functionName": "cursorShape",
+                        "line": 178
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 174,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "onEntered",
+                        "line": 180
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 18,
+                        "errorMessage": "Type (component in C:/Users/cristian/Documents/LlamaCode/qml/pages/ChatPage.qml)::parent with type QQuickItem does not have a property color for writing",
+                        "functionName": "onExited",
+                        "line": 181
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 15,
+                        "errorMessage": "Cannot retrieve a non-object type by ID: newProjectPopup",
+                        "functionName": "onClicked",
+                        "line": 182
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 43,
+                        "durationMicroseconds": 45,
+                        "errorMessage": "",
+                        "functionName": "fill",
+                        "line": 177
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 25,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"parent\".",
+                        "functionName": "parent",
+                        "line": 192
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 20,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"x\".",
+                        "functionName": "x",
+                        "line": 193
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 20,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"y\".",
+                        "functionName": "y",
+                        "line": 194
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 30,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"closePolicy\".",
+                        "functionName": "closePolicy",
+                        "line": 197
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 27,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"opened\".",
+                        "functionName": "onOpened",
+                        "line": 258
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 124,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 200
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 35,
+                        "durationMicroseconds": 104,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 201
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 51,
+                        "durationMicroseconds": 103,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 203
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 111,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 206
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 71,
+                        "durationMicroseconds": 4,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "width",
+                        "line": 207
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 104,
+                        "durationMicroseconds": 102,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 207
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 49,
+                        "durationMicroseconds": 3,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "bottom",
+                        "line": 207
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 71,
+                        "durationMicroseconds": 3,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "width",
+                        "line": 208
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 104,
+                        "durationMicroseconds": 99,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 208
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 49,
+                        "durationMicroseconds": 3,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "bottom",
+                        "line": 208
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 32,
+                        "durationMicroseconds": 192,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 213
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 41,
+                        "durationMicroseconds": 5,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "left",
+                        "line": 210
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 86,
+                        "durationMicroseconds": 3,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "verticalCenter",
+                        "line": 210
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 28,
+                        "durationMicroseconds": 105,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 218
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 65,
+                        "durationMicroseconds": 3,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "width",
+                        "line": 219
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 98,
+                        "durationMicroseconds": 100,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 219
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 46,
+                        "durationMicroseconds": 3,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "top",
+                        "line": 219
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 65,
+                        "durationMicroseconds": 4,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "width",
+                        "line": 220
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 98,
+                        "durationMicroseconds": 102,
+                        "errorMessage": "Cannot access value for name Theme",
+                        "functionName": "color",
+                        "line": 220
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 46,
+                        "durationMicroseconds": 3,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "top",
+                        "line": 220
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 42,
+                        "durationMicroseconds": 5,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "right",
+                        "line": 222
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 89,
+                        "durationMicroseconds": 4,
+                        "errorMessage": "Cannot access value for name parent",
+                        "functionName": "verticalCenter",
+                        "line": 222
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 226
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 38,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"enabled\".",
+                        "functionName": "enabled",
+                        "line": 230
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 40,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find signal \"clicked\".",
+                        "functionName": "onClicked",
+                        "line": 231
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 39,
+                        "durationMicroseconds": 0,
+                        "errorMessage": "Could not find property \"fill\".",
+                        "functionName": "fill",
+                        "line": 246
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 47,
+                        "durationMicroseconds": 74,
+                        "errorMessage": "Cannot access value for name text",
+                        "functionName": "onReturnPressed",
+                        "line": 248
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 63,
-                        "durationMicroseconds": 125,
+                        "durationMicroseconds": 127,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 132
+                        "line": 262
                     },
                     {
                         "codegenSuccessfull": false,
@@ -297,47 +673,47 @@
                         "durationMicroseconds": 87,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "visible",
-                        "line": 132
+                        "line": 262
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 106,
+                        "durationMicroseconds": 105,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 144
+                        "line": 274
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 41,
+                        "durationMicroseconds": 78,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 147
+                        "line": 277
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 49,
-                        "durationMicroseconds": 190,
+                        "durationMicroseconds": 253,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 149
+                        "line": 279
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 72,
-                        "durationMicroseconds": 91,
+                        "durationMicroseconds": 98,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "color",
-                        "line": 150
+                        "line": 280
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 31,
-                        "durationMicroseconds": 168,
+                        "durationMicroseconds": 172,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "text",
-                        "line": 152
+                        "line": 282
                     },
                     {
                         "codegenSuccessfull": false,
@@ -345,15 +721,15 @@
                         "durationMicroseconds": 138,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "color",
-                        "line": 158
+                        "line": 288
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 32,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 59,
                         "errorMessage": "",
                         "functionName": "elide",
-                        "line": 160
+                        "line": 290
                     },
                     {
                         "codegenSuccessfull": false,
@@ -361,7 +737,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"text\".",
                         "functionName": "text",
-                        "line": 164
+                        "line": 294
                     },
                     {
                         "codegenSuccessfull": false,
@@ -369,7 +745,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"visible\".",
                         "functionName": "visible",
-                        "line": 166
+                        "line": 296
                     },
                     {
                         "codegenSuccessfull": false,
@@ -377,39 +753,39 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 167
+                        "line": 297
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 67,
-                        "durationMicroseconds": 147,
+                        "durationMicroseconds": 121,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 172
+                        "line": 302
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 327,
+                        "durationMicroseconds": 303,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "model",
-                        "line": 183
+                        "line": 313
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 33,
-                        "durationMicroseconds": 122,
+                        "durationMicroseconds": 110,
                         "errorMessage": "Cannot generate efficient code for LoadClosure",
                         "functionName": "onCountChanged",
-                        "line": 249
+                        "line": 379
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 33,
-                        "durationMicroseconds": 172,
+                        "durationMicroseconds": 96,
                         "errorMessage": "Cannot generate efficient code for LoadClosure",
                         "functionName": "onModelChanged",
-                        "line": 250
+                        "line": 380
                     },
                     {
                         "codegenSuccessfull": false,
@@ -417,39 +793,39 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"policy\".",
                         "functionName": "policy",
-                        "line": 184
+                        "line": 314
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 170,
+                        "durationMicroseconds": 161,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "visible",
-                        "line": 188
+                        "line": 318
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 158,
+                        "durationMicroseconds": 149,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "text",
-                        "line": 189
+                        "line": 319
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 28,
-                        "durationMicroseconds": 181,
+                        "durationMicroseconds": 176,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 193
+                        "line": 323
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 46,
+                        "durationMicroseconds": 56,
                         "errorMessage": "",
                         "functionName": "centerIn",
-                        "line": 187
+                        "line": 317
                     },
                     {
                         "codegenSuccessfull": false,
@@ -457,151 +833,151 @@
                         "durationMicroseconds": 19,
                         "errorMessage": "Cannot access value for name msgList",
                         "functionName": "width",
-                        "line": 199
+                        "line": 329
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 29,
-                        "durationMicroseconds": 108,
+                        "durationMicroseconds": 116,
                         "errorMessage": "",
                         "functionName": "height",
-                        "line": 200
+                        "line": 330
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 52,
-                        "durationMicroseconds": 162,
+                        "durationMicroseconds": 161,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "isUser",
-                        "line": 202
+                        "line": 332
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 55,
-                        "durationMicroseconds": 140,
+                        "durationMicroseconds": 141,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "content",
-                        "line": 203
+                        "line": 333
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 54,
-                        "durationMicroseconds": 162,
+                        "durationMicroseconds": 132,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "isTyping",
-                        "line": 204
+                        "line": 334
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 32,
-                        "durationMicroseconds": 283,
+                        "durationMicroseconds": 246,
                         "errorMessage": "",
                         "functionName": "width",
-                        "line": 215
+                        "line": 345
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 33,
-                        "durationMicroseconds": 163,
+                        "durationMicroseconds": 168,
                         "errorMessage": "",
                         "functionName": "height",
-                        "line": 216
+                        "line": 346
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 32,
-                        "durationMicroseconds": 153,
+                        "durationMicroseconds": 154,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 218
+                        "line": 348
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 34,
-                        "durationMicroseconds": 79,
+                        "durationMicroseconds": 78,
                         "errorMessage": "",
                         "functionName": "top",
-                        "line": 209
+                        "line": 339
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 163,
+                        "durationMicroseconds": 162,
                         "errorMessage": "Cannot generate efficient code for internal conversion with incompatible or ambiguous types: conversion to QVariant -> QQuickAnchorLine stored as QVariant",
                         "functionName": "right",
-                        "line": 210
+                        "line": 340
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 42,
-                        "durationMicroseconds": 134,
+                        "durationMicroseconds": 143,
                         "errorMessage": "",
                         "functionName": "rightMargin",
-                        "line": 211
+                        "line": 341
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 35,
-                        "durationMicroseconds": 159,
+                        "durationMicroseconds": 165,
                         "errorMessage": "Cannot generate efficient code for internal conversion with incompatible or ambiguous types: conversion to QVariant -> QQuickAnchorLine stored as QVariant",
                         "functionName": "left",
-                        "line": 212
+                        "line": 342
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 41,
-                        "durationMicroseconds": 113,
+                        "durationMicroseconds": 97,
                         "errorMessage": "",
                         "functionName": "leftMargin",
-                        "line": 213
+                        "line": 343
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 88,
+                        "durationMicroseconds": 92,
                         "errorMessage": "",
                         "functionName": "width",
-                        "line": 219
+                        "line": 349
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 39,
-                        "durationMicroseconds": 133,
+                        "durationMicroseconds": 144,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 220
+                        "line": 350
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 35,
-                        "durationMicroseconds": 327,
+                        "durationMicroseconds": 318,
                         "errorMessage": "",
                         "functionName": "text",
-                        "line": 225
+                        "line": 355
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 328,
+                        "durationMicroseconds": 340,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 232
+                        "line": 362
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 59,
+                        "durationMicroseconds": 58,
                         "errorMessage": "",
                         "functionName": "wrapMode",
-                        "line": 240
+                        "line": 370
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 44,
-                        "durationMicroseconds": 74,
+                        "durationMicroseconds": 79,
                         "errorMessage": "",
                         "functionName": "top",
-                        "line": 224
+                        "line": 354
                     },
                     {
                         "codegenSuccessfull": true,
@@ -609,55 +985,55 @@
                         "durationMicroseconds": 62,
                         "errorMessage": "",
                         "functionName": "left",
-                        "line": 224
+                        "line": 354
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 82,
-                        "durationMicroseconds": 59,
+                        "durationMicroseconds": 58,
                         "errorMessage": "",
                         "functionName": "right",
-                        "line": 224
+                        "line": 354
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 42,
-                        "durationMicroseconds": 153,
+                        "durationMicroseconds": 157,
                         "errorMessage": "",
                         "functionName": "italic",
-                        "line": 239
+                        "line": 369
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 44,
-                        "durationMicroseconds": 140,
+                        "durationMicroseconds": 99,
                         "errorMessage": "Cannot generate efficient code for LoadClosure",
                         "functionName": "onCompleted",
-                        "line": 246
+                        "line": 376
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 67,
-                        "durationMicroseconds": 193,
+                        "durationMicroseconds": 122,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 253
+                        "line": 383
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 118,
+                        "durationMicroseconds": 110,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 258
+                        "line": 388
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 42,
                         "errorMessage": "",
                         "functionName": "fill",
-                        "line": 262
+                        "line": 392
                     },
                     {
                         "codegenSuccessfull": false,
@@ -665,7 +1041,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"placeholderText\".",
                         "functionName": "placeholderText",
-                        "line": 268
+                        "line": 398
                     },
                     {
                         "codegenSuccessfull": false,
@@ -673,7 +1049,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"enabled\".",
                         "functionName": "enabled",
-                        "line": 272
+                        "line": 402
                     },
                     {
                         "codegenSuccessfull": false,
@@ -681,7 +1057,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"color\".",
                         "functionName": "color",
-                        "line": 273
+                        "line": 403
                     },
                     {
                         "codegenSuccessfull": false,
@@ -689,7 +1065,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"placeholderTextColor\".",
                         "functionName": "placeholderTextColor",
-                        "line": 274
+                        "line": 404
                     },
                     {
                         "codegenSuccessfull": false,
@@ -697,47 +1073,47 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"verticalAlignment\".",
                         "functionName": "verticalAlignment",
-                        "line": 277
+                        "line": 407
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 124,
+                        "durationMicroseconds": 125,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 279
+                        "line": 409
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 43,
-                        "durationMicroseconds": 14,
+                        "durationMicroseconds": 13,
                         "errorMessage": "Cannot access value for name inputField",
                         "functionName": "width",
-                        "line": 280
+                        "line": 410
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 43,
-                        "durationMicroseconds": 106,
+                        "durationMicroseconds": 107,
                         "errorMessage": "Cannot access value for name Theme",
                         "functionName": "color",
-                        "line": 281
+                        "line": 411
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 48,
-                        "durationMicroseconds": 93,
+                        "durationMicroseconds": 136,
                         "errorMessage": "Cannot retrieve a non-object type by ID: inputField",
                         "functionName": "onReturnPressed",
-                        "line": 283
+                        "line": 413
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 48,
-                        "durationMicroseconds": 38,
+                        "durationMicroseconds": 36,
                         "errorMessage": "",
                         "functionName": "onReturnPressed",
-                        "line": 283
+                        "line": 413
                     },
                     {
                         "codegenSuccessfull": false,
@@ -745,15 +1121,15 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"text\".",
                         "functionName": "text",
-                        "line": 292
+                        "line": 422
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 33,
-                        "durationMicroseconds": 22,
+                        "durationMicroseconds": 21,
                         "errorMessage": "Cannot access value for name App",
                         "functionName": "danger",
-                        "line": 296
+                        "line": 426
                     },
                     {
                         "codegenSuccessfull": false,
@@ -761,7 +1137,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find property \"enabled\".",
                         "functionName": "enabled",
-                        "line": 297
+                        "line": 427
                     },
                     {
                         "codegenSuccessfull": false,
@@ -769,7 +1145,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Could not find signal \"clicked\".",
                         "functionName": "onClicked",
-                        "line": 298
+                        "line": 428
                     }
                 ],
                 "filepath": "C:/Users/cristian/Documents/LlamaCode/qml/pages/ChatPage.qml"

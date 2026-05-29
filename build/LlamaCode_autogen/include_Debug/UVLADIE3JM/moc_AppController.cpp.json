@@ -14,11 +14,27 @@
                     "access": "public",
                     "arguments": [
                         {
-                            "name": "id",
+                            "name": "projectId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "projectName",
                             "type": "QString"
                         }
                     ],
                     "index": 22,
+                    "name": "newChatSessionInProject",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "id",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 23,
                     "name": "switchChatSession",
                     "returnType": "void"
                 },
@@ -30,13 +46,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 23,
+                    "index": 24,
                     "name": "sendChatMessage",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 24,
+                    "index": 25,
                     "name": "stopChatGeneration",
                     "returnType": "void"
                 },
@@ -48,13 +64,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 25,
+                    "index": 26,
                     "name": "startServer",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 26,
+                    "index": 27,
                     "name": "stopServer",
                     "returnType": "void"
                 },
@@ -66,13 +82,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 27,
+                    "index": 28,
                     "name": "computeEffectiveProfile",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 28,
+                    "index": 29,
                     "name": "clearLog",
                     "returnType": "void"
                 },
@@ -84,19 +100,19 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 29,
+                    "index": 30,
                     "name": "copyToClipboard",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 30,
+                    "index": 31,
                     "name": "installOfficialBinary",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 31,
+                    "index": 32,
                     "name": "cancelOfficialBinaryInstall",
                     "returnType": "void"
                 },
@@ -108,13 +124,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 32,
+                    "index": 33,
                     "name": "smokeTestServer",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 33,
+                    "index": 34,
                     "name": "smokeTestRunning",
                     "returnType": "bool"
                 },
@@ -130,13 +146,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 34,
+                    "index": 35,
                     "name": "resolveFlag",
                     "returnType": "QString"
                 },
                 {
                     "access": "public",
-                    "index": 35,
+                    "index": 36,
                     "name": "version",
                     "returnType": "QString"
                 },
@@ -148,7 +164,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 36,
+                    "index": 37,
                     "name": "l",
                     "returnType": "QString"
                 },
@@ -164,7 +180,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 37,
+                    "index": 38,
                     "name": "lf",
                     "returnType": "QString"
                 },
@@ -180,7 +196,7 @@
                             "type": "QVariant"
                         }
                     ],
-                    "index": 38,
+                    "index": 39,
                     "name": "readSetting",
                     "returnType": "QVariant"
                 },
@@ -192,7 +208,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 39,
+                    "index": 40,
                     "isCloned": true,
                     "name": "readSetting",
                     "returnType": "QVariant"
@@ -209,7 +225,7 @@
                             "type": "QVariant"
                         }
                     ],
-                    "index": 40,
+                    "index": 41,
                     "name": "writeSetting",
                     "returnType": "void"
                 },
@@ -221,7 +237,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 41,
+                    "index": 42,
                     "name": "isHarnessInstalled",
                     "returnType": "bool"
                 },
@@ -233,7 +249,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 42,
+                    "index": 43,
                     "name": "installHarness",
                     "returnType": "void"
                 },
@@ -245,13 +261,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 43,
+                    "index": 44,
                     "name": "startAgent",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 44,
+                    "index": 45,
                     "name": "stopAgent",
                     "returnType": "void"
                 },
@@ -263,13 +279,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 45,
+                    "index": 46,
                     "name": "sendToAgent",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 46,
+                    "index": 47,
                     "name": "clearAgentLog",
                     "returnType": "void"
                 },
@@ -281,7 +297,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 47,
+                    "index": 48,
                     "name": "agentNativeLogDir",
                     "returnType": "QString"
                 },
@@ -293,13 +309,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 48,
+                    "index": 49,
                     "name": "openAgentLogDir",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 49,
+                    "index": 50,
                     "name": "newOpencodeSession",
                     "returnType": "void"
                 },
@@ -311,13 +327,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 50,
+                    "index": 51,
                     "name": "switchOpencodeSession",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 51,
+                    "index": 52,
                     "name": "refreshOpencodeSessionList",
                     "returnType": "void"
                 },
@@ -329,13 +345,13 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 52,
+                    "index": 53,
                     "name": "pickDirectory",
                     "returnType": "QString"
                 },
                 {
                     "access": "public",
-                    "index": 53,
+                    "index": 54,
                     "isCloned": true,
                     "name": "pickDirectory",
                     "returnType": "QString"
@@ -348,7 +364,7 @@
                             "type": "QString"
                         }
                     ],
-                    "index": 54,
+                    "index": 55,
                     "name": "changeAgentProject",
                     "returnType": "void"
                 }

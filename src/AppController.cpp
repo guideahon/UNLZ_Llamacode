@@ -1130,16 +1130,20 @@ void AppController::saveChatSession()
         }
     }
     if (!found) {
-        const QString projId   = m_activeLaunchId;
+        const QString projId = m_chatProjectIdOverride.isEmpty()
+            ? m_activeLaunchId : m_chatProjectIdOverride;
         const QString projName = [&]() -> QString {
+            if (!m_chatProjectNameOverride.isEmpty()) return m_chatProjectNameOverride;
             const auto profiles = m_profiles.launchProfiles();
             for (int i = 0; i < profiles->rowCount(); ++i) {
                 const auto idx2 = profiles->index(i, 0);
                 if (profiles->data(idx2, 257).toString() == projId)
                     return profiles->data(idx2, Qt::DisplayRole).toString();
             }
-            return projId;
+            return projId.isEmpty() ? QStringLiteral("Sin proyecto") : projId;
         }();
+        m_chatProjectIdOverride.clear();
+        m_chatProjectNameOverride.clear();
         idx.append(QJsonObject{
             {QStringLiteral("id"),          m_chatSessionId},
             {QStringLiteral("title"),       m_chatSessionTitle},
@@ -1191,6 +1195,21 @@ void AppController::loadChatSessionMessages(const QString &id)
 
 void AppController::newChatSession()
 {
+    m_chatProjectIdOverride.clear();
+    m_chatProjectNameOverride.clear();
+    if (m_chatGenerating) stopChatGeneration();
+    m_chatSessionId    = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    m_chatSessionTitle = QString();
+    m_chatMessages.clear();
+    m_chatAssistantIdx = -1;
+    emit chatSessionsChanged();
+    emit chatMessagesChanged();
+}
+
+void AppController::newChatSessionInProject(const QString &projectId, const QString &projectName)
+{
+    m_chatProjectIdOverride   = projectId;
+    m_chatProjectNameOverride = projectName;
     if (m_chatGenerating) stopChatGeneration();
     m_chatSessionId    = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_chatSessionTitle = QString();
