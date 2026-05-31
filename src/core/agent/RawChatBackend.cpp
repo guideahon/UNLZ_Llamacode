@@ -252,10 +252,17 @@ void RawChatBackend::sendMessage(const QString &text)
     QJsonObject payload{
         {QStringLiteral("model"), m_ctx.modelId.isEmpty() ? QStringLiteral("raw") : m_ctx.modelId},
         {QStringLiteral("messages"), reqMsgs},
-        {QStringLiteral("stream"), true},
-        // Native thinking toggle (Qwen-compatible OpenAI extensions).
-        {QStringLiteral("enable_thinking"), m_thinkingEnabled}
+        {QStringLiteral("stream"), true}
     };
+    // Native thinking toggle. Different backends/templates read different keys.
+    payload.insert(QStringLiteral("enable_thinking"), m_thinkingEnabled);
+    payload.insert(QStringLiteral("thinking"), m_thinkingEnabled);
+    QJsonObject reasoningObj;
+    reasoningObj.insert(QStringLiteral("enabled"), m_thinkingEnabled);
+    payload.insert(QStringLiteral("reasoning"), reasoningObj);
+    QJsonObject tmplKw;
+    tmplKw.insert(QStringLiteral("enable_thinking"), m_thinkingEnabled);
+    payload.insert(QStringLiteral("chat_template_kwargs"), tmplKw);
 
     m_sseBuf.clear();
     m_reply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
