@@ -38,6 +38,11 @@ EffectiveProfile EffectiveProfileBuilder::build(const Context &ctx)
             args.append(arg.startsWith(u'-') ? ctx.binary.resolveFlag(arg) : arg);
     }
 
+    // Asegurar --jinja: necesario para que el server respete chat_template_kwargs
+    // (enable_thinking:false) y el tool-calling por template.
+    if (!args.contains(QStringLiteral("--jinja")))
+        args << QStringLiteral("--jinja");
+
     result.effectiveArgs = args;
     result.effectiveEnv = env;
     result.binaryPath = ctx.binary.path;

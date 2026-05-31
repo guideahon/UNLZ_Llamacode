@@ -9,6 +9,21 @@ Item {
     property bool newProjectDialogOpen: false
     property var thinkExpanded: ({})
     property bool thinkingEnabled: (App.readSetting("chat/thinkingEnabled", true) ?? true)
+    property var chatAttachments: []
+
+    function fileName(p) { return p.split(/[\\/]/).pop() }
+
+    function sendNow() {
+        if (App.chatGenerating) { App.stopChatGeneration(); return }
+        const t = inputField.text.trim()
+        if (t.length === 0 && root.chatAttachments.length === 0) return
+        if (root.chatAttachments.length > 0)
+            App.sendChatMessageWithAttachments(t, root.chatAttachments)
+        else
+            App.sendChatMessage(t)
+        inputField.text = ""
+        root.chatAttachments = []
+    }
 
     function scrollToBottom() { Qt.callLater(() => { msgList.positionViewAtEnd() }) }
 
@@ -566,7 +581,6 @@ Item {
                         text: {
                             const _lang = App.langV
                             if (!App.serverRunning) return App.l("chat.serverStopped")
-                            if (!App.serverReady)   return "Cargando modelo..."
                             const title = App.chatSessionTitle ?? ""
                             return title.length > 0 ? title : App.activeLaunchId
                         }
@@ -596,13 +610,46 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    visible: App.chatMessages.length === 0
+                    visible: App.chatMessages.length === 0 && !(App.serverRunning && !App.serverReady)
                     text: {
                         const _lang = App.langV
                         return App.serverRunning ? App.l("chat.startMessage") : App.l("chat.startServer")
                     }
                     color: Theme.textMuted
                     font.pixelSize: 14
+                }
+
+                // Popup no bloqueante: modelo cargando (centrado, sin frenar la UI)
+                Rectangle {
+                    anchors.centerIn: parent
+                    visible: App.serverRunning && !App.serverReady
+                    radius: 10
+                    color: Theme.surfaceBg
+                    border.color: Theme.borderColor
+                    implicitWidth: loadingRow.implicitWidth + 32
+                    implicitHeight: loadingRow.implicitHeight + 24
+                    Row {
+                        id: loadingRow
+                        anchors.centerIn: parent
+                        spacing: 10
+                        Rectangle {
+                            width: 10; height: 10; radius: 5
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.warnText
+                            SequentialAnimation on opacity {
+                                running: parent.parent.visible
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.3; duration: 600 }
+                                NumberAnimation { to: 1.0; duration: 600 }
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Cargando modelo..."
+                            color: Theme.textSecondary
+                            font.pixelSize: 14
+                        }
+                    }
                 }
 
                 delegate: Item {
@@ -744,67 +791,124 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 color: Theme.baseBg
-                height: 60
+                implicitHeight: inputCol.implicitHeight + 20
 
-                RowLayout {
+                ColumnLayout {
+                    id: inputCol
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12; topMargin: 10; bottomMargin: 10 }
-                    spacing: 8
+                    spacing: 6
 
-                    CheckBox {
-                        id: thinkingToggle
-                        text: "Thinking"
-                        checked: root.thinkingEnabled
-                        enabled: !App.chatGenerating
-                        onToggled: {
-                            root.thinkingEnabled = checked
-                            App.setChatThinkingEnabled(checked)
-                        }
-                        contentItem: Text {
-                            text: parent.text
-                            color: Theme.textSecondary
-                            leftPadding: parent.indicator.width + 6
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 12
-                        }
-                    }
-
-                    TextField {
-                        id: inputField
+                    // Chips de adjuntos
+                    Flow {
                         Layout.fillWidth: true
-                        placeholderText: {
-                            const _lang = App.langV
-                            return App.chatGenerating ? App.l("chat.generating") : App.l("chat.placeholder")
-                        }
-                        enabled: App.serverRunning && App.serverReady && !App.chatGenerating
-                        color: Theme.textPrimary
-                        placeholderTextColor: Theme.textMuted
-                        font.pixelSize: 13
-                        leftPadding: 12; rightPadding: 12
-                        verticalAlignment: TextInput.AlignVCenter
-                        background: Rectangle {
-                            color: Theme.inputBg; radius: 8
-                            border.width: inputField.activeFocus ? 1 : 0
-                            border.color: Theme.inputBorderFocus
-                        }
-                        Keys.onReturnPressed: (event) => {
-                            if (!(event.modifiers & Qt.ShiftModifier)) {
-                                const t = inputField.text.trim()
-                                if (t.length > 0) { App.sendChatMessage(t); inputField.text = "" }
+                        spacing: 6
+                        visible: root.chatAttachments.length > 0
+                        Repeater {
+                            model: root.chatAttachments
+                            delegate: Rectangle {
+                                radius: 6
+                                color: Theme.inputBg
+                                border.color: Theme.borderColor
+                                height: 24
+                                width: chipRow.implicitWidth + 14
+                                Row {
+                                    id: chipRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    Text { text: "📎 " + root.fileName(modelData); color: Theme.textSecondary; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                                    Text {
+                                        text: "✕"; color: Theme.textMuted; font.pixelSize: 11
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                const a = root.chatAttachments.slice()
+                                                a.splice(index, 1)
+                                                root.chatAttachments = a
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    LcButton {
-                        text: {
-                            const _lang = App.langV
-                            return App.chatGenerating ? App.l("chat.stop") : App.l("chat.send")
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        CheckBox {
+                            id: thinkingToggle
+                            text: "Thinking"
+                            visible: App.chatThinkingSupported
+                            checked: root.thinkingEnabled
+                            enabled: !App.chatGenerating && App.chatThinkingSupported
+                            onToggled: {
+                                root.thinkingEnabled = checked
+                                App.setChatThinkingEnabled(checked)
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: Theme.textSecondary
+                                leftPadding: parent.indicator.width + 6
+                                verticalAlignment: Text.AlignVCenter
+                                font.pixelSize: 12
+                            }
                         }
-                        danger: App.chatGenerating
-                        enabled: App.serverRunning && App.serverReady && (App.chatGenerating || inputField.text.trim().length > 0)
-                        onClicked: {
-                            if (App.chatGenerating) { App.stopChatGeneration(); return }
-                            const t = inputField.text.trim()
-                            if (t.length > 0) { App.sendChatMessage(t); inputField.text = "" }
+
+                        LcButton {
+                            text: "📎"
+                            secondary: true
+                            implicitWidth: 36
+                            enabled: App.serverRunning && App.serverReady && !App.chatGenerating
+                            onClicked: {
+                                const picked = App.pickChatAttachments()
+                                if (picked && picked.length > 0)
+                                    root.chatAttachments = root.chatAttachments.concat(picked)
+                            }
+                        }
+
+                        TextField {
+                            id: inputField
+                            Layout.fillWidth: true
+                            placeholderText: {
+                                const _lang = App.langV
+                                return App.chatGenerating ? App.l("chat.generating") : App.l("chat.placeholder")
+                            }
+                            enabled: App.serverRunning && App.serverReady && !App.chatGenerating
+                            color: Theme.textPrimary
+                            placeholderTextColor: Theme.textMuted
+                            font.pixelSize: 13
+                            leftPadding: 12; rightPadding: 12
+                            verticalAlignment: TextInput.AlignVCenter
+                            background: Rectangle {
+                                color: Theme.inputBg; radius: 8
+                                border.width: inputField.activeFocus ? 1 : 0
+                                border.color: Theme.inputBorderFocus
+                            }
+                            Keys.onReturnPressed: (event) => {
+                                if (!(event.modifiers & Qt.ShiftModifier)) { event.accepted = true; root.sendNow() }
+                            }
+                            // Ctrl+V: si hay imagen en el portapapeles, adjuntarla.
+                            Keys.onPressed: (event) => {
+                                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                                    const p = App.pasteClipboardImage()
+                                    if (p && p.length > 0) {
+                                        root.chatAttachments = root.chatAttachments.concat([p])
+                                        event.accepted = true
+                                    }
+                                }
+                            }
+                        }
+
+                        LcButton {
+                            text: {
+                                const _lang = App.langV
+                                return App.chatGenerating ? App.l("chat.stop") : App.l("chat.send")
+                            }
+                            danger: App.chatGenerating
+                            enabled: App.serverRunning && App.serverReady && (App.chatGenerating || inputField.text.trim().length > 0 || root.chatAttachments.length > 0)
+                            onClicked: root.sendNow()
                         }
                     }
                 }

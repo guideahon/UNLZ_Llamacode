@@ -31,7 +31,7 @@ Rectangle {
             color: Theme.titleBg
             Text {
                 anchors.centerIn: parent
-                text: "🦙 LlamaCode"
+                text: "LlamaCode"
                 font { pixelSize: 16; bold: true }
                 color: Theme.textPrimary
             }
@@ -57,7 +57,6 @@ Rectangle {
                 contentItem: Row {
                     spacing: 12
                     anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                    Text { text: modelData.icon; font.pixelSize: 18; color: Theme.textPrimary }
                     Text {
                         text: (App.langV, App.l(modelData.key))
                         font.pixelSize: 14
@@ -86,7 +85,6 @@ Rectangle {
             contentItem: Row {
                 spacing: 12
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                Text { text: "🎛"; font.pixelSize: 18; color: Theme.textPrimary }
                 Text {
                     text: (App.langV, App.l("nav.settings"))
                     font.pixelSize: 14

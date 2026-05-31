@@ -9,6 +9,47 @@
 #include <QStandardPaths>
 #include <QUrl>
 #include <QUuid>
+#include <QRegularExpression>
+
+// Quita bloques <think>...</think> (razonamiento) del texto antes de reenviarlo
+// al modelo: el thinking es solo para mostrar, no debe contaminar el contexto.
+static QString stripThinkForContext(const QString &s)
+{
+    QString out = s;
+    out.remove(QRegularExpression(QStringLiteral("<think>[\\s\\S]*?</think>"),
+                                  QRegularExpression::CaseInsensitiveOption));
+    // Restos sueltos de turnos viejos.
+    out.remove(QRegularExpression(QStringLiteral("</?think>"),
+                                  QRegularExpression::CaseInsensitiveOption));
+    return out.trimmed();
+}
+
+// Devuelve un data URI base64 si el archivo es imagen soportada por mmproj; "" si no.
+static QString imageDataUri(const QString &path)
+{
+    const QString ext = QFileInfo(path).suffix().toLower();
+    QString mime;
+    if (ext == "png") mime = "image/png";
+    else if (ext == "jpg" || ext == "jpeg") mime = "image/jpeg";
+    else if (ext == "webp") mime = "image/webp";
+    else if (ext == "gif") mime = "image/gif";
+    else if (ext == "bmp") mime = "image/bmp";
+    else return {};
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    const QByteArray b64 = f.readAll().toBase64();
+    return QStringLiteral("data:%1;base64,%2").arg(mime, QString::fromLatin1(b64));
+}
+
+// Lee un archivo de texto/código (UTF-8). Vacío si binario/imagen.
+static QString readTextFile(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    QByteArray raw = f.read(2 * 1024 * 1024);  // cap 2MB
+    if (raw.contains('\0')) return {};          // binario → no inline
+    return QString::fromUtf8(raw);
+}
 
 RawChatBackend::RawChatBackend(QObject *parent) : IAgentBackend(parent)
 {
@@ -211,7 +252,9 @@ void RawChatBackend::refreshSessions()
 void RawChatBackend::sendMessage(const QString &text)
 {
     const QString trimmed = text.trimmed();
-    if (!m_running || trimmed.isEmpty()) return;
+    const QStringList attachments = m_pendingAttachments;
+    m_pendingAttachments.clear();
+    if (!m_running || (trimmed.isEmpty() && attachments.isEmpty())) return;
     if (m_reply) {
         emit errorOccurred(QStringLiteral("Hay una respuesta en curso."));
         return;
@@ -219,9 +262,22 @@ void RawChatBackend::sendMessage(const QString &text)
     if (m_sessionId.isEmpty())
         createSession(m_projectDir);
 
-    AgentMessage um; um.role = QStringLiteral("user"); um.content = trimmed;
+    // Contenido para mostrar: texto + chips de adjuntos.
+    QString display = trimmed;
+    for (const QString &p : attachments)
+        display += QStringLiteral("\n📎 ") + QFileInfo(p).fileName();
+
+    QVariantMap umMap{
+        {QStringLiteral("role"), QStringLiteral("user")},
+        {QStringLiteral("content"), display},
+        {QStringLiteral("typing"), false}
+    };
+    if (!attachments.isEmpty()) {
+        umMap[QStringLiteral("attachments")] = attachments;
+        umMap[QStringLiteral("rawText")] = trimmed;
+    }
     AgentMessage am; am.role = QStringLiteral("assistant"); am.typing = true;
-    m_messages.append(um.toMap());
+    m_messages.append(umMap);
     m_messages.append(am.toMap());
     m_curAsstIdx = m_messages.size() - 1;
     for (int i = 0; i < m_sessions.size(); ++i) {
@@ -249,18 +305,40 @@ void RawChatBackend::sendMessage(const QString &text)
             && role != QLatin1String("system")) {
             continue;
         }
-        QString content = m.value(QStringLiteral("content")).toString();
-        if (role == QLatin1String("user")) {
-            if (i == lastUserIdx) {
-                if (m_thinkingEnabled) {
-                    if (!content.startsWith(QStringLiteral("/think")))
-                        content = QStringLiteral("/think\n") + content;
+        Q_UNUSED(lastUserIdx)
+        const QStringList atts = m.value(QStringLiteral("attachments")).toStringList();
+        if (role == QLatin1String("user") && !atts.isEmpty()) {
+            // Mensaje multimodal: texto + documentos inline + imágenes (mmproj).
+            QString textPart = m.value(QStringLiteral("rawText")).toString();
+            QJsonArray images;
+            for (const QString &path : atts) {
+                const QString uri = imageDataUri(path);
+                if (!uri.isEmpty()) {
+                    images.append(QJsonObject{
+                        {QStringLiteral("type"), QStringLiteral("image_url")},
+                        {QStringLiteral("image_url"), QJsonObject{{QStringLiteral("url"), uri}}}
+                    });
                 } else {
-                    if (!content.startsWith(QStringLiteral("/no_think")))
-                        content = QStringLiteral("/no_think\n") + content;
+                    // Documento de texto → inline.
+                    const QString doc = readTextFile(path);
+                    if (!doc.isEmpty())
+                        textPart += QStringLiteral("\n\n--- %1 ---\n%2")
+                                        .arg(QFileInfo(path).fileName(), doc);
                 }
             }
+            QJsonArray parts;
+            if (!textPart.trimmed().isEmpty())
+                parts.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("text")},
+                                         {QStringLiteral("text"), textPart}});
+            for (const QJsonValue &iv : images) parts.append(iv);
+            reqMsgs.append(QJsonObject{{QStringLiteral("role"), role}, {QStringLiteral("content"), parts}});
+            continue;
         }
+        // Reenviar SIN el bloque <think>: si no, el modelo se ceba y sigue pensando.
+        QString content = m.value(QStringLiteral("content")).toString();
+        if (role == QLatin1String("assistant"))
+            content = stripThinkForContext(content);
+        if (content.trimmed().isEmpty()) continue;
         reqMsgs.append(QJsonObject{
             {QStringLiteral("role"), role},
             {QStringLiteral("content"), content}
@@ -274,24 +352,17 @@ void RawChatBackend::sendMessage(const QString &text)
         {QStringLiteral("messages"), reqMsgs},
         {QStringLiteral("stream"), true}
     };
-    // Native thinking toggle. Different backends/templates read different keys.
-    payload.insert(QStringLiteral("enable_thinking"), m_thinkingEnabled);
-    payload.insert(QStringLiteral("thinking"), m_thinkingEnabled);
-    QJsonObject reasoningObj;
-    reasoningObj.insert(QStringLiteral("enabled"), m_thinkingEnabled);
-    if (!m_thinkingEnabled)
-        reasoningObj.insert(QStringLiteral("budget"), 0);
-    payload.insert(QStringLiteral("reasoning"), reasoningObj);
+    // Control de thinking (llama.cpp).
+    //  - reasoning_budget: per-request, NO depende del chat template. 0 = sin thinking, -1 = ilimitado.
+    //  - chat_template_kwargs.enable_thinking: switch oficial Qwen3 (requiere --jinja + template que lo soporte).
+    payload.insert(QStringLiteral("reasoning_budget"), m_thinkingEnabled ? -1 : 0);
     QJsonObject tmplKw;
     tmplKw.insert(QStringLiteral("enable_thinking"), m_thinkingEnabled);
-    tmplKw.insert(QStringLiteral("preserve_thinking"), m_thinkingEnabled);
-    if (!m_thinkingEnabled)
-        tmplKw.insert(QStringLiteral("thinking_budget"), 0);
     payload.insert(QStringLiteral("chat_template_kwargs"), tmplKw);
-    if (!m_thinkingEnabled)
-        payload.insert(QStringLiteral("reasoning_budget"), 0);
 
     m_sseBuf.clear();
+    m_reasonBuf.clear();
+    m_answerBuf.clear();
     m_reply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     connect(m_reply, &QNetworkReply::readyRead, this, [this]() {
         if (!m_reply) return;
@@ -310,11 +381,19 @@ void RawChatBackend::sendMessage(const QString &text)
             const QJsonArray choices = obj.value(QStringLiteral("choices")).toArray();
             if (choices.isEmpty()) continue;
             const QJsonObject delta = choices.first().toObject().value(QStringLiteral("delta")).toObject();
+            const QString reasoning = delta.value(QStringLiteral("reasoning_content")).toString();
             const QString chunk = delta.value(QStringLiteral("content")).toString();
-            if (chunk.isEmpty()) continue;
+            if (reasoning.isEmpty() && chunk.isEmpty()) continue;
+            m_reasonBuf += reasoning;
+            m_answerBuf += chunk;
+            // El thinking (reasoning_content) se envuelve en <think> para que la UI lo muestre.
+            QString full;
+            if (!m_reasonBuf.isEmpty())
+                full = QStringLiteral("<think>") + m_reasonBuf + QStringLiteral("</think>\n");
+            full += m_answerBuf;
             if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
                 QVariantMap asst = m_messages[m_curAsstIdx].toMap();
-                asst[QStringLiteral("content")] = asst.value(QStringLiteral("content")).toString() + chunk;
+                asst[QStringLiteral("content")] = full;
                 m_messages[m_curAsstIdx] = asst;
                 saveCurrentMessages();
                 emit messagesChanged();

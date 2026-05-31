@@ -38,6 +38,7 @@ public:
                               const QString &projectName, const QString &projectDir = QString());
     bool renameProject(const QString &oldName, const QString &newName);
     void setThinkingEnabled(bool enabled) { m_thinkingEnabled = enabled; }
+    void setPendingAttachments(const QStringList &paths) { m_pendingAttachments = paths; }
 
 private:
     QString storageDir() const;
@@ -68,4 +69,7 @@ private:
     QHash<QString, QVariantList> m_sessionMessages;
     int m_curAsstIdx = -1;
     QByteArray m_sseBuf;
+    QString m_reasonBuf;   // reasoning_content acumulado (thinking)
+    QString m_answerBuf;   // content acumulado (respuesta)
+    QStringList m_pendingAttachments;  // rutas a adjuntar en el próximo envío
 };

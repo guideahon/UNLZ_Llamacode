@@ -13,6 +13,8 @@
 #include <QGuiApplication>
 #include <QApplication>
 #include <QWidget>
+#include <QImage>
+#include <QClipboard>
 #include "core/agent/OpencodeBackend.h"
 #include "core/agent/RawChatBackend.h"
 #include <QStandardPaths>
@@ -139,10 +141,34 @@ void AppController::startHealthPolling()
                 appendLog("[Server ready — model loaded]\n");
                 emit serverReadyChanged();
                 stopHealthPolling();
+                fetchChatThinkingSupport();
             }
         });
     });
     m_healthPollTimer->start();
+}
+
+void AppController::fetchChatThinkingSupport()
+{
+    if (!m_nam) m_nam = new QNetworkAccessManager(this);
+    auto *reply = m_nam->get(QNetworkRequest(QUrl(serverBaseUrl() + "/props")));
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        bool supported = false;
+        if (reply->error() == QNetworkReply::NoError) {
+            const QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
+            const QJsonObject params = root.value(QStringLiteral("default_generation_settings"))
+                                           .toObject().value(QStringLiteral("params")).toObject();
+            const QString chatFormat = params.value(QStringLiteral("chat_format")).toString();
+            // Content-only = sin template (jinja) → no soporta thinking.
+            supported = !chatFormat.isEmpty()
+                        && chatFormat.compare(QStringLiteral("Content-only"), Qt::CaseInsensitive) != 0;
+        }
+        if (supported != m_chatThinkingSupported) {
+            m_chatThinkingSupported = supported;
+            emit chatThinkingSupportedChanged();
+        }
+    });
 }
 
 void AppController::stopHealthPolling()
@@ -160,6 +186,7 @@ void AppController::stopServer()
     stopHealthPolling();
     m_serverReady    = false;
     m_serverStopping = true;
+    if (m_chatThinkingSupported) { m_chatThinkingSupported = false; emit chatThinkingSupportedChanged(); }
     emit serverReadyChanged();
     emit serverRunningChanged();
     appendLog("\n[Stopping server...]\n");
@@ -2106,6 +2133,44 @@ void AppController::sendChatMessage(const QString &text)
     b->stop();
     b->start(c);
     b->sendMessage(text);
+}
+
+void AppController::sendChatMessageWithAttachments(const QString &text, const QStringList &paths)
+{
+    if (text.trimmed().isEmpty() && paths.isEmpty()) return;
+    IAgentBackend *b = ensureChatBackend();
+    if (!b) return;
+    AgentContext c;
+    c.adapter = QStringLiteral("raw");
+    c.serverBaseUrl = serverBaseUrl();
+    c.modelId = QStringLiteral("chat");
+    b->stop();
+    b->start(c);
+    if (auto *raw = qobject_cast<RawChatBackend *>(b))
+        raw->setPendingAttachments(paths);
+    b->sendMessage(text);
+}
+
+QString AppController::pasteClipboardImage()
+{
+    const QImage img = QGuiApplication::clipboard()->image();
+    if (img.isNull()) return {};
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+                        + QStringLiteral("/llamacode-paste");
+    QDir().mkpath(dir);
+    const QString path = dir + QStringLiteral("/paste-")
+                         + QString::number(QDateTime::currentMSecsSinceEpoch())
+                         + QStringLiteral(".png");
+    if (!img.save(path, "PNG")) return {};
+    return path;
+}
+
+QStringList AppController::pickChatAttachments()
+{
+    QWidget *parent = QApplication::activeWindow();
+    return QFileDialog::getOpenFileNames(
+        parent, QStringLiteral("Adjuntar archivos"), QDir::homePath(),
+        QStringLiteral("Soportados (*.png *.jpg *.jpeg *.webp *.gif *.bmp *.txt *.md *.json *.csv *.log *.py *.js *.ts *.cpp *.h *.qml);;Todos (*.*)"));
 }
 
 void AppController::stopChatGeneration()

@@ -27,6 +27,7 @@ class AppController : public QObject
     Q_PROPERTY(QString      chatSessionId   READ chatSessionId   NOTIFY chatSessionsChanged)
     Q_PROPERTY(QString      chatSessionTitle READ chatSessionTitle NOTIFY chatSessionsChanged)
     Q_PROPERTY(bool         chatGenerating  READ chatGenerating  NOTIFY chatGeneratingChanged)
+    Q_PROPERTY(bool         chatThinkingSupported READ chatThinkingSupported NOTIFY chatThinkingSupportedChanged)
     Q_PROPERTY(bool   serverRunning   READ serverRunning   NOTIFY serverRunningChanged)
     Q_PROPERTY(bool   serverStopping  READ serverStopping  NOTIFY serverRunningChanged)
     Q_PROPERTY(bool   serverReady     READ serverReady     NOTIFY serverReadyChanged)
@@ -69,6 +70,7 @@ public:
     QString      chatSessionId()    const { return m_chatSessionId; }
     QString      chatSessionTitle() const { return m_chatSessionTitle; }
     bool         chatGenerating()   const { return m_chatGenerating; }
+    bool         chatThinkingSupported() const { return m_chatThinkingSupported; }
     bool   serverRunning()   const { return m_proc && m_proc->state() != QProcess::NotRunning; }
     bool   serverStopping()  const { return m_serverStopping; }
     bool   serverReady()     const { return m_serverReady; }
@@ -122,6 +124,10 @@ public:
     Q_INVOKABLE void renameChatSession(const QString &id, const QString &title);
     Q_INVOKABLE void renameChatProject(const QString &oldName, const QString &newName);
     Q_INVOKABLE void sendChatMessage(const QString &text);
+    Q_INVOKABLE void sendChatMessageWithAttachments(const QString &text, const QStringList &paths);
+    Q_INVOKABLE QStringList pickChatAttachments();
+    // Si el portapapeles tiene una imagen, la guarda a temp y devuelve la ruta; "" si no.
+    Q_INVOKABLE QString pasteClipboardImage();
     Q_INVOKABLE void stopChatGeneration();
     Q_INVOKABLE void setChatThinkingEnabled(bool enabled);
     Q_INVOKABLE void startServer(const QString &launchProfileId);
@@ -205,6 +211,7 @@ signals:
     void chatSessionsChanged();
     void chatMessagesChanged();
     void chatGeneratingChanged();
+    void chatThinkingSupportedChanged();
     void agentRunningChanged();
     void agentLogChanged();
     void agentMessagesChanged();
@@ -278,6 +285,8 @@ private:
     QString       m_chatSessionId;
     QString       m_chatSessionTitle;
     bool          m_chatGenerating = false;
+    bool          m_chatThinkingSupported = false;
+    void fetchChatThinkingSupport();
     QNetworkReply *m_chatReply = nullptr;
     int           m_chatAssistantIdx = -1;
     QString       chatStorageDir() const;

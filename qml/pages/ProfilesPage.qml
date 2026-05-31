@@ -427,12 +427,26 @@ Item {
             rightPadding: 16
             topPadding: 16
             bottomPadding: 16
+            contentWidth: Math.max(900, editorScroll.availableWidth)
 
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical: LcScrollBar {}
+            ScrollBar.vertical: LcScrollBar {
+                parent: editorScroll
+                anchors.right: editorScroll.right
+                anchors.top: editorScroll.top
+                anchors.bottom: editorScroll.bottom
+                anchors.topMargin: editorScroll.topPadding
+                anchors.bottomMargin: editorScroll.bottomPadding
+                policy: ScrollBar.AsNeeded
+            }
 
-            ColumnLayout {
+            Item {
                 width: Math.max(900, editorScroll.availableWidth)
+                implicitHeight: editorCol.implicitHeight
+
+                ColumnLayout {
+                id: editorCol
+                anchors { left: parent.left; right: parent.right; top: parent.top }
                 spacing: 12
 
                 Rectangle {
@@ -1043,6 +1057,7 @@ Item {
                 }
 
                 Item { Layout.fillHeight: true; Layout.preferredHeight: 16 }
+                }
             }
         }
     }
