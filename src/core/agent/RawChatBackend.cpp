@@ -234,16 +234,33 @@ void RawChatBackend::sendMessage(const QString &text)
     emit messagesChanged();
 
     QJsonArray reqMsgs;
-    for (const QVariant &v : std::as_const(m_messages)) {
-        const QVariantMap m = v.toMap();
+    int lastUserIdx = -1;
+    for (int i = 0; i < m_messages.size(); ++i) {
+        if (m_messages[i].toMap().value(QStringLiteral("role")).toString() == QLatin1String("user"))
+            lastUserIdx = i;
+    }
+    for (int i = 0; i < m_messages.size(); ++i) {
+        const QVariantMap m = m_messages[i].toMap();
         const QString role = m.value(QStringLiteral("role")).toString();
         if (role != QLatin1String("user") && role != QLatin1String("assistant")
             && role != QLatin1String("system")) {
             continue;
         }
+        QString content = m.value(QStringLiteral("content")).toString();
+        if (role == QLatin1String("user")) {
+            if (i == lastUserIdx) {
+                if (m_thinkingEnabled) {
+                    if (!content.startsWith(QStringLiteral("/think")))
+                        content = QStringLiteral("/think\n") + content;
+                } else {
+                    if (!content.startsWith(QStringLiteral("/no_think")))
+                        content = QStringLiteral("/no_think\n") + content;
+                }
+            }
+        }
         reqMsgs.append(QJsonObject{
             {QStringLiteral("role"), role},
-            {QStringLiteral("content"), m.value(QStringLiteral("content")).toString()}
+            {QStringLiteral("content"), content}
         });
     }
 
