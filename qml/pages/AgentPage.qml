@@ -906,6 +906,13 @@ Item {
                             color: Theme.inputBg
                             border.color: Theme.borderColor
                             readonly property bool reverted: modelData.reverted ?? false
+                            // Diff colapsado por defecto: solo nombre + toggle.
+                            property bool expanded: false
+                            readonly property int diffLines: {
+                                const d = String(modelData.diff ?? "")
+                                if (d.length === 0) return 0
+                                return d.split("\n").length
+                            }
 
                             ColumnLayout {
                                 id: diffCol
@@ -915,14 +922,37 @@ Item {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 8
+
+                                    // Toggle expandir/colapsar (chevron). Clic en todo el header también abre.
+                                    Text {
+                                        text: diffCard.expanded ? "▾" : "▸"
+                                        color: Theme.textMuted
+                                        font.pixelSize: 12
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: diffCard.expanded = !diffCard.expanded
+                                        }
+                                    }
                                     Text { text: "📝"; font.pixelSize: 13 }
                                     Text {
                                         Layout.fillWidth: true
                                         text: (modelData.path ?? "")
+                                              + (diffCard.diffLines > 0 ? "  · " + diffCard.diffLines + " líneas" : "")
                                               + (diffCard.reverted ? "  · revertido" : "")
                                         color: diffCard.reverted ? Theme.textMuted : Theme.textPrimary
                                         font { family: "Consolas,monospace"; pixelSize: 12; bold: true }
                                         elide: Text.ElideMiddle
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: diffCard.expanded = !diffCard.expanded
+                                        }
+                                    }
+                                    LcButton {
+                                        text: diffCard.expanded ? "Ocultar" : "Ver"
+                                        secondary: true
+                                        implicitHeight: 24
+                                        visible: diffCard.diffLines > 0
+                                        onClicked: diffCard.expanded = !diffCard.expanded
                                     }
                                     LcButton {
                                         text: "Revertir"; secondary: true
@@ -932,14 +962,26 @@ Item {
                                     }
                                 }
 
-                                TextEdit {
+                                // Cuerpo del diff: oculto por defecto, scrollable al abrir.
+                                ScrollView {
                                     Layout.fillWidth: true
-                                    text: modelData.diff ?? ""
-                                    color: Theme.textSecondary
-                                    font { family: "Consolas,monospace"; pixelSize: 11 }
-                                    wrapMode: TextEdit.NoWrap
-                                    readOnly: true; selectByMouse: true
-                                    opacity: diffCard.reverted ? 0.5 : 1.0
+                                    visible: diffCard.expanded
+                                    clip: true
+                                    Layout.preferredHeight: visible
+                                        ? Math.min(diffText.implicitHeight + 8, 280)
+                                        : 0
+                                    ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+                                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                                    TextEdit {
+                                        id: diffText
+                                        text: modelData.diff ?? ""
+                                        color: Theme.textSecondary
+                                        font { family: "Consolas,monospace"; pixelSize: 11 }
+                                        wrapMode: TextEdit.NoWrap
+                                        readOnly: true; selectByMouse: true
+                                        opacity: diffCard.reverted ? 0.5 : 1.0
+                                    }
                                 }
                             }
                         }
