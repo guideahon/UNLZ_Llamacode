@@ -96,6 +96,11 @@ private:
     void ensureSession();
     QString buildSystemPrompt() const;   // prompt base + memoria del proyecto
     void fetchContextLimit();            // n_ctx desde /props
+    // Auto-compactación: poda los mensajes intermedios cuando el historial se
+    // acerca al n_ctx del perfil, conservando system + objetivo inicial + cola
+    // reciente. Llamado antes de cada request.
+    void compactIfNeeded();
+    int  estimateApiTokens() const;      // estimación de tokens del historial API
     QString storageDir() const;
     QString sessionFilePath(const QString &sessionId) const;
     void loadFromDisk();

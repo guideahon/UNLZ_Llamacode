@@ -87,6 +87,81 @@ void LlamaAgentBackend::fetchContextLimit()
     });
 }
 
+// Tokens estimados de un único mensaje de la API (content + args de tool_calls).
+static int msgTokensOf(const QJsonObject &m)
+{
+    int t = (m.value(QStringLiteral("content")).toString().size() + 3) / 4;
+    const QJsonArray tcs = m.value(QStringLiteral("tool_calls")).toArray();
+    for (const QJsonValue &v : tcs) {
+        const QJsonObject fn = v.toObject().value(QStringLiteral("function")).toObject();
+        t += (fn.value(QStringLiteral("name")).toString().size()
+              + fn.value(QStringLiteral("arguments")).toString().size() + 3) / 4;
+    }
+    return t + 4;   // overhead por mensaje (roles, separadores del template)
+}
+
+int LlamaAgentBackend::estimateApiTokens() const
+{
+    int total = 0;
+    for (const QJsonValue &v : m_apiMessages)
+        total += msgTokensOf(v.toObject());
+    return total;
+}
+
+void LlamaAgentBackend::compactIfNeeded()
+{
+    if (m_ctxLimit <= 0) return;                 // sin n_ctx conocido, no tocar
+    const int n = m_apiMessages.size();
+    if (n <= 4) return;                          // muy corto, nada que compactar
+
+    // Reservar espacio para la salida + las tool schemas + margen de seguridad.
+    const int outReserve  = qMin(32768, m_ctxLimit / 4);
+    const int toolsReserve = (buildToolSchemas().size() ? 1500 : 0);
+    const int budget = int(m_ctxLimit * 0.90) - outReserve - toolsReserve;
+    if (budget <= 0) return;
+
+    const int total = estimateApiTokens();
+    if (total <= budget) { emit contextUsage(total, m_ctxLimit); return; }
+
+    // Conservar: system[0] + primer mensaje de usuario (objetivo) [1].
+    const int head = qMin(2, n);
+    // Cola reciente: acumular desde el final hasta ~60% del budget (deja margen
+    // para que el turno siga creciendo sin re-compactar cada iteración).
+    const int tailBudget = int(budget * 0.6);
+    int acc = 0, keepFrom = n;
+    for (int i = n - 1; i >= head; --i) {
+        acc += msgTokensOf(m_apiMessages[i].toObject());
+        if (acc > tailBudget) { keepFrom = i + 1; break; }
+        keepFrom = i;
+    }
+    // No empezar la cola con un 'tool' huérfano (debe seguir a su assistant.tool_calls).
+    while (keepFrom < n
+           && m_apiMessages[keepFrom].toObject().value(QStringLiteral("role")).toString()
+              == QLatin1String("tool"))
+        ++keepFrom;
+
+    const int dropped = keepFrom - head;
+    if (dropped <= 0) return;                    // nada seguro para podar
+
+    QJsonArray neu;
+    for (int i = 0; i < head; ++i) neu.append(m_apiMessages[i]);
+    neu.append(QJsonObject{
+        {QStringLiteral("role"), QStringLiteral("system")},
+        {QStringLiteral("content"),
+         QStringLiteral("[Contexto compactado automáticamente: se omitieron %1 mensajes "
+                        "intermedios para no exceder el límite de contexto del perfil "
+                        "(~%2 tokens estimados, n_ctx=%3). Se conservan el objetivo inicial "
+                        "y los mensajes más recientes.]")
+             .arg(dropped).arg(total).arg(m_ctxLimit)}});
+    for (int i = keepFrom; i < n; ++i) neu.append(m_apiMessages[i]);
+
+    m_apiMessages = neu;
+    const int after = estimateApiTokens();
+    emit logAppended(QStringLiteral("[compactación: %1 msgs omitidos · ~%2→%3 tok (n_ctx=%4)]\n")
+                         .arg(dropped).arg(total).arg(after).arg(m_ctxLimit));
+    emit contextUsage(after, m_ctxLimit);
+}
+
 void LlamaAgentBackend::stop()
 {
     if (m_reply) { m_reply->abort(); m_reply->deleteLater(); m_reply = nullptr; }
@@ -270,6 +345,13 @@ void LlamaAgentBackend::runCompletion()
                        .arg(kMaxTurnIters));
         return;
     }
+
+    // Auto-compactación: podar historial si está por superar el ctx del perfil.
+    compactIfNeeded();
+
+    // Reserva de salida acotada al ctx del perfil (evita pedir más de lo que entra).
+    const int outReserve = (m_ctxLimit > 0) ? qMin(32768, m_ctxLimit / 4) : 32768;
+
     const QString url = m_ctx.serverBaseUrl + QStringLiteral("/v1/chat/completions");
     QNetworkRequest req((QUrl(url)));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
@@ -288,7 +370,7 @@ void LlamaAgentBackend::runCompletion()
         // trunca un write_file con archivo grande a mitad del JSON de args →
         // tool_call inválido → reintentos. max_tokens en el request pisa al
         // default del server y deja completar el contenido del archivo.
-        {QStringLiteral("max_tokens"), 32768},
+        {QStringLiteral("max_tokens"), outReserve},
         {QStringLiteral("stream"), true}
     };
     if (m_temperature >= 0.0) payload.insert(QStringLiteral("temperature"), m_temperature);
