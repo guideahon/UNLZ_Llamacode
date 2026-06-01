@@ -133,6 +133,7 @@ void AppController::startServer(const QString &launchProfileId)
     });
 
     m_activeLaunchId = launchProfileId;
+    writeSetting(QStringLiteral("lastLaunchId"), launchProfileId);  // recordar último usado
     appendServerEvent(QStringLiteral("lifecycle"),
                       QStringLiteral("Starting: %1 %2").arg(binaryPath, args.join(' ')));
 
