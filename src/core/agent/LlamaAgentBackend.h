@@ -96,11 +96,13 @@ private:
     void ensureSession();
     QString buildSystemPrompt() const;   // prompt base + memoria del proyecto
     void fetchContextLimit();            // n_ctx desde /props
-    // Auto-compactación: poda los mensajes intermedios cuando el historial se
-    // acerca al n_ctx del perfil, conservando system + objetivo inicial + cola
-    // reciente. Llamado antes de cada request.
-    void compactIfNeeded();
+    // Auto-compactación vía modelo: cuando el historial se acerca al n_ctx del
+    // perfil, resume el tramo intermedio con el propio LLM y lo reemplaza por un
+    // mensaje de resumen, conservando system + objetivo inicial + cola reciente.
     int  estimateApiTokens() const;      // estimación de tokens del historial API
+    bool planCompaction(int &head, int &keepFrom) const;  // ¿hay tramo a compactar?
+    void startCompaction(int head, int keepFrom);         // dispara resumen (async)
+    void applyCompaction(int head, int keepFrom, const QString &summary); // reemplaza tramo
     QString storageDir() const;
     QString sessionFilePath(const QString &sessionId) const;
     void loadFromDisk();
@@ -113,6 +115,8 @@ private:
 
     AgentContext m_ctx;
     QNetworkAccessManager *m_nam = nullptr;
+    QNetworkReply *m_compactReply = nullptr;   // request de resumen (compactación)
+    bool m_compacting = false;                 // compactación en curso
     QNetworkReply *m_reply = nullptr;
     bool m_running = false;
     QString m_cwd;
