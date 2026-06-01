@@ -831,17 +831,18 @@ Item {
                     delegate: Item {
                         id: delegateRoot
                         width: msgList.width
-                        height: (isDiff ? diffCard.height : bubbleRect.height) + 8
+                        height: (isDiff ? diffCard.height : (isTool ? toolCard.height : bubbleRect.height)) + 8
 
                         readonly property bool isUser: modelData.role === "user"
                         readonly property bool isDiff: modelData.role === "diff"
+                        readonly property bool isTool: modelData.role === "toolcall"
                         readonly property string content: modelData.content ?? ""
                         readonly property bool isTyping: modelData.typing ?? false
                         readonly property string metaLine: root.formatMeta(modelData)
 
                         Rectangle {
                             id: bubbleRect
-                            visible: !delegateRoot.isDiff
+                            visible: !delegateRoot.isDiff && !delegateRoot.isTool
                             anchors {
                                 top: parent.top
                                 right: delegateRoot.isUser ? parent.right : undefined
@@ -981,6 +982,99 @@ Item {
                                         wrapMode: TextEdit.NoWrap
                                         readOnly: true; selectByMouse: true
                                         opacity: diffCard.reverted ? 0.5 : 1.0
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Tarjeta de ejecución de tool (run_shell, list_dir, …) ──
+                        Rectangle {
+                            id: toolCard
+                            visible: delegateRoot.isTool
+                            anchors { top: parent.top; left: parent.left; right: parent.right
+                                      leftMargin: 16; rightMargin: 16 }
+                            height: visible ? toolCol.implicitHeight + 20 : 0
+                            radius: 8
+                            color: Theme.inputBg
+                            border.color: Theme.borderColor
+
+                            property bool expanded: false
+                            readonly property bool ok: modelData.ok ?? true
+                            readonly property string toolName: modelData.name ?? ""
+                            readonly property string command: modelData.command ?? ""
+                            readonly property string output: modelData.output ?? ""
+                            readonly property bool hasBody: command.length > 0 || output.length > 0
+
+                            ColumnLayout {
+                                id: toolCol
+                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                                spacing: 6
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    Text {
+                                        text: toolCard.expanded ? "▾" : "▸"
+                                        color: Theme.textMuted; font.pixelSize: 12
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: toolCard.expanded = !toolCard.expanded
+                                        }
+                                    }
+                                    Text { text: "🔧"; font.pixelSize: 13 }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: toolCard.toolName
+                                              + (toolCard.command.length > 0 ? "  " + toolCard.command : "")
+                                        color: Theme.textPrimary
+                                        font { family: "Consolas,monospace"; pixelSize: 12; bold: true }
+                                        elide: Text.ElideRight
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: toolCard.expanded = !toolCard.expanded
+                                        }
+                                    }
+                                    // Estado ok/error
+                                    Rectangle {
+                                        radius: 4
+                                        color: toolCard.ok ? Theme.highlight : "#7a2230"
+                                        implicitHeight: 18; implicitWidth: statusTxt.implicitWidth + 12
+                                        Text {
+                                            id: statusTxt
+                                            anchors.centerIn: parent
+                                            text: toolCard.ok ? "ok" : "error"
+                                            color: toolCard.ok ? Theme.textPrimary : "#ffd5d5"
+                                            font.pixelSize: 10
+                                        }
+                                    }
+                                    LcButton {
+                                        text: toolCard.expanded ? "Ocultar" : "Ver comando"
+                                        secondary: true
+                                        implicitHeight: 24
+                                        visible: toolCard.hasBody
+                                        onClicked: toolCard.expanded = !toolCard.expanded
+                                    }
+                                }
+
+                                // Cuerpo: comando + salida, oculto por defecto, scrollable.
+                                ScrollView {
+                                    Layout.fillWidth: true
+                                    visible: toolCard.expanded
+                                    clip: true
+                                    Layout.preferredHeight: visible
+                                        ? Math.min(toolBody.implicitHeight + 8, 260)
+                                        : 0
+                                    ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+                                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                                    TextEdit {
+                                        id: toolBody
+                                        text: (toolCard.command.length > 0 ? "$ " + toolCard.command + "\n\n" : "")
+                                              + toolCard.output
+                                        color: Theme.textSecondary
+                                        font { family: "Consolas,monospace"; pixelSize: 11 }
+                                        wrapMode: TextEdit.NoWrap
+                                        readOnly: true; selectByMouse: true
                                     }
                                 }
                             }

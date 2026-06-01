@@ -86,6 +86,13 @@ private slots:
 private:
     void approveAndContinue(const QString &id, const QString &response); // once|always|reject
     void appendToolResult(const QString &id, const QString &name, const QString &content);
+    // Burbuja de asistente: crear/cerrar por iteración para no apilar texto LLM
+    // con las tarjetas de tools.
+    void ensureAssistantBubble();
+    void closeAssistantBubble();
+    // Tarjeta separada para una ejecución de tool (nombre, comando, salida).
+    void appendToolCard(const QString &name, const QString &kind, bool ok,
+                        const QString &command, const QString &output);
 
     // Streaming SSE (igual patrón que RawChatBackend)
     void handleStreamData();             // parsea m_sseBuf incremental
@@ -132,6 +139,7 @@ private:
     QThread *m_workerThread = nullptr;
     AgentToolRunner *m_worker = nullptr;
     QString m_execCallId;            // tool_call en ejecución ("" = ninguno)
+    QString m_execCommand;           // comando/ruta del tool en ejecución (para la tarjeta)
 
     QString m_sessionId;
     QString m_sessionTitle;

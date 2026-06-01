@@ -566,6 +566,10 @@ void LlamaAgentBackend::handleStreamData()
             m_streamToolCalls.insert(idx, acc);
         }
 
+        // Abrir una burbuja nueva si la anterior se cerró tras una tool.
+        if ((!m_streamContent.isEmpty() || !m_streamReason.isEmpty()) && m_curAsstIdx < 0)
+            ensureAssistantBubble();
+
         // Mostrar en vivo: base + <think>razonamiento</think> + respuesta.
         QString full = m_streamBase;
         if (!m_streamReason.isEmpty())
@@ -633,6 +637,9 @@ void LlamaAgentBackend::handleStreamFinished(bool ok, const QString &err)
     }
 
     emit logAppended(QStringLiteral("[turn] model requested %1 tool call(s)\n").arg(toolCalls.size()));
+    // Cerrar la burbuja de texto previa: las tools van como tarjetas aparte y el
+    // próximo texto del modelo abrirá una burbuja nueva.
+    closeAssistantBubble();
     m_apiMessages.append(QJsonObject{
         {QStringLiteral("role"), QStringLiteral("assistant")},
         {QStringLiteral("content"), apiContent},
@@ -756,10 +763,18 @@ void LlamaAgentBackend::approveAndContinue(const QString &id, const QString &res
     m_awaitId.clear();
     m_awaitCall = {};
 
+    // Comando/ruta a mostrar en la tarjeta de la tool.
+    const QJsonObject a = QJsonDocument::fromJson(argStr.toUtf8()).object();
+    m_execCommand = a.value(QStringLiteral("command")).toString();
+    if (m_execCommand.isEmpty()) m_execCommand = a.value(QStringLiteral("path")).toString();
+    if (m_execCommand.isEmpty()) m_execCommand = a.value(QStringLiteral("pattern")).toString();
+
     // Rechazo: no se ejecuta nada; resume sincrónico.
     if (response == QLatin1String("reject")) {
         ++m_toolFail;
-        appendAssistantText(QStringLiteral("\n🚫 %1 — rechazado").arg(name));
+        appendToolCard(name, toolKind(name), false, m_execCommand,
+                       QStringLiteral("[el usuario rechazó esta acción]"));
+        m_execCommand.clear();
         appendToolResult(id, name, QStringLiteral("[el usuario rechazó esta acción]"));
         processPendingCalls();
         return;
@@ -782,12 +797,18 @@ void LlamaAgentBackend::onToolExecuted(const QVariantMap &result)
     const QString name = result.value(QStringLiteral("name")).toString();
     const bool ok      = result.value(QStringLiteral("ok")).toBool();
     const QString res  = result.value(QStringLiteral("result")).toString();
+    const bool isWrite = result.value(QStringLiteral("isWrite")).toBool();
     if (ok) ++m_toolOk; else ++m_toolFail;
-    appendAssistantText(QStringLiteral("\n🔧 %1 → %2")
-                            .arg(name, ok ? QStringLiteral("ok") : QStringLiteral("error")));
+
+    // write_file se representa con la tarjeta de diff (abajo). El resto de las
+    // tools van como tarjeta independiente con comando + salida colapsables, en
+    // vez de apilarse en el texto del LLM.
+    if (!isWrite)
+        appendToolCard(name, toolKind(name), ok, m_execCommand, res);
+    m_execCommand.clear();
 
     // write_file: snapshot (revert) + entrada de diff en el chat.
-    if (result.value(QStringLiteral("isWrite")).toBool()) {
+    if (isWrite) {
         const QString abs = result.value(QStringLiteral("absPath")).toString();
         const QByteArray oldContent = QByteArray::fromBase64(
             result.value(QStringLiteral("oldContentB64")).toString().toLatin1());
@@ -842,6 +863,61 @@ void LlamaAgentBackend::rejectTool(const QString &id)
 }
 
 // ───────────────────────────── Display helpers ───────────────────────────
+// Crea una burbuja de asistente nueva si no hay una abierta (lazy).
+void LlamaAgentBackend::ensureAssistantBubble()
+{
+    if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) return;
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    m_messages.append(QVariantMap{
+        {QStringLiteral("role"), QStringLiteral("assistant")},
+        {QStringLiteral("content"), QString()},
+        {QStringLiteral("typing"), true},
+        {QStringLiteral("createdAt"), static_cast<double>(nowMs)},
+        {QStringLiteral("elapsedMs"), 0},
+        {QStringLiteral("tokens"), 0},
+        {QStringLiteral("tps"), 0.0}});
+    m_curAsstIdx = m_messages.size() - 1;
+    emit messagesChanged();
+}
+
+// Cierra la burbuja actual: descarta si está vacía, si no la finaliza. Así el
+// texto del LLM y las tarjetas de tools quedan en mensajes separados.
+void LlamaAgentBackend::closeAssistantBubble()
+{
+    if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
+        QVariantMap m = m_messages[m_curAsstIdx].toMap();
+        if (m.value(QStringLiteral("content")).toString().trimmed().isEmpty()) {
+            m_messages.removeAt(m_curAsstIdx);
+        } else {
+            m[QStringLiteral("typing")] = false;
+            m_messages[m_curAsstIdx] = m;
+        }
+        emit messagesChanged();
+    }
+    m_curAsstIdx = -1;
+}
+
+// Tarjeta independiente para una ejecución de tool (separada del texto LLM).
+void LlamaAgentBackend::appendToolCard(const QString &name, const QString &kind, bool ok,
+                                       const QString &command, const QString &output)
+{
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    m_messages.append(QVariantMap{
+        {QStringLiteral("role"),    QStringLiteral("toolcall")},
+        {QStringLiteral("name"),    name},
+        {QStringLiteral("kind"),    kind},
+        {QStringLiteral("ok"),      ok},
+        {QStringLiteral("command"), command},
+        {QStringLiteral("output"),  output.left(64 * 1024)},
+        {QStringLiteral("typing"),  false},
+        {QStringLiteral("createdAt"),   static_cast<double>(nowMs)},
+        {QStringLiteral("completedAt"), static_cast<double>(nowMs)},
+        {QStringLiteral("elapsedMs"), 0},
+        {QStringLiteral("tokens"), 0},
+        {QStringLiteral("tps"), 0.0}});
+    emit messagesChanged();
+}
+
 void LlamaAgentBackend::appendAssistantText(const QString &text)
 {
     if (m_curAsstIdx < 0 || m_curAsstIdx >= m_messages.size()) return;
@@ -884,6 +960,9 @@ void LlamaAgentBackend::setTyping(bool typing)
 
 void LlamaAgentBackend::finishTurn(const QString &finalText)
 {
+    // Si hay texto final pero la burbuja se cerró tras una tool, abrir una nueva.
+    if (!finalText.isEmpty() && m_curAsstIdx < 0)
+        ensureAssistantBubble();
     if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
         QVariantMap m = m_messages[m_curAsstIdx].toMap();
         QString cur = m.value(QStringLiteral("content")).toString();
