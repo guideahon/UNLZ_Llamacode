@@ -8,6 +8,7 @@ Item {
     property bool logVisible: false
     property real logHeight: 220
     property real minLogHeight: 120
+    property bool _restored: false   // evita pisar la setting durante la carga inicial
 
     ColumnLayout {
         anchors.fill: parent
@@ -53,7 +54,22 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
                     onCurrentValueChanged: {
-                        if (currentValue) App.computeEffectiveProfile(currentValue)
+                        if (currentValue) {
+                            App.computeEffectiveProfile(currentValue)
+                            // Recordar el último perfil usado (no durante la carga inicial).
+                            if (root._restored) App.writeSetting("lastLaunchId", currentValue)
+                        }
+                    }
+
+                    // Al abrir la app, restaurar el último perfil de lanzamiento usado.
+                    Component.onCompleted: {
+                        const last = App.readSetting("lastLaunchId", "")
+                        if (last && last.length > 0) {
+                            const i = launchCombo.indexOfValue(last)
+                            if (i >= 0) launchCombo.currentIndex = i
+                        }
+                        root._restored = true
+                        if (launchCombo.currentValue) App.computeEffectiveProfile(launchCombo.currentValue)
                     }
                 }
 
