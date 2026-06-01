@@ -101,7 +101,16 @@ void LlamaAgentBackend::stop()
 
 void LlamaAgentBackend::cancelGeneration()
 {
-    if (m_reply) { m_reply->abort(); m_reply->deleteLater(); m_reply = nullptr; }
+    if (m_reply) {
+        // abort() emite finished()/readyRead SINCRÓNICAMENTE. Si dejamos m_reply
+        // seteado y las conexiones vivas, los handlers de stream re-entran acá
+        // (use-after / doble proceso) → crash. Anular y desconectar ANTES de abort.
+        QNetworkReply *r = m_reply;
+        m_reply = nullptr;
+        r->disconnect(this);
+        r->abort();
+        r->deleteLater();
+    }
     m_pendingCalls = {};
     m_awaitId.clear();
     setTyping(false);

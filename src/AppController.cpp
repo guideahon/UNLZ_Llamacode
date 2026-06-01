@@ -1259,6 +1259,12 @@ void AppController::startAgent(const QString &launchProfileId)
     emit agentRunningChanged();
 }
 
+void AppController::cancelAgentGeneration()
+{
+    if (m_agentBackend)
+        m_agentBackend->cancelGeneration();
+}
+
 void AppController::stopAgent()
 {
     m_agentStopping = true;
