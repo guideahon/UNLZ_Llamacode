@@ -108,27 +108,41 @@ int LlamaAgentBackend::estimateApiTokens() const
     return total;
 }
 
-void LlamaAgentBackend::compactIfNeeded()
+// Serializa un mensaje de la API a texto legible para el resumen.
+static QString serializeMsgForSummary(const QJsonObject &m)
 {
-    if (m_ctxLimit <= 0) return;                 // sin n_ctx conocido, no tocar
-    const int n = m_apiMessages.size();
-    if (n <= 4) return;                          // muy corto, nada que compactar
+    const QString role = m.value(QStringLiteral("role")).toString();
+    QString out;
+    const QString content = m.value(QStringLiteral("content")).toString();
+    if (!content.isEmpty())
+        out += role + QStringLiteral(": ") + content.left(8000) + QLatin1Char('\n');
+    const QJsonArray tcs = m.value(QStringLiteral("tool_calls")).toArray();
+    for (const QJsonValue &v : tcs) {
+        const QJsonObject fn = v.toObject().value(QStringLiteral("function")).toObject();
+        out += QStringLiteral("  → tool %1(%2)\n")
+                   .arg(fn.value(QStringLiteral("name")).toString(),
+                        fn.value(QStringLiteral("arguments")).toString().left(2000));
+    }
+    return out;
+}
 
-    // Reservar espacio para la salida + las tool schemas + margen de seguridad.
-    const int outReserve  = qMin(32768, m_ctxLimit / 4);
+// Decide si hay un tramo intermedio a compactar y devuelve [head, keepFrom).
+bool LlamaAgentBackend::planCompaction(int &head, int &keepFrom) const
+{
+    if (m_ctxLimit <= 0) return false;
+    const int n = m_apiMessages.size();
+    if (n <= 4) return false;
+
+    const int outReserve   = qMin(32768, m_ctxLimit / 4);
     const int toolsReserve = (buildToolSchemas().size() ? 1500 : 0);
     const int budget = int(m_ctxLimit * 0.90) - outReserve - toolsReserve;
-    if (budget <= 0) return;
+    if (budget <= 0) return false;
 
-    const int total = estimateApiTokens();
-    if (total <= budget) { emit contextUsage(total, m_ctxLimit); return; }
+    if (estimateApiTokens() <= budget) return false;
 
-    // Conservar: system[0] + primer mensaje de usuario (objetivo) [1].
-    const int head = qMin(2, n);
-    // Cola reciente: acumular desde el final hasta ~60% del budget (deja margen
-    // para que el turno siga creciendo sin re-compactar cada iteración).
-    const int tailBudget = int(budget * 0.6);
-    int acc = 0, keepFrom = n;
+    head = qMin(2, n);                           // system[0] + objetivo[1]
+    const int tailBudget = int(budget * 0.6);    // dejar margen de crecimiento
+    int acc = 0; keepFrom = n;
     for (int i = n - 1; i >= head; --i) {
         acc += msgTokensOf(m_apiMessages[i].toObject());
         if (acc > tailBudget) { keepFrom = i + 1; break; }
@@ -140,30 +154,106 @@ void LlamaAgentBackend::compactIfNeeded()
               == QLatin1String("tool"))
         ++keepFrom;
 
+    return (keepFrom - head) > 0;
+}
+
+// Reemplaza m_apiMessages[head..keepFrom) por un único mensaje de resumen.
+// Si summary está vacío (falló el modelo), usa una nota de poda como fallback.
+void LlamaAgentBackend::applyCompaction(int head, int keepFrom, const QString &summary)
+{
+    const int n = m_apiMessages.size();
+    if (head < 0 || keepFrom > n || keepFrom <= head) return;
     const int dropped = keepFrom - head;
-    if (dropped <= 0) return;                    // nada seguro para podar
+    const int before = estimateApiTokens();
+
+    QString body = summary.trimmed();
+    const bool summarized = !body.isEmpty();
+    if (!summarized)
+        body = QStringLiteral("[Se omitieron %1 mensajes intermedios para no exceder el "
+                              "contexto (resumen no disponible).]").arg(dropped);
 
     QJsonArray neu;
     for (int i = 0; i < head; ++i) neu.append(m_apiMessages[i]);
     neu.append(QJsonObject{
         {QStringLiteral("role"), QStringLiteral("system")},
         {QStringLiteral("content"),
-         QStringLiteral("[Contexto compactado automáticamente: se omitieron %1 mensajes "
-                        "intermedios para no exceder el límite de contexto del perfil "
-                        "(~%2 tokens estimados, n_ctx=%3). Se conservan el objetivo inicial "
-                        "y los mensajes más recientes.]")
-             .arg(dropped).arg(total).arg(m_ctxLimit)}});
+         QStringLiteral("[Resumen del contexto previo (%1 mensajes compactados para no "
+                        "exceder n_ctx=%2)]:\n%3").arg(dropped).arg(m_ctxLimit, 0, 10).arg(body)}});
     for (int i = keepFrom; i < n; ++i) neu.append(m_apiMessages[i]);
 
     m_apiMessages = neu;
     const int after = estimateApiTokens();
-    emit logAppended(QStringLiteral("[compactación: %1 msgs omitidos · ~%2→%3 tok (n_ctx=%4)]\n")
-                         .arg(dropped).arg(total).arg(after).arg(m_ctxLimit));
+    emit logAppended(QStringLiteral("[compactación %1: %2 msgs · ~%3→%4 tok (n_ctx=%5)]\n")
+                         .arg(summarized ? QStringLiteral("vía modelo") : QStringLiteral("poda"))
+                         .arg(dropped).arg(before).arg(after).arg(m_ctxLimit));
     emit contextUsage(after, m_ctxLimit);
+}
+
+// Dispara el request de resumen del tramo [head, keepFrom). Al completar,
+// aplica la compactación y reanuda el turno (runCompletion).
+void LlamaAgentBackend::startCompaction(int head, int keepFrom)
+{
+    QString convo;
+    for (int i = head; i < keepFrom; ++i)
+        convo += serializeMsgForSummary(m_apiMessages[i].toObject());
+
+    const QString sys = QStringLiteral(
+        "Sos un compactador de contexto. Resumí de forma concisa pero completa el "
+        "siguiente tramo de conversación entre un usuario y un agente de coding. "
+        "Preservá TODO lo accionable: objetivo, decisiones tomadas, archivos "
+        "creados/editados con sus rutas, comandos relevantes y su resultado, errores "
+        "y estado actual de la tarea. No inventes. Respondé solo con el resumen.");
+
+    QJsonObject payload{
+        {QStringLiteral("model"), m_ctx.modelId.isEmpty() ? QStringLiteral("local") : m_ctx.modelId},
+        {QStringLiteral("messages"), QJsonArray{
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("system")}, {QStringLiteral("content"), sys}},
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("user")}, {QStringLiteral("content"), convo}}}},
+        {QStringLiteral("stream"), false},
+        {QStringLiteral("temperature"), 0.2},
+        {QStringLiteral("max_tokens"), qMin(2048, m_ctxLimit > 0 ? m_ctxLimit / 8 : 2048)}
+    };
+
+    const QString url = m_ctx.serverBaseUrl + QStringLiteral("/v1/chat/completions");
+    QNetworkRequest req((QUrl(url)));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
+
+    m_compacting = true;
+    emit logAppended(QStringLiteral("[compactando contexto vía modelo: resumiendo %1 mensajes…]\n")
+                         .arg(keepFrom - head));
+
+    m_compactReply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(m_compactReply, &QNetworkReply::finished, this, [this, head, keepFrom]() {
+        QNetworkReply *r = m_compactReply;
+        if (!r) return;                          // abortado por cancel/stop
+        m_compactReply = nullptr;
+        m_compacting = false;
+        r->deleteLater();
+
+        QString summary;
+        if (r->error() == QNetworkReply::NoError) {
+            const QJsonObject root = QJsonDocument::fromJson(r->readAll()).object();
+            const QJsonArray choices = root.value(QStringLiteral("choices")).toArray();
+            if (!choices.isEmpty())
+                summary = choices.first().toObject()
+                              .value(QStringLiteral("message")).toObject()
+                              .value(QStringLiteral("content")).toString();
+            summary = stripThinkForContext(summary);
+        }
+        // summary vacío → applyCompaction usa fallback de poda.
+        applyCompaction(head, keepFrom, summary);
+
+        if (m_running) runCompletion();          // reanudar el turno ya compactado
+    });
 }
 
 void LlamaAgentBackend::stop()
 {
+    if (m_compactReply) {
+        QNetworkReply *cr = m_compactReply; m_compactReply = nullptr;
+        cr->disconnect(this); cr->abort(); cr->deleteLater();
+    }
+    m_compacting = false;
     if (m_reply) { m_reply->abort(); m_reply->deleteLater(); m_reply = nullptr; }
     m_pendingCalls = {};
     m_awaitId.clear();
@@ -176,6 +266,14 @@ void LlamaAgentBackend::stop()
 
 void LlamaAgentBackend::cancelGeneration()
 {
+    if (m_compactReply) {
+        QNetworkReply *cr = m_compactReply;
+        m_compactReply = nullptr;
+        cr->disconnect(this);
+        cr->abort();
+        cr->deleteLater();
+    }
+    m_compacting = false;
     if (m_reply) {
         // abort() emite finished()/readyRead SINCRÓNICAMENTE. Si dejamos m_reply
         // seteado y las conexiones vivas, los handlers de stream re-entran acá
@@ -340,14 +438,24 @@ void LlamaAgentBackend::sendMessage(const QString &text)
 void LlamaAgentBackend::runCompletion()
 {
     if (!m_running) return;
+    if (m_compacting) return;                    // esperando el resumen; se reanuda al terminar
+
+    // Auto-compactación vía modelo ANTES de contar la iteración: si hay tramo a
+    // compactar, dispara el resumen async y reanuda runCompletion() al terminar.
+    {
+        int head = 0, keepFrom = 0;
+        if (planCompaction(head, keepFrom)) { startCompaction(head, keepFrom); return; }
+    }
+
     if (++m_turnIters > kMaxTurnIters) {
         finishTurn(QStringLiteral("[corté el turno: se alcanzó el límite de %1 iteraciones de tools]")
                        .arg(kMaxTurnIters));
         return;
     }
 
-    // Auto-compactación: podar historial si está por superar el ctx del perfil.
-    compactIfNeeded();
+    // Reflejar uso de contexto estimado en la UI (se actualiza con 'usage' real
+    // del server si llega en el chunk final).
+    if (m_ctxLimit > 0) emit contextUsage(estimateApiTokens(), m_ctxLimit);
 
     // Reserva de salida acotada al ctx del perfil (evita pedir más de lo que entra).
     const int outReserve = (m_ctxLimit > 0) ? qMin(32768, m_ctxLimit / 4) : 32768;
