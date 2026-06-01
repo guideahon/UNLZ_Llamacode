@@ -108,9 +108,22 @@ Item {
         }
     }
 
-    // La página vive en un StackLayout (no se recrea): re-resolver el harness
-    // cada vez que se muestra, por si el perfil cambió en Perfiles.
-    onVisibleChanged: if (visible && selectedLaunchId.length > 0) resolveHarness(selectedLaunchId)
+    // La página vive en un StackLayout (no se recrea): al mostrarse, sincronizar
+    // con el perfil que se lanzó en "Lanzar" (App.activeLaunchId) y re-resolver
+    // el harness por si cambió en Perfiles.
+    onVisibleChanged: if (visible) { syncToActiveLaunch(); if (selectedLaunchId.length > 0) resolveHarness(selectedLaunchId) }
+
+    // Selecciona en el combo el launch activo (el que se inició en Lanzar).
+    // No pisa la selección si el agente ya está corriendo.
+    function syncToActiveLaunch() {
+        if (App.agentRunning) return
+        const id = App.activeLaunchId
+        if (!id || id.length === 0) return
+        if (id === selectedLaunchId) return
+        selectedLaunchId = id
+        profileCombo.currentIndex = profileCombo.indexOfValue(id)
+        resolveHarness(id)
+    }
 
     function projectDirForSection(sectionName) {
         for (let i = 0; i < App.agentSessions.length; i++) {
@@ -129,7 +142,8 @@ Item {
         if (harnessId.length > 0) {
             const hp = App.profileManager.getHarness(harnessId)
             resolvedAdapter = hp.adapter ?? "none"
-            resolvedAdapterLabel = hp.adapter ?? ""
+            // Mostrar el nombre visible del harness (ej. "LlamaAgent"), no el id interno.
+            resolvedAdapterLabel = (hp.name && hp.name.length > 0) ? hp.name : (hp.adapter ?? "")
         } else {
             resolvedAdapter = "none"; resolvedAdapterLabel = ""
         }
@@ -176,10 +190,18 @@ Item {
     }
 
     Component.onCompleted: {
-        if (App.profileManager.launchProfiles.rowCount() > 0) {
-            const idx = App.profileManager.launchProfiles.index(0, 0)
-            selectedLaunchId = App.profileManager.launchProfiles.data(idx, 257) ?? ""
-            resolveHarness(selectedLaunchId)
+        // Preferir el launch activo (lanzado en "Lanzar"); si no hay, el primero.
+        let target = App.activeLaunchId
+        if (!target || target.length === 0) {
+            if (App.profileManager.launchProfiles.rowCount() > 0) {
+                const idx = App.profileManager.launchProfiles.index(0, 0)
+                target = App.profileManager.launchProfiles.data(idx, 257) ?? ""
+            }
+        }
+        if (target && target.length > 0) {
+            selectedLaunchId = target
+            profileCombo.currentIndex = profileCombo.indexOfValue(target)
+            resolveHarness(target)
         }
     }
 
@@ -190,6 +212,8 @@ Item {
 
     Connections {
         target: App
+        // Cuando se lanza un perfil en "Lanzar", reflejarlo acá.
+        function onActiveLaunchIdChanged() { root.syncToActiveLaunch() }
         function onAgentMessagesChanged() { root.markActivity() }
         function onAgentPendingToolChanged() { root.markActivity() }
         function onAgentLogChanged() { root.markActivity() }
