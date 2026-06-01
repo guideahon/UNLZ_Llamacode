@@ -147,7 +147,10 @@ private:
     int m_toolOk = 0;                    // salud: tools exitosas en la sesión
     int m_toolFail = 0;                  // salud: tools con error/inválidas
     int m_ctxLimit = -1;                 // n_ctx del server (vía /props)
-    static constexpr int kMaxTurnIters = 12;
+    // Tope de seguridad MUY alto: no cortar trabajo legítimo. El loop infinito
+    // real lo frena kMaxSameCall (misma tool + mismos args repetidos). Que el
+    // agente haga tantas iteraciones como necesite.
+    static constexpr int kMaxTurnIters = 1000;
     static constexpr int kMaxSameCall  = 3;
 
     // Aprobación en curso (1 tool a la vez)
