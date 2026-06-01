@@ -278,7 +278,7 @@ ApplicationWindow {
         clip: true
         closePolicy: Popup.NoAutoClose
         width: 620
-        height: 300
+        height: 380
         padding: 18
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
@@ -314,9 +314,18 @@ ApplicationWindow {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
 
+            // Step 1: binary
+            Text {
+                text: (App.hasAnyBinary ? "✓ " : "1. ") + "llama-server"
+                color: App.hasAnyBinary ? Theme.accent : Theme.textPrimary
+                font.pixelSize: 13
+                font.bold: true
+            }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
+                enabled: !App.hasAnyBinary
+                opacity: App.hasAnyBinary ? 0.5 : 1.0
                 LcButton {
                     text: (App.langV, App.l("setup.locateBinary"))
                     secondary: true
@@ -363,9 +372,18 @@ ApplicationWindow {
                 }
             }
 
+            // Step 2: model
+            Text {
+                text: (App.hasAnyModel ? "✓ " : "2. ") + ".gguf"
+                color: App.hasAnyModel ? Theme.accent : Theme.textPrimary
+                font.pixelSize: 13
+                font.bold: true
+            }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
+                enabled: !App.hasAnyModel
+                opacity: App.hasAnyModel ? 0.5 : 1.0
                 LcButton {
                     text: (App.langV, App.l("setup.downloadModel"))
                     secondary: true

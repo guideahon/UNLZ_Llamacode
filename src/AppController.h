@@ -36,6 +36,8 @@ class AppController : public QObject
     Q_PROPERTY(QString activeLaunchId READ activeLaunchId  NOTIFY activeLaunchIdChanged)
     Q_PROPERTY(QVariantMap effectiveProfile READ effectiveProfile NOTIFY effectiveProfileChanged)
     Q_PROPERTY(bool needsSetup READ needsSetup NOTIFY setupStateChanged)
+    Q_PROPERTY(bool hasAnyBinary READ hasAnyBinary NOTIFY setupStateChanged)
+    Q_PROPERTY(bool hasAnyModel  READ hasAnyModel  NOTIFY setupStateChanged)
     Q_PROPERTY(QString serverBaseUrl READ serverBaseUrl NOTIFY serverRunningChanged)
     Q_PROPERTY(bool installingOfficialBinary READ installingOfficialBinary NOTIFY installingOfficialBinaryChanged)
     Q_PROPERTY(QString officialBinaryInstallStatus READ officialBinaryInstallStatus NOTIFY officialBinaryInstallStatusChanged)
@@ -85,7 +87,9 @@ public:
     QString serverLog()      const { return m_log; }
     QString activeLaunchId() const { return m_activeLaunchId; }
     QVariantMap effectiveProfile() const { return m_effectiveProfile; }
-    bool needsSetup() const { return m_binaries.count() == 0 && m_catalog.count() == 0; }
+    bool needsSetup() const { return m_binaries.count() == 0 || m_catalog.count() == 0; }
+    bool hasAnyBinary() const { return m_binaries.count() > 0; }
+    bool hasAnyModel()  const { return m_catalog.count()  > 0; }
     QString serverBaseUrl() const {
         const QStringList args = m_effectiveProfile.value("effectiveArgs").toStringList();
         QString host = QStringLiteral("127.0.0.1");
