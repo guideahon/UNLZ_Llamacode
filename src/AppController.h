@@ -172,6 +172,8 @@ public:
     Q_INVOKABLE void startAgent(const QString &launchProfileId);
     Q_INVOKABLE void stopAgent();
     Q_INVOKABLE void sendToAgent(const QString &text);
+    // Aborta la generación/turno en curso sin matar el backend (botón PARAR).
+    Q_INVOKABLE void cancelAgentGeneration();
     Q_INVOKABLE void approveAgentTool(const QString &id, bool always = false);
     Q_INVOKABLE void rejectAgentTool(const QString &id);
     Q_INVOKABLE void revertAgentEdit(const QString &path);

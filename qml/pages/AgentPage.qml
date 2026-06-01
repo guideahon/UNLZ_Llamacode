@@ -1167,13 +1167,21 @@ Item {
                     onAccepted: {
                         const t = text.trim()
                         if (t.length === 0 || !App.serverRunning || !App.serverReady) return
+                        if (root.hasTypingMessage) return   // generando: no enviar (usar PARAR)
                         App.sendToAgent(t); text = ""
                     }
                 }
                 LcButton {
-                    text: (App.langV, App.l("agent.send"))
-                    enabled: agentInput.text.trim().length > 0 && App.serverRunning && App.serverReady
+                    // Mientras la IA piensa/genera, el botón pasa a "PARAR" (rojo)
+                    // y aborta el turno en curso. Si no, envía el mensaje.
+                    readonly property bool busy: root.hasTypingMessage
+                    text: busy ? "PARAR" : (App.langV, App.l("agent.send"))
+                    danger: busy
+                    enabled: busy
+                        ? true
+                        : (agentInput.text.trim().length > 0 && App.serverRunning && App.serverReady)
                     onClicked: {
+                        if (busy) { App.cancelAgentGeneration(); return }
                         const t = agentInput.text.trim()
                         if (t.length === 0) return
                         App.sendToAgent(t); agentInput.text = ""
