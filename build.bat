@@ -66,6 +66,28 @@ if errorlevel 1 (
 )
 
 cd ..
+
+set "WINDEPLOYQT=%QT_DIR%\bin\windeployqt.exe"
+set "EXE_DIR=%~dp0build\Debug"
+set "EXE_PATH=%EXE_DIR%\LlamaCode.exe"
+if not exist "%WINDEPLOYQT%" (
+    echo [ERROR] windeployqt.exe not found at %WINDEPLOYQT%
+    pause & exit /b 1
+)
+if not exist "%EXE_PATH%" (
+    echo [ERROR] Built executable not found at %EXE_PATH%
+    pause & exit /b 1
+)
+
+echo [INFO] Deploying Qt runtime next to LlamaCode.exe...
+"%WINDEPLOYQT%" --debug --qmldir "%~dp0qml" --no-translations --compiler-runtime "%EXE_PATH%"
+if errorlevel 1 (
+    echo.
+    echo === windeployqt FAILED ===
+    pause
+    exit /b 1
+)
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update-shortcut.ps1"
 
 echo.
