@@ -322,6 +322,34 @@ void AppController::copyToClipboard(const QString &text)
     QGuiApplication::clipboard()->setText(text);
 }
 
+void AppController::openContainingFolder(const QString &path)
+{
+    if (path.trimmed().isEmpty()) return;
+    const QFileInfo fi(path);
+    const QString dir = fi.absolutePath();
+    if (dir.isEmpty()) return;
+
+#ifdef Q_OS_WIN
+    // explorer /select,<archivo> abre la carpeta y selecciona el archivo.
+    if (fi.exists()) {
+        const QString nativeFile = QDir::toNativeSeparators(fi.absoluteFilePath());
+        if (QProcess::startDetached(QStringLiteral("explorer.exe"),
+                                    {QStringLiteral("/select,") + nativeFile}))
+            return;
+    }
+#endif
+
+    bool ok = QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+#ifdef Q_OS_WIN
+    if (!ok)
+        ok = QProcess::startDetached(QStringLiteral("explorer.exe"),
+                                     {QDir::toNativeSeparators(dir)});
+#endif
+    if (!ok)
+        emit serverError(QStringLiteral("No se pudo abrir la carpeta: %1")
+                             .arg(QDir::toNativeSeparators(dir)));
+}
+
 void AppController::installOfficialBinary()
 {
     if (m_installingOfficialBinary || m_installerProc) {

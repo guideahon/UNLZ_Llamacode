@@ -951,6 +951,17 @@ Item {
                                 if (d.length === 0) return 0
                                 return d.split("\n").length
                             }
+                            readonly property string filePath: modelData.absPath ?? modelData.path ?? ""
+
+                            // Click derecho → menú: abrir carpeta contenedora.
+                            MouseArea {
+                                anchors.fill: parent
+                                acceptedButtons: Qt.RightButton
+                                onClicked: {
+                                    fileCtxMenu.filePath = diffCard.filePath
+                                    fileCtxMenu.popup()
+                                }
+                            }
 
                             ColumnLayout {
                                 id: diffCol
@@ -1513,6 +1524,22 @@ Item {
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
             }
+        }
+    }
+
+    // ── Menú contextual de archivo creado (click derecho en la tarjeta de diff) ──
+    Menu {
+        id: fileCtxMenu
+        property string filePath: ""
+        MenuItem {
+            text: "Abrir carpeta contenedora"
+            enabled: fileCtxMenu.filePath.length > 0
+            onTriggered: App.openContainingFolder(fileCtxMenu.filePath)
+        }
+        MenuItem {
+            text: "Copiar ruta"
+            enabled: fileCtxMenu.filePath.length > 0
+            onTriggered: App.copyToClipboard(fileCtxMenu.filePath)
         }
     }
 

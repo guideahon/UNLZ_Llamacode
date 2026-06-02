@@ -161,6 +161,8 @@ public:
                                                     const QVariantMap &overrides);
     Q_INVOKABLE void clearLog();
     Q_INVOKABLE void copyToClipboard(const QString &text);
+    // Abre el explorador en la carpeta contenedora del archivo (y lo selecciona en Windows).
+    Q_INVOKABLE void openContainingFolder(const QString &path);
     Q_INVOKABLE void installOfficialBinary();
     Q_INVOKABLE void cancelOfficialBinaryInstall();
     Q_INVOKABLE void smokeTestServer(const QString &launchProfileId);
