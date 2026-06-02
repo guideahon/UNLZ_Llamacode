@@ -592,7 +592,14 @@ void LlamaAgentBackend::handleStreamData()
             m[QStringLiteral("content")] = full;
             m[QStringLiteral("tokens")] = estimateTokens(full);
             m_messages[m_curAsstIdx] = m;
-            emit messagesChanged();
+            // Throttle: el modelo emite muchos tokens/seg y cada messagesChanged
+            // reconstruye todo el ListView. Limitar a ~15 fps evita congelar la UI.
+            // El render final está garantizado por handleStreamFinished/finishTurn.
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
+            if (now - m_lastUiEmitMs >= 66) {
+                m_lastUiEmitMs = now;
+                emit messagesChanged();
+            }
         }
     }
 }
