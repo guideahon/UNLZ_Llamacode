@@ -78,7 +78,9 @@ QString ModelRootRegistry::add(const QString &path, const QString &label,
     emit countChanged();
     save();
 
-    if (r.enabled && (r.scanMode == "startup" || r.scanMode == "watch"))
+    // Always scan a freshly added root once so its models show up immediately.
+    // The scanMode only governs subsequent (startup/watch) rescans.
+    if (r.enabled && r.isOnline)
         doScan(r);
 
     return r.id;

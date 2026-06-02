@@ -7,6 +7,8 @@ import LlamaCode 1.0
 Item {
     id: root
 
+    function openAddDialog() { addDlg.open() }
+
     LcDialog {
         id: addDlg
         title: (App.langV, App.l("models.addRoot"))

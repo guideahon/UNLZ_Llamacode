@@ -385,6 +385,11 @@ ApplicationWindow {
                 enabled: !App.hasAnyModel
                 opacity: App.hasAnyModel ? 0.5 : 1.0
                 LcButton {
+                    text: (App.langV, App.l("setup.locateModel"))
+                    secondary: true
+                    onClicked: { stack.currentIndex = 2; modelRootsPage.openAddDialog() }
+                }
+                LcButton {
                     text: (App.langV, App.l("setup.downloadModel"))
                     secondary: true
                     onClicked: Qt.openUrlExternally("https://huggingface.co/models?library=gguf")

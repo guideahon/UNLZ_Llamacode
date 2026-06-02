@@ -63,6 +63,11 @@ AppController::AppController(QObject *parent) : QObject(parent)
     m_roots.refresh();
     connect(&m_binaries, &BinaryRegistry::countChanged, this, &AppController::setupStateChanged);
     connect(&m_catalog, &ModelCatalog::countChanged, this, &AppController::setupStateChanged);
+
+    // If folders are registered but no models were found yet (e.g. a root added
+    // in "manual" mode), scan them once on startup so the catalog is populated.
+    if (m_roots.count() > 0 && m_catalog.count() == 0)
+        m_roots.scanAll();
 }
 
 void AppController::startServer(const QString &launchProfileId)
@@ -2323,14 +2328,15 @@ static const TrEntry k_tr[] = {
     {"setup.installing",   "Instalando...",   "Installing...",          "安装中...", "Installation en cours...","Installazione in corso...","Installiere..."},
     {"setup.installBinary","Instalar binario","Install binary",         "安装二进制","Installer le binaire","Installa binario","Binärdatei installieren"},
     {"setup.cancel",       "Cancelar",        "Cancel",                 "取消",          "Annuler",           "Annulla",              "Abbrechen"},
+    {"setup.locateModel", "Localizar carpeta","Locate folder",          "定位文件夹","Localiser le dossier","Individua cartella","Ordner suchen"},
     {"setup.downloadModel","Descargar modelo (GGUF)","Download model (GGUF)","下载模型(GGUF)","Télécharger modèle (GGUF)","Scarica modello (GGUF)","Modell herunterladen (GGUF)"},
     {"setup.goToModels",   "Ir a Modelos",    "Go to Model Roots",      "前往模型目录","Aller aux Racines modèles","Vai a Radici modelli","Zu Modell-Verzeichnissen"},
-    {"setup.tip",          "El popup se cierra automáticamente cuando exista al menos 1 binario o 1 modelo.",
-                           "Popup closes automatically when at least 1 binary or 1 model exists.",
-                           "当至少存在1个二进制文件或模型时，弹窗自动关闭。",
-                           "La fenêtre se ferme automatiquement quand au moins 1 binaire ou 1 modèle existe.",
-                           "Il popup si chiude automaticamente quando esiste almeno 1 binario o 1 modello.",
-                           "Das Popup schließt sich automatisch, wenn mindestens 1 Binärdatei oder 1 Modell vorhanden ist."},
+    {"setup.tip",          "El popup se cierra automáticamente cuando exista al menos 1 binario y 1 modelo.",
+                           "Popup closes automatically when at least 1 binary and 1 model exist.",
+                           "当至少存在1个二进制文件和1个模型时，弹窗自动关闭。",
+                           "La fenêtre se ferme automatiquement quand au moins 1 binaire et 1 modèle existent.",
+                           "Il popup si chiude automaticamente quando esistono almeno 1 binario e 1 modello.",
+                           "Das Popup schließt sich automatisch, wenn mindestens 1 Binärdatei und 1 Modell vorhanden sind."},
     {"setup.installLog",   "Log de instalación","Installation Log", "安装日志","Journal d'installation","Log di installazione","Installationsprotokoll"},
     {"setup.copyLog",      "Copiar log",      "Copy log",               "复制日志","Copier le journal",  "Copia log",            "Log kopieren"},
     {"setup.viewLog",      "Ver log",         "View log",               "查看日志","Voir le journal",    "Vedi log",             "Log anzeigen"},
