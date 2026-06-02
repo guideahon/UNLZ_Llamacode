@@ -1258,6 +1258,42 @@ void LlamaAgentBackend::deleteSession(const QString &sessionId)
     emit sessionsChanged();
 }
 
+void LlamaAgentBackend::deleteProject(const QString &projectDir)
+{
+    if (projectDir.isEmpty()) return;
+    const QString target = QDir::cleanPath(projectDir);
+    bool deletedCurrent = false;
+    QVariantList kept;
+    for (const QVariant &v : std::as_const(m_sessions)) {
+        const QVariantMap s = v.toMap();
+        const QString pd = QDir::cleanPath(s.value(QStringLiteral("projectDir")).toString());
+        if (pd == target) {
+            const QString sid = s.value(QStringLiteral("id")).toString();
+            removeSessionFile(sid);
+            if (sid == m_sessionId) deletedCurrent = true;
+        } else {
+            kept.append(v);
+        }
+    }
+    if (kept.size() == m_sessions.size()) return;   // nada que borrar
+    m_sessions = kept;
+    if (deletedCurrent) {
+        m_sessionId.clear();
+        m_messages.clear();
+        m_apiMessages = {};
+        m_curAsstIdx = -1;
+        // Si quedan sesiones de OTROS proyectos, abrir una. Si no queda ninguna,
+        // dejar estado vacío: NO recrear sesión (recrear en el cwd borrado haría
+        // reaparecer el proyecto). Se creará una al próximo mensaje/sesión nueva.
+        if (!m_sessions.isEmpty())
+            setCurrentSession(m_sessions.first().toMap().value(QStringLiteral("id")).toString());
+        else
+            emit messagesChanged();
+    }
+    persistIndex();
+    emit sessionsChanged();
+}
+
 void LlamaAgentBackend::refreshSessions() { emit sessionsChanged(); }
 
 void LlamaAgentBackend::setCurrentSession(const QString &sessionId)

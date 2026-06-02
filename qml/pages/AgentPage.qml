@@ -633,6 +633,17 @@ Item {
                             height: 28
                             color: Theme.baseBg
 
+                            // Click derecho → menú de proyecto (borrar proyecto + chats).
+                            MouseArea {
+                                anchors.fill: parent
+                                acceptedButtons: Qt.RightButton
+                                onClicked: {
+                                    agentProjectCtxMenu.projectName = section
+                                    agentProjectCtxMenu.projectDir = root.projectDirForSection(section)
+                                    agentProjectCtxMenu.popup()
+                                }
+                            }
+
                             RowLayout {
                                 anchors { fill: parent; leftMargin: 8; rightMargin: 6 }
                                 spacing: 4
@@ -1458,6 +1469,86 @@ Item {
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 20 }
                 text: "Se borrará la sesión \"" + agentDeleteDialog.sessionTitle
                       + "\". Esta acción no se puede deshacer."
+                color: Theme.textPrimary
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    // ── Menú contextual de proyecto (click derecho en el encabezado) ──────────
+    Menu {
+        id: agentProjectCtxMenu
+        property string projectName: ""
+        property string projectDir: ""
+        MenuItem {
+            text: "Borrar proyecto"
+            onTriggered: if (agentProjectCtxMenu.projectName.length > 0) {
+                agentDeleteProjectDialog.projectName = agentProjectCtxMenu.projectName
+                agentDeleteProjectDialog.projectDir = agentProjectCtxMenu.projectDir
+                agentDeleteProjectDialog.open()
+            }
+        }
+    }
+
+    // ── Borrar proyecto del agente (confirmación) ─────────────────────────────
+    Dialog {
+        id: agentDeleteProjectDialog
+        property string projectName: ""
+        property string projectDir: ""
+        modal: true
+        parent: Overlay.overlay
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        width: 420
+        height: 200
+        closePolicy: Popup.CloseOnEscape
+
+        background: Rectangle {
+            color: Theme.popupBg; radius: 12
+            border.color: Theme.popupBorderColor; border.width: 1
+        }
+        Overlay.modal: Rectangle { color: Theme.overlayColor }
+
+        header: Rectangle {
+            color: Theme.popupHeaderBg; height: 50; radius: 12
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1;  color: Theme.popupHeaderBorder }
+            Text {
+                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                text: "Borrar proyecto"
+                font { pixelSize: 14; bold: true }
+                color: Theme.textPrimary
+            }
+        }
+
+        footer: Rectangle {
+            color: Theme.popupHeaderBg; height: 50; radius: 12
+            Rectangle { anchors.top: parent.top; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+            Rectangle { anchors.top: parent.top; width: parent.width; height: 1;  color: Theme.popupHeaderBorder }
+            Row {
+                anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                spacing: 10
+                LcButton {
+                    text: "Cancelar"; secondary: true
+                    onClicked: agentDeleteProjectDialog.close()
+                }
+                LcButton {
+                    text: "Borrar"
+                    danger: true
+                    onClicked: {
+                        App.deleteOpencodeProject(agentDeleteProjectDialog.projectDir)
+                        agentDeleteProjectDialog.close()
+                    }
+                }
+            }
+        }
+
+        contentItem: Item {
+            Text {
+                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 20 }
+                text: "Se borrará el proyecto \"" + agentDeleteProjectDialog.projectName
+                      + "\" y todas sus sesiones. Esta acción no se puede deshacer."
                 color: Theme.textPrimary
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap

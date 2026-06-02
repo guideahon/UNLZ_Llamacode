@@ -31,6 +31,8 @@ public:
     virtual void renameSession(const QString &sessionId, const QString &title)
         { Q_UNUSED(sessionId) Q_UNUSED(title) }
     virtual void deleteSession(const QString &sessionId) { Q_UNUSED(sessionId) }
+    // Borra TODAS las sesiones de un proyecto (default: no-op).
+    virtual void deleteProject(const QString &projectDir) { Q_UNUSED(projectDir) }
     virtual void forkSession(const QString &sessionId) { Q_UNUSED(sessionId) }
     virtual void refreshSessions() {}
 

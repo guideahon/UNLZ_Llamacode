@@ -34,6 +34,7 @@ public:
     void switchSession(const QString &sessionId) override;
     void renameSession(const QString &sessionId, const QString &title) override;
     void deleteSession(const QString &sessionId) override;
+    void deleteProject(const QString &projectDir) override;
     void refreshSessions() override;
 
     void approveTool(const QString &id, bool always = false) override;

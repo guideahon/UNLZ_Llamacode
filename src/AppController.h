@@ -192,6 +192,7 @@ public:
     Q_INVOKABLE void refreshOpencodeSessionList();
     Q_INVOKABLE void renameOpencodeSession(const QString &sessionId, const QString &title);
     Q_INVOKABLE void deleteOpencodeSession(const QString &sessionId);
+    Q_INVOKABLE void deleteOpencodeProject(const QString &projectDir);
     Q_INVOKABLE void newOpencodeSessionInProject(const QString &projectDir);
     Q_INVOKABLE void forkOpencodeSession(const QString &sessionId);
     Q_INVOKABLE QString pickDirectory(const QString &title = QString());

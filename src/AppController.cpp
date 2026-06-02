@@ -1380,6 +1380,11 @@ void AppController::deleteOpencodeSession(const QString &sessionId)
     if (m_agentBackend) m_agentBackend->deleteSession(sessionId);
 }
 
+void AppController::deleteOpencodeProject(const QString &projectDir)
+{
+    if (m_agentBackend) m_agentBackend->deleteProject(projectDir);
+}
+
 void AppController::forkOpencodeSession(const QString &sessionId)
 {
     if (m_agentBackend) m_agentBackend->forkSession(sessionId);
