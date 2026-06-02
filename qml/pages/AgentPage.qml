@@ -1080,10 +1080,14 @@ Item {
                             }
                         }
 
-                        Component.onCompleted: Qt.callLater(() => { msgList.positionViewAtEnd() })
                     }
 
-                    onCountChanged: Qt.callLater(() => { msgList.positionViewAtEnd() })
+                    // Auto-scroll "pegado al fondo": seguir solo si el usuario ya
+                    // está abajo. Si scrollea hacia arriba, no lo arrastramos.
+                    property bool followBottom: true
+                    onMovementEnded: followBottom = atYEnd
+                    onContentHeightChanged: if (followBottom) Qt.callLater(positionViewAtEnd)
+                    onCountChanged: { followBottom = true; Qt.callLater(positionViewAtEnd) }
                 }
 
                 // ── Tarjeta de aprobación de herramienta (human-in-the-loop) ──
