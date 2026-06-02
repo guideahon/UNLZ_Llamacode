@@ -230,6 +230,8 @@ void LlamaAgentBackend::startCompaction(int head, int keepFrom)
         m_compacting = false;
         r->deleteLater();
 
+        if (!m_running) return;                  // backend detenido durante la compactación
+
         QString summary;
         if (r->error() == QNetworkReply::NoError) {
             const QJsonObject root = QJsonDocument::fromJson(r->readAll()).object();
@@ -346,7 +348,14 @@ QString LlamaAgentBackend::buildSystemPrompt() const
         "Sos un agente de coding. Sistema operativo: %1. Directorio de trabajo "
         "(cwd): %2. Tenés herramientas para leer/escribir archivos, listar, buscar y "
         "ejecutar comandos de shell. Usá las tools cuando necesites información real; "
-        "no inventes contenido de archivos. %3 %4 Respondé en el idioma del usuario.")
+        "no inventes contenido de archivos. %3 %4 Respondé en el idioma del usuario.\n\n"
+        "EFICIENCIA (importante): Resolvé la tarea en la MENOR cantidad de pasos/tool "
+        "calls posible. Hacé lo justo que pidió el usuario, sin sobre-ingeniería ni "
+        "features extra. Para crear un archivo: escribilo UNA vez con write_file; no "
+        "lo reescribas por mejoras de estilo/robustez salvo que te lo pidan. NO "
+        "verifiques de más: no re-leas ni re-ejecutes pruebas que ya pasaron, no "
+        "corras el mismo comando varias veces. Una sola verificación rápida alcanza si "
+        "hace falta. Cuando la tarea está hecha, terminá: no sigas iterando.")
         .arg(os, QDir::toNativeSeparators(m_cwd), scope, shell);
 
     // Memoria por proyecto: .llamacode/memory.md o AGENTS.md (lo que exista).
@@ -399,7 +408,10 @@ void LlamaAgentBackend::sendMessage(const QString &text)
 {
     const QString trimmed = text.trimmed();
     if (!m_running || trimmed.isEmpty()) return;
-    if (m_reply || !m_awaitId.isEmpty()) {
+    // Bloquear si hay turno en curso, una tool esperando aprobación, o una
+    // compactación async en vuelo. Sin esto, mandar durante la compactación
+    // corrompe m_apiMessages (reentrancy) → crash en Qt6Core.
+    if (m_reply || m_compactReply || m_compacting || !m_awaitId.isEmpty()) {
         emit errorOccurred(QStringLiteral("Hay un turno en curso."));
         return;
     }
