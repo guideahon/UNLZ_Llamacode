@@ -23,6 +23,27 @@ static int estimateTokens(const QString &text)
     return (n + 3) / 4;
 }
 
+// Finaliza las métricas de una burbuja de asistente (tiempo/tokens/tps).
+// El tps mide VELOCIDAD DE GENERACIÓN: el cronómetro arranca en el primer token
+// (genStartMs), no cuando se creó la burbuja. Así no se contamina con el
+// prompt-processing del modelo (TTFT), que en local puede tardar minutos y
+// hundía el tps. Fallback a createdAt si nunca llegó a streamear.
+static void finalizeMsgMetrics(QVariantMap &m)
+{
+    const qint64 doneAt = QDateTime::currentMSecsSinceEpoch();
+    qint64 startMs = static_cast<qint64>(m.value(QStringLiteral("genStartMs")).toDouble());
+    if (startMs <= 0)
+        startMs = static_cast<qint64>(m.value(QStringLiteral("createdAt")).toDouble());
+    const qint64 elapsedMs = qMax<qint64>(0, doneAt - startMs);
+    const int toks = estimateTokens(m.value(QStringLiteral("content")).toString());
+    m[QStringLiteral("completedAt")] = static_cast<double>(doneAt);
+    m[QStringLiteral("tokens")] = toks;
+    m[QStringLiteral("elapsedMs")] = static_cast<int>(elapsedMs);
+    m[QStringLiteral("tps")] = (elapsedMs > 0 && toks > 0)
+        ? (1000.0 * static_cast<double>(toks) / static_cast<double>(elapsedMs))
+        : 0.0;
+}
+
 // Quita bloques <think>...</think> antes de mandar el historial al modelo: el
 // razonamiento es solo para mostrar; reenviarlo confunde el tool-calling.
 static QString stripThinkForContext(const QString &s)
@@ -507,6 +528,16 @@ void LlamaAgentBackend::runCompletion()
     emit logAppended(QStringLiteral("[turn] requesting completion (iter=%1, msgs=%2, stream)\n")
                          .arg(m_turnIters).arg(m_apiMessages.size()));
 
+    // Crear la burbuja del asistente (typing) ANTES de disparar el request, no
+    // recién al primer token. En turnos de follow-up (tras una tool) la burbuja
+    // previa quedó cerrada, así que durante el hueco "request enviado → primer
+    // token" no había ningún mensaje con typing=true: la UI parecía idle y el
+    // botón seguía en "Enviar", dejando mandar un mensaje que el backend rechaza
+    // con "Hay un turno en curso". Con la burbuja creada ya, el botón pasa a
+    // "PARAR" y se ve el indicador de generación. Si la respuesta resulta ser
+    // sólo tool-calls (sin texto), closeAssistantBubble descarta la burbuja vacía.
+    ensureAssistantBubble();
+
     resetStreamState();
     m_reply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     connect(m_reply, &QNetworkReply::readyRead, this, [this]() { handleStreamData(); });
@@ -589,6 +620,11 @@ void LlamaAgentBackend::handleStreamData()
         full += m_streamContent;
         if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
             QVariantMap m = m_messages[m_curAsstIdx].toMap();
+            // Marca el inicio real de la generación (primer token) para medir tps
+            // sin contar el prompt-processing previo.
+            if (m.value(QStringLiteral("genStartMs")).toDouble() <= 0.0)
+                m[QStringLiteral("genStartMs")] =
+                    static_cast<double>(QDateTime::currentMSecsSinceEpoch());
             m[QStringLiteral("content")] = full;
             m[QStringLiteral("tokens")] = estimateTokens(full);
             m_messages[m_curAsstIdx] = m;
@@ -909,6 +945,10 @@ void LlamaAgentBackend::closeAssistantBubble()
             m_messages.removeAt(m_curAsstIdx);
         } else {
             m[QStringLiteral("typing")] = false;
+            // Finalizar métricas: en modo agente esta es la vía habitual de cierre
+            // (la respuesta va seguida de tool calls), así que el cálculo de
+            // tiempo/tps debe hacerse aquí igual que en finishTurn/setTyping.
+            finalizeMsgMetrics(m);
             m_messages[m_curAsstIdx] = m;
         }
         emit messagesChanged();
@@ -942,15 +982,11 @@ void LlamaAgentBackend::appendAssistantText(const QString &text)
     if (m_curAsstIdx < 0 || m_curAsstIdx >= m_messages.size()) return;
     QVariantMap m = m_messages[m_curAsstIdx].toMap();
     const QString content = m.value(QStringLiteral("content")).toString() + text;
+    if (m.value(QStringLiteral("genStartMs")).toDouble() <= 0.0)
+        m[QStringLiteral("genStartMs")] =
+            static_cast<double>(QDateTime::currentMSecsSinceEpoch());
     m[QStringLiteral("content")] = content;
-    const qint64 startedAt = static_cast<qint64>(m.value(QStringLiteral("createdAt")).toDouble());
-    const qint64 elapsedMs = qMax<qint64>(0, QDateTime::currentMSecsSinceEpoch() - startedAt);
-    const int toks = estimateTokens(content);
-    m[QStringLiteral("tokens")] = toks;
-    m[QStringLiteral("elapsedMs")] = static_cast<int>(elapsedMs);
-    m[QStringLiteral("tps")] = (elapsedMs > 0 && toks > 0)
-        ? (1000.0 * static_cast<double>(toks) / static_cast<double>(elapsedMs))
-        : 0.0;
+    finalizeMsgMetrics(m);
     m_messages[m_curAsstIdx] = m;
     emit messagesChanged();
 }
@@ -960,19 +996,8 @@ void LlamaAgentBackend::setTyping(bool typing)
     if (m_curAsstIdx < 0 || m_curAsstIdx >= m_messages.size()) return;
     QVariantMap m = m_messages[m_curAsstIdx].toMap();
     m[QStringLiteral("typing")] = typing;
-    if (!typing) {
-        const qint64 doneAt = QDateTime::currentMSecsSinceEpoch();
-        const qint64 startedAt = static_cast<qint64>(m.value(QStringLiteral("createdAt")).toDouble());
-        const qint64 elapsedMs = qMax<qint64>(0, doneAt - startedAt);
-        const QString content = m.value(QStringLiteral("content")).toString();
-        const int toks = estimateTokens(content);
-        m[QStringLiteral("completedAt")] = static_cast<double>(doneAt);
-        m[QStringLiteral("tokens")] = toks;
-        m[QStringLiteral("elapsedMs")] = static_cast<int>(elapsedMs);
-        m[QStringLiteral("tps")] = (elapsedMs > 0 && toks > 0)
-            ? (1000.0 * static_cast<double>(toks) / static_cast<double>(elapsedMs))
-            : 0.0;
-    }
+    if (!typing)
+        finalizeMsgMetrics(m);
     m_messages[m_curAsstIdx] = m;
     emit messagesChanged();
 }
@@ -991,16 +1016,7 @@ void LlamaAgentBackend::finishTurn(const QString &finalText)
         }
         m[QStringLiteral("content")] = cur;
         m[QStringLiteral("typing")]  = false;
-        const qint64 doneAt = QDateTime::currentMSecsSinceEpoch();
-        const qint64 startedAt = static_cast<qint64>(m.value(QStringLiteral("createdAt")).toDouble());
-        const qint64 elapsedMs = qMax<qint64>(0, doneAt - startedAt);
-        const int toks = estimateTokens(cur);
-        m[QStringLiteral("completedAt")] = static_cast<double>(doneAt);
-        m[QStringLiteral("tokens")] = toks;
-        m[QStringLiteral("elapsedMs")] = static_cast<int>(elapsedMs);
-        m[QStringLiteral("tps")] = (elapsedMs > 0 && toks > 0)
-            ? (1000.0 * static_cast<double>(toks) / static_cast<double>(elapsedMs))
-            : 0.0;
+        finalizeMsgMetrics(m);
         m_messages[m_curAsstIdx] = m;
         emit messagesChanged();
     }

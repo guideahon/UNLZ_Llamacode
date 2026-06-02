@@ -175,6 +175,9 @@ Item {
             const content = String(modelData.content ?? "")
             const rawTokens = Number(modelData.tokens ?? estimateTokens(content))
             const tokens = isFinite(rawTokens) && rawTokens >= 0 ? Math.floor(rawTokens) : estimateTokens(content)
+            // El mensaje del usuario no es generación de un LLM: ms/tps no aplican.
+            if (String(modelData.role ?? "") === "user")
+                return date + " - " + hms + " - tok " + tokens
             let elapsedMs = Number(modelData.elapsedMs ?? 0)
             if (!isFinite(elapsedMs) || elapsedMs < 0) {
                 const started = Number(modelData.createdAt ?? 0)
