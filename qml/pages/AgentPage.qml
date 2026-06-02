@@ -1030,7 +1030,10 @@ Item {
 
                                     TextEdit {
                                         id: diffText
-                                        text: modelData.diff ?? ""
+                                        // Lazy: solo materializar el texto (puede ser de miles de
+                                        // líneas) cuando la tarjeta está expandida. Si no, vacío →
+                                        // sin layout costoso en cada rebuild del ListView.
+                                        text: diffCard.expanded ? (modelData.diff ?? "") : ""
                                         color: Theme.textSecondary
                                         font { family: "Consolas,monospace"; pixelSize: 11 }
                                         wrapMode: TextEdit.NoWrap
@@ -1131,8 +1134,11 @@ Item {
 
                                     TextEdit {
                                         id: toolBody
-                                        text: (toolCard.command.length > 0 ? "$ " + toolCard.command + "\n\n" : "")
-                                              + toolCard.output
+                                        // Lazy: materializar solo al expandir (la salida puede ser enorme).
+                                        text: toolCard.expanded
+                                              ? ((toolCard.command.length > 0 ? "$ " + toolCard.command + "\n\n" : "")
+                                                 + toolCard.output)
+                                              : ""
                                         color: Theme.textSecondary
                                         font { family: "Consolas,monospace"; pixelSize: 11 }
                                         wrapMode: TextEdit.NoWrap

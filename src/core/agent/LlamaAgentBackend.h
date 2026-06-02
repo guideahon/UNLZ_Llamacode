@@ -141,6 +141,7 @@ private:
     AgentToolRunner *m_worker = nullptr;
     QString m_execCallId;            // tool_call en ejecución ("" = ninguno)
     QString m_execCommand;           // comando/ruta del tool en ejecución (para la tarjeta)
+    qint64  m_lastUiEmitMs = 0;       // throttle de messagesChanged durante streaming
 
     QString m_sessionId;
     QString m_sessionTitle;
