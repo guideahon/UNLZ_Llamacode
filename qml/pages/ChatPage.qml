@@ -824,7 +824,33 @@ Item {
                                 horizontalAlignment: Text.AlignRight
                                 elide: Text.ElideRight
                             }
+                            // Copiar mensaje al portapapeles.
+                            Row {
+                                width: parent.width
+                                layoutDirection: Qt.RightToLeft
+                                visible: delegateRoot.content.length > 0 && !delegateRoot.isTyping
+                                Text {
+                                    text: bubbleRect.justCopied ? "✓ Copiado" : "⧉ Copiar"
+                                    color: copyMA.containsMouse || bubbleRect.justCopied
+                                           ? Theme.textPrimary : Theme.textMuted
+                                    font.pixelSize: 10
+                                    MouseArea {
+                                        id: copyMA
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            App.copyToClipboard(delegateRoot.content)
+                                            bubbleRect.justCopied = true
+                                            chatCopyResetTimer.restart()
+                                        }
+                                    }
+                                }
+                            }
                         }
+
+                        property bool justCopied: false
+                        Timer { id: chatCopyResetTimer; interval: 1500; onTriggered: bubbleRect.justCopied = false }
                     }
 
                     Component.onCompleted: Qt.callLater(() => { msgList.positionViewAtEnd() })

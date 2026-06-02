@@ -904,7 +904,33 @@ Item {
                                     horizontalAlignment: Text.AlignRight
                                     elide: Text.ElideRight
                                 }
+                                // Copiar mensaje al portapapeles.
+                                Row {
+                                    width: parent.width
+                                    layoutDirection: Qt.RightToLeft
+                                    visible: delegateRoot.content.length > 0 && !delegateRoot.isTyping
+                                    Text {
+                                        text: bubbleRect.justCopied ? "✓ Copiado" : "⧉ Copiar"
+                                        color: copyMA.containsMouse || bubbleRect.justCopied
+                                               ? Theme.textPrimary : Theme.textMuted
+                                        font.pixelSize: 10
+                                        MouseArea {
+                                            id: copyMA
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                App.copyToClipboard(delegateRoot.content)
+                                                bubbleRect.justCopied = true
+                                                copyResetTimer.restart()
+                                            }
+                                        }
+                                    }
+                                }
                             }
+
+                            property bool justCopied: false
+                            Timer { id: copyResetTimer; interval: 1500; onTriggered: bubbleRect.justCopied = false }
                         }
 
                         // ── Entrada de diff (edición de archivo) ──────────────
@@ -965,6 +991,12 @@ Item {
                                         implicitHeight: 24
                                         visible: diffCard.diffLines > 0
                                         onClicked: diffCard.expanded = !diffCard.expanded
+                                    }
+                                    LcButton {
+                                        text: "Copiar"; secondary: true
+                                        implicitHeight: 24
+                                        visible: diffCard.diffLines > 0
+                                        onClicked: App.copyToClipboard(modelData.diff ?? "")
                                     }
                                     LcButton {
                                         text: "Revertir"; secondary: true
@@ -1064,6 +1096,14 @@ Item {
                                         implicitHeight: 24
                                         visible: toolCard.hasBody
                                         onClicked: toolCard.expanded = !toolCard.expanded
+                                    }
+                                    LcButton {
+                                        text: "Copiar"; secondary: true
+                                        implicitHeight: 24
+                                        visible: toolCard.hasBody
+                                        onClicked: App.copyToClipboard(
+                                            (toolCard.command.length > 0 ? "$ " + toolCard.command + "\n\n" : "")
+                                            + toolCard.output)
                                     }
                                 }
 
