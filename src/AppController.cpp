@@ -926,7 +926,25 @@ IAgentBackend *AppController::ensureAgentBackend(const QString &adapter)
     // Reflejar estado del backend en los mirrors expuestos a QML.
     connect(b, &IAgentBackend::messagesChanged, this, [this, b]() {
         m_agentMessages = b->messages();
+        // Llega la lista autoritativa → terminar cualquier override de streaming
+        // (el contenido final ya está en m_agentMessages).
+        if (m_agentStreamingIndex != -1) {
+            m_agentStreamingIndex = -1;
+            m_agentStreamingText.clear();
+            emit agentStreamingChanged();
+        }
         emit agentMessagesChanged();
+    });
+    // Streaming incremental: refresca SÓLO la burbuja activa, sin re-bindear toda
+    // la lista (evita re-instanciar todos los delegates por token).
+    connect(b, &IAgentBackend::streamingText, this, [this](int idx, const QString &content) {
+        m_agentStreamingIndex = idx;
+        m_agentStreamingText  = content;
+        emit agentStreamingChanged();
+    });
+    connect(b, &IAgentBackend::queueChanged, this, [this, b]() {
+        m_agentQueuedCount = b->queuedCount();
+        emit agentQueueChanged();
     });
     connect(b, &IAgentBackend::sessionsChanged, this, [this, b]() {
         m_agentSessions = b->sessions();
@@ -1074,6 +1092,10 @@ IAgentBackend *AppController::ensureChatBackend()
         m_chatGenerating = generating;
         emit chatMessagesChanged();
         emit chatGeneratingChanged();
+    });
+    connect(b, &IAgentBackend::queueChanged, this, [this, b]() {
+        m_chatQueuedCount = b->queuedCount();
+        emit chatQueueChanged();
     });
     connect(b, &IAgentBackend::sessionsChanged, this, [this, b]() {
         m_chatSessions = b->sessions();
@@ -1369,6 +1391,31 @@ void AppController::sendToAgent(const QString &text)
 
     // Adapters genéricos basados en stdin (opencode usa OpencodeBackend, delegado arriba).
     m_agentProc->write((text + QLatin1Char('\n')).toUtf8());
+}
+
+void AppController::steerAgent(const QString &text)
+{
+    if (text.trimmed().isEmpty()) return;
+    if (m_agentBackend && m_agentBackend->running()) { m_agentBackend->steerMessage(text); return; }
+    sendToAgent(text);   // sin turno activo → envío normal
+}
+
+void AppController::queueAgent(const QString &text)
+{
+    if (text.trimmed().isEmpty()) return;
+    if (m_agentBackend && m_agentBackend->running()) { m_agentBackend->queueMessage(text); return; }
+    sendToAgent(text);   // sin turno activo → envío normal
+}
+
+void AppController::clearAgentQueue()
+{
+    if (m_agentBackend) m_agentBackend->clearQueue();
+}
+
+void AppController::rollbackAgentToMessage(int msgIndex)
+{
+    if (auto *la = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
+        la->rollbackToMessage(msgIndex);
 }
 
 void AppController::clearAgentLog()
@@ -2056,6 +2103,23 @@ void AppController::sendChatMessageWithAttachments(const QString &text, const QS
     if (auto *raw = qobject_cast<RawChatBackend *>(b))
         raw->setPendingAttachments(paths);
     b->sendMessage(text);
+}
+
+void AppController::steerChat(const QString &text)
+{
+    if (text.trimmed().isEmpty()) return;
+    if (IAgentBackend *b = ensureChatBackend()) b->steerMessage(text);
+}
+
+void AppController::queueChat(const QString &text)
+{
+    if (text.trimmed().isEmpty()) return;
+    if (IAgentBackend *b = ensureChatBackend()) b->queueMessage(text);
+}
+
+void AppController::clearChatQueue()
+{
+    if (m_chatBackend) m_chatBackend->clearQueue();
 }
 
 QString AppController::pasteClipboardImage()

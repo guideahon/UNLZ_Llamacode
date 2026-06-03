@@ -13,8 +13,8 @@ Item {
 
     function fileName(p) { return p.split(/[\\/]/).pop() }
 
-    function sendNow() {
-        if (App.chatGenerating) { App.stopChatGeneration(); return }
+    // Envío normal (idle): texto + adjuntos.
+    function doSend() {
         const t = inputField.text.trim()
         if (t.length === 0 && root.chatAttachments.length === 0) return
         if (root.chatAttachments.length > 0)
@@ -23,6 +23,22 @@ Item {
             App.sendChatMessage(t)
         inputField.text = ""
         root.chatAttachments = []
+    }
+    // Encolar: se envía cuando la respuesta actual termina (solo texto).
+    function doQueue() {
+        const t = inputField.text.trim()
+        if (t.length === 0) return
+        App.queueChat(t); inputField.text = ""
+    }
+    // Interrumpir: corta la respuesta actual y envía ya (solo texto).
+    function doSteer() {
+        const t = inputField.text.trim()
+        if (t.length === 0) return
+        App.steerChat(t); inputField.text = ""; root.chatAttachments = []
+    }
+    // Enter: enviar (idle) o encolar (generando).
+    function enterPressed() {
+        if (App.chatGenerating) doQueue(); else doSend()
     }
 
     function scrollToBottom() { Qt.callLater(() => { msgList.positionViewAtEnd() }) }
@@ -951,9 +967,13 @@ Item {
                             Layout.fillWidth: true
                             placeholderText: {
                                 const _lang = App.langV
-                                return App.chatGenerating ? App.l("chat.generating") : App.l("chat.placeholder")
+                                return App.chatGenerating
+                                    ? ("Enter encola · Shift+Enter interrumpe"
+                                       + (App.chatQueuedCount > 0 ? "  ·  " + App.chatQueuedCount + " en cola" : ""))
+                                    : App.l("chat.placeholder")
                             }
-                            enabled: App.serverRunning && App.serverReady && !App.chatGenerating
+                            // Habilitado también mientras genera, para poder encolar/dirigir.
+                            enabled: App.serverRunning && App.serverReady
                             color: Theme.textPrimary
                             placeholderTextColor: Theme.textMuted
                             font.pixelSize: 13
@@ -964,8 +984,11 @@ Item {
                                 border.width: inputField.activeFocus ? 1 : 0
                                 border.color: Theme.inputBorderFocus
                             }
+                            // Enter = enviar/encolar. Shift+Enter = interrumpir (campo de una línea).
                             Keys.onReturnPressed: (event) => {
-                                if (!(event.modifiers & Qt.ShiftModifier)) { event.accepted = true; root.sendNow() }
+                                event.accepted = true
+                                if (event.modifiers & Qt.ShiftModifier) root.doSteer()
+                                else root.enterPressed()
                             }
                             // Ctrl+V: si hay imagen en el portapapeles, adjuntarla.
                             Keys.onPressed: (event) => {
@@ -979,14 +1002,32 @@ Item {
                             }
                         }
 
+                        // Idle: enviar.
                         LcButton {
-                            text: {
-                                const _lang = App.langV
-                                return App.chatGenerating ? App.l("chat.stop") : App.l("chat.send")
-                            }
-                            danger: App.chatGenerating
-                            enabled: App.serverRunning && App.serverReady && (App.chatGenerating || inputField.text.trim().length > 0 || root.chatAttachments.length > 0)
-                            onClicked: root.sendNow()
+                            visible: !App.chatGenerating
+                            text: (App.langV, App.l("chat.send"))
+                            enabled: App.serverRunning && App.serverReady
+                                && (inputField.text.trim().length > 0 || root.chatAttachments.length > 0)
+                            onClicked: root.doSend()
+                        }
+                        // Generando + hay texto: encolar / interrumpir.
+                        LcButton {
+                            visible: App.chatGenerating && inputField.text.trim().length > 0
+                            text: "Encolar" + (App.chatQueuedCount > 0 ? " (" + App.chatQueuedCount + ")" : "")
+                            onClicked: root.doQueue()
+                        }
+                        LcButton {
+                            visible: App.chatGenerating && inputField.text.trim().length > 0
+                            text: "Interrumpir"
+                            danger: true
+                            onClicked: root.doSteer()
+                        }
+                        // PARAR: cortar sin enviar.
+                        LcButton {
+                            visible: App.chatGenerating
+                            text: (App.langV, App.l("chat.stop"))
+                            danger: true
+                            onClicked: App.stopChatGeneration()
                         }
                     }
                 }

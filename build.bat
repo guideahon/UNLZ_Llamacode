@@ -88,6 +88,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo [INFO] Copying Qt.labs.settings manually...
+xcopy /E /I /Y "%QT_DIR%\qml\Qt\labs\settings" "%EXE_DIR%\qml\Qt\labs\settings" >nul
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update-shortcut.ps1"
 
 echo.

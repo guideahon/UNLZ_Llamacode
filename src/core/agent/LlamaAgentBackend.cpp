@@ -28,19 +28,27 @@ static int estimateTokens(const QString &text)
 // (genStartMs), no cuando se creó la burbuja. Así no se contamina con el
 // prompt-processing del modelo (TTFT), que en local puede tardar minutos y
 // hundía el tps. Fallback a createdAt si nunca llegó a streamear.
-static void finalizeMsgMetrics(QVariantMap &m)
+// srvTokens/srvGenMs: métricas REALES del server (timings.predicted_n /
+// predicted_ms). Si están (>0) se usan para tokens y para el tps; el tps queda
+// como velocidad de GENERACIÓN pura (excluye prompt-processing por definición).
+// Sin ellas, fallback al estimado: tokens=chars/4 y tps sobre el wall desde el
+// primer token (genStartMs) — que SÍ incluye stalls/TTFT residual y subestima.
+static void finalizeMsgMetrics(QVariantMap &m, int srvTokens = 0, double srvGenMs = 0.0)
 {
     const qint64 doneAt = QDateTime::currentMSecsSinceEpoch();
     qint64 startMs = static_cast<qint64>(m.value(QStringLiteral("genStartMs")).toDouble());
     if (startMs <= 0)
         startMs = static_cast<qint64>(m.value(QStringLiteral("createdAt")).toDouble());
-    const qint64 elapsedMs = qMax<qint64>(0, doneAt - startMs);
-    const int toks = estimateTokens(m.value(QStringLiteral("content")).toString());
+    const qint64 wallMs = qMax<qint64>(0, doneAt - startMs);
+    const int toks = (srvTokens > 0) ? srvTokens
+                                     : estimateTokens(m.value(QStringLiteral("content")).toString());
+    // Tiempo para el tps: el de generación del server si lo tenemos; si no, wall.
+    const double genMs = (srvGenMs > 0.0) ? srvGenMs : static_cast<double>(wallMs);
     m[QStringLiteral("completedAt")] = static_cast<double>(doneAt);
     m[QStringLiteral("tokens")] = toks;
-    m[QStringLiteral("elapsedMs")] = static_cast<int>(elapsedMs);
-    m[QStringLiteral("tps")] = (elapsedMs > 0 && toks > 0)
-        ? (1000.0 * static_cast<double>(toks) / static_cast<double>(elapsedMs))
+    m[QStringLiteral("elapsedMs")] = static_cast<int>(wallMs);   // wall honesto (incluye TTFT)
+    m[QStringLiteral("tps")] = (genMs > 0.0 && toks > 0)
+        ? (1000.0 * static_cast<double>(toks) / genMs)
         : 0.0;
 }
 
@@ -57,6 +65,43 @@ static QString stripThinkForContext(const QString &s)
 }
 
 static const QString kMcpPrefix = QStringLiteral("mcp__");
+
+// Recorta la salida de una tool ANTES de meterla al contexto (m_apiMessages).
+// La tarjeta de la UI conserva la salida completa; al modelo le mandamos una
+// versión acotada. Idea tomada de los "tool budgets" de caveman-code: en local
+// (gen ~40 tok/s + SWA que reprocesa todo el prompt cada iter) cada línea de
+// salida que no aporta es contexto que se re-evalúa una y otra vez.
+static QString budgetToolOutput(const QString &name, const QString &raw)
+{
+    QString s = raw;
+    // 1) Sacar secuencias de escape ANSI (colores/cursor de build/test/git).
+    s.remove(QRegularExpression(QStringLiteral("\x1B\\[[0-9;?]*[A-Za-z]")));
+    // 2) Colapsar runs de líneas en blanco a una sola.
+    s.replace(QRegularExpression(QStringLiteral("\n[ \t]*(?:\n[ \t]*)+")),
+              QStringLiteral("\n\n"));
+    // 3) Cap por líneas según la tool. run_shell mantiene más cola (los errores
+    //    suelen estar al final). El resto, cap razonable.
+    int cap;
+    if (name == QLatin1String("read_file"))      cap = 300;
+    else if (name == QLatin1String("grep"))      cap = 120;
+    else if (name == QLatin1String("list_dir"))  cap = 200;
+    else if (name == QLatin1String("run_shell")) cap = 120;
+    else                                          cap = 200;   // mcp/otras
+    QStringList lines = s.split(QLatin1Char('\n'));
+    if (lines.size() > cap) {
+        const int head = cap * 2 / 3;
+        const int tail = cap - head;
+        QStringList kept = lines.mid(0, head);
+        kept << QStringLiteral("… [%1 líneas omitidas para ahorrar contexto] …")
+                    .arg(lines.size() - cap);
+        kept += lines.mid(lines.size() - tail);
+        s = kept.join(QLatin1Char('\n'));
+    }
+    // 4) Tope duro de caracteres como red de seguridad.
+    if (s.size() > 24000)
+        s = s.left(24000) + QStringLiteral("\n… [truncado]");
+    return s;
+}
 
 static QString toolArgumentsToString(const QJsonValue &v)
 {
@@ -232,7 +277,8 @@ void LlamaAgentBackend::startCompaction(int head, int keepFrom)
             QJsonObject{{QStringLiteral("role"), QStringLiteral("user")}, {QStringLiteral("content"), convo}}}},
         {QStringLiteral("stream"), false},
         {QStringLiteral("temperature"), 0.2},
-        {QStringLiteral("max_tokens"), qMin(2048, m_ctxLimit > 0 ? m_ctxLimit / 8 : 2048)}
+        {QStringLiteral("max_tokens"), qMin(2048, m_ctxLimit > 0 ? m_ctxLimit / 8 : 2048)},
+        {QStringLiteral("cache_prompt"), true}
     };
 
     const QString url = m_ctx.serverBaseUrl + QStringLiteral("/v1/chat/completions");
@@ -312,6 +358,11 @@ void LlamaAgentBackend::cancelGeneration()
     setTyping(false);
     m_curAsstIdx = -1;
     m_execCallId.clear();   // ignorar resultado de tool tardío
+    // Matar el run_shell async en vuelo y cerrar su tarjeta en vivo.
+    if (m_worker) QMetaObject::invokeMethod(m_worker, "cancelShell", Qt::QueuedConnection);
+    finalizeLiveToolCard(true);
+    // PARAR = detener todo, incluida la cola de mensajes pendientes.
+    if (!m_msgQueue.isEmpty()) { m_msgQueue.clear(); emit queueChanged(); }
 }
 
 void LlamaAgentBackend::ensureSession()
@@ -332,6 +383,9 @@ void LlamaAgentBackend::ensureSession()
         {QStringLiteral("content"), buildSystemPrompt()}
     } };
     m_messages.clear();
+    m_readFingerprints.clear();
+    m_checkpoints.clear();
+    if (!m_msgQueue.isEmpty()) { m_msgQueue.clear(); emit queueChanged(); }
     persistIndex();
     persistSession(m_sessionId);
     emit sessionsChanged();
@@ -372,12 +426,29 @@ QString LlamaAgentBackend::buildSystemPrompt() const
         "no inventes contenido de archivos. %3 %4 Respondé en el idioma del usuario.\n\n"
         "EFICIENCIA (importante): Resolvé la tarea en la MENOR cantidad de pasos/tool "
         "calls posible. Hacé lo justo que pidió el usuario, sin sobre-ingeniería ni "
-        "features extra. Para crear un archivo: escribilo UNA vez con write_file; no "
-        "lo reescribas por mejoras de estilo/robustez salvo que te lo pidan. NO "
+        "features extra. Para CREAR un archivo: write_file UNA vez. Para MODIFICAR un "
+        "archivo existente usá edit_file (reemplazo puntual de un fragmento), NO "
+        "reescribas todo el archivo con write_file: es mucho más lento. Para leer "
+        "archivos grandes usá read_file con offset/limit. Buscá con grep (regex) y "
+        "glob. No "
         "verifiques de más: no re-leas ni re-ejecutes pruebas que ya pasaron, no "
         "corras el mismo comando varias veces. Una sola verificación rápida alcanza si "
-        "hace falta. Cuando la tarea está hecha, terminá: no sigas iterando.")
+        "hace falta. Cuando la tarea está hecha, terminá: no sigas iterando.\n\n")
         .arg(os, QDir::toNativeSeparators(m_cwd), scope, shell);
+
+    if (m_approvalMode == QLatin1String("plan"))
+        base += QStringLiteral(
+            "MODO PLAN (read-only): NO podés editar archivos ni correr comandos; solo "
+            "leer/buscar. Investigá lo necesario y entregá un PLAN claro y accionable "
+            "(pasos, archivos a tocar, riesgos). write_file/edit_file/run_shell están "
+            "deshabilitadas.\n\n");
+
+    base += QStringLiteral(
+        "ESTILO: respondé en fragmentos técnicos concisos. Sin relleno, sin "
+        "cortesías, sin repetir lo que ya dijiste o lo que es obvio del código. "
+        "Preferí listas y comandos antes que prosa. No expliques lo que vas a hacer "
+        "antes de hacerlo: usá la tool directamente. El texto que generás también "
+        "cuesta tiempo (generación local lenta): cada palabra de más es latencia.");
 
     // Memoria por proyecto: .llamacode/memory.md o AGENTS.md (lo que exista).
     QString mem;
@@ -422,6 +493,15 @@ void LlamaAgentBackend::setApprovalPolicy(const QString &mode)
     if (m_worker)
         QMetaObject::invokeMethod(m_worker, "setConfined", Qt::QueuedConnection,
                                   Q_ARG(bool, mode != QLatin1String("super")));
+    // Plan mode cambia tanto el system prompt como el set de tools → refrescar el
+    // system prompt (índice 0) para que el cambio aplique en el próximo turno.
+    if (!m_apiMessages.isEmpty()) {
+        QJsonObject sys = m_apiMessages.first().toObject();
+        if (sys.value(QStringLiteral("role")).toString() == QLatin1String("system")) {
+            sys[QStringLiteral("content")] = buildSystemPrompt();
+            m_apiMessages.replace(0, sys);
+        }
+    }
 }
 
 // ───────────────────────────── Conversación ──────────────────────────────
@@ -437,6 +517,7 @@ void LlamaAgentBackend::sendMessage(const QString &text)
         return;
     }
     ensureSession();
+    pushCheckpoint();   // snapshot ANTES de agregar el nuevo turno (para rollback)
 
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     m_messages.append(QVariantMap{
@@ -466,6 +547,184 @@ void LlamaAgentBackend::sendMessage(const QString &text)
     m_turnIters = 0;
     m_callCounts.clear();
     runCompletion();
+}
+
+// Snapshot del estado actual (antes de un turno de usuario) para poder rebobinar.
+void LlamaAgentBackend::pushCheckpoint()
+{
+    m_checkpoints.append(Checkpoint{
+        static_cast<int>(m_apiMessages.size()), static_cast<int>(m_messages.size()),
+        m_editSnapshots.keys()});
+}
+
+// Rebobina la conversación al estado previo al mensaje de usuario en `msgIndex`.
+void LlamaAgentBackend::rollbackToMessage(int msgIndex)
+{
+    if (!m_running) return;
+    if (isBusy()) { emit errorOccurred(QStringLiteral("No se puede rebobinar con un turno en curso.")); return; }
+
+    // Buscar el checkpoint cuyo msgLen == msgIndex (el tomado justo antes de ese
+    // mensaje de usuario).
+    int ci = -1;
+    for (int i = 0; i < m_checkpoints.size(); ++i)
+        if (m_checkpoints[i].msgLen == msgIndex) { ci = i; break; }
+    if (ci < 0) { emit errorOccurred(QStringLiteral("No hay checkpoint para ese mensaje.")); return; }
+
+    const Checkpoint cp = m_checkpoints[ci];
+    if (cp.msgLen > m_messages.size() || cp.apiLen > m_apiMessages.size()) return;
+
+    // Revertir archivos editados DESPUÉS del checkpoint (los que no estaban en
+    // editKeys). Sólo se puede restaurar al contenido original (1er snapshot).
+    const QSet<QString> before(cp.editKeys.begin(), cp.editKeys.end());
+    const QStringList nowKeys = m_editSnapshots.keys();
+    for (const QString &abs : nowKeys)
+        if (!before.contains(abs))
+            revertEdit(abs);   // restaura original + saca el snapshot
+
+    // Truncar conversación (UI + API) al estado del checkpoint.
+    while (m_messages.size() > cp.msgLen) m_messages.removeLast();
+    while (m_apiMessages.size() > cp.apiLen) m_apiMessages.removeLast();
+
+    // Descartar checkpoints desde éste en adelante.
+    while (m_checkpoints.size() > ci) m_checkpoints.removeLast();
+
+    m_curAsstIdx = -1;
+    emit logAppended(QStringLiteral("[rebobinado al mensaje %1 (%2 msgs, %3 ctx)]\n")
+                         .arg(msgIndex).arg(m_messages.size()).arg(m_apiMessages.size()));
+    emit messagesChanged();
+    saveCurrentSession();
+}
+
+// ¿Hay algo en vuelo? (request, compactación, tool ejecutándose o esperando
+// aprobación, o tool_calls pendientes de procesar).
+bool LlamaAgentBackend::isBusy() const
+{
+    return m_reply || m_compactReply || m_compacting
+           || !m_awaitId.isEmpty() || !m_execCallId.isEmpty()
+           || !m_pendingCalls.isEmpty();
+}
+
+// Encolar: si está ocupado, guarda y se enviará al terminar el turno. Si no,
+// envía ya.
+void LlamaAgentBackend::queueMessage(const QString &text)
+{
+    const QString t = text.trimmed();
+    if (!m_running || t.isEmpty()) return;
+    if (!isBusy()) { sendMessage(t); return; }
+    m_msgQueue << t;
+    emit queueChanged();
+    emit logAppended(QStringLiteral("[encolado (%1 en cola): %2]\n")
+                         .arg(m_msgQueue.size()).arg(t.left(80)));
+}
+
+// Steering: interrumpe el turno actual (cancela tools/aprobación, repara el
+// historial) y envía el mensaje nuevo de inmediato.
+void LlamaAgentBackend::steerMessage(const QString &text)
+{
+    const QString t = text.trimmed();
+    if (!m_running || t.isEmpty()) return;
+    if (isBusy()) {
+        interruptForSteer();
+        emit logAppended(QStringLiteral("[steering: turno interrumpido por nuevo mensaje]\n"));
+    }
+    sendMessage(t);
+}
+
+// Envía el próximo mensaje encolado, si lo hay y ya no hay nada en vuelo.
+void LlamaAgentBackend::flushQueue()
+{
+    if (!m_running || m_msgQueue.isEmpty() || isBusy()) return;
+    const QString t = m_msgQueue.takeFirst();
+    emit queueChanged();
+    sendMessage(t);
+}
+
+void LlamaAgentBackend::clearQueue()
+{
+    if (m_msgQueue.isEmpty()) return;
+    m_msgQueue.clear();
+    emit queueChanged();
+}
+
+// Aborta request/compactación, descarta la burbuja parcial y deja m_apiMessages
+// consistente (cada assistant.tool_calls con su respuesta) para que el próximo
+// request no sea inválido.
+void LlamaAgentBackend::interruptForSteer()
+{
+    if (m_compactReply) {
+        QNetworkReply *cr = m_compactReply; m_compactReply = nullptr;
+        cr->disconnect(this); cr->abort(); cr->deleteLater();
+    }
+    m_compacting = false;
+    if (m_reply) {
+        // Anular y desconectar ANTES de abort() (abort emite finished/readyRead
+        // sincrónico → reentrancy). Igual criterio que cancelGeneration.
+        QNetworkReply *r = m_reply; m_reply = nullptr;
+        r->disconnect(this); r->abort(); r->deleteLater();
+    }
+    // Matar el run_shell async en vuelo y cerrar su tarjeta en vivo.
+    if (m_worker) QMetaObject::invokeMethod(m_worker, "cancelShell", Qt::QueuedConnection);
+    finalizeLiveToolCard(true);
+    // Cerrar la burbuja en curso (descarta si está vacía; si tenía texto parcial
+    // lo deja como mensaje finalizado).
+    if (m_curAsstIdx >= 0) closeAssistantBubble();
+    m_curAsstIdx = -1;
+    // Reparar tool_calls colgados ANTES de limpiar el estado pendiente.
+    repairDanglingToolCalls();
+    m_pendingCalls = {};
+    m_awaitId.clear();
+    m_awaitCall = {};
+    m_execCallId.clear();   // ignora resultado tardío de una tool en vuelo
+    setTyping(false);
+}
+
+// Cierra la tarjeta de run_shell "en vivo" si quedó abierta (al cancelar/interrumpir).
+void LlamaAgentBackend::finalizeLiveToolCard(bool cancelled)
+{
+    if (m_liveToolMsgIdx < 0 || m_liveToolMsgIdx >= m_messages.size()) {
+        m_liveToolCallId.clear(); m_liveToolMsgIdx = -1; return;
+    }
+    QVariantMap card = m_messages[m_liveToolMsgIdx].toMap();
+    card[QStringLiteral("typing")] = false;
+    if (cancelled) {
+        card[QStringLiteral("ok")] = false;
+        const QString o = card.value(QStringLiteral("output")).toString();
+        card[QStringLiteral("output")] = o + (o.isEmpty() ? QString() : QStringLiteral("\n"))
+                                         + QStringLiteral("[cancelado por el usuario]");
+    }
+    m_messages[m_liveToolMsgIdx] = card;
+    emit messagesChanged();
+    m_liveToolCallId.clear();
+    m_liveToolMsgIdx = -1;
+}
+
+// Si el último assistant tiene tool_calls sin su mensaje 'tool' de respuesta,
+// agrega stubs "[interrumpido]" para que el historial quede válido.
+void LlamaAgentBackend::repairDanglingToolCalls()
+{
+    int lastAsst = -1;
+    for (int i = m_apiMessages.size() - 1; i >= 0; --i) {
+        const QJsonObject o = m_apiMessages[i].toObject();
+        const QString role = o.value(QStringLiteral("role")).toString();
+        if (role == QLatin1String("assistant")
+            && o.contains(QStringLiteral("tool_calls"))) { lastAsst = i; break; }
+        if (role == QLatin1String("user")) return;   // no hay turno de tools abierto
+    }
+    if (lastAsst < 0) return;
+
+    QSet<QString> unanswered;
+    for (const QJsonValue &v : m_apiMessages[lastAsst].toObject()
+                                  .value(QStringLiteral("tool_calls")).toArray())
+        unanswered.insert(v.toObject().value(QStringLiteral("id")).toString());
+    for (int i = lastAsst + 1; i < m_apiMessages.size(); ++i) {
+        const QJsonObject o = m_apiMessages[i].toObject();
+        if (o.value(QStringLiteral("role")).toString() == QLatin1String("tool"))
+            unanswered.remove(o.value(QStringLiteral("tool_call_id")).toString());
+    }
+    for (const QString &id : std::as_const(unanswered))
+        if (!id.isEmpty())
+            appendToolResult(id, QString(),
+                             QStringLiteral("[interrumpido por el usuario]"));
 }
 
 void LlamaAgentBackend::runCompletion()
@@ -512,7 +771,15 @@ void LlamaAgentBackend::runCompletion()
         // tool_call inválido → reintentos. max_tokens en el request pisa al
         // default del server y deja completar el contenido del archivo.
         {QStringLiteral("max_tokens"), outReserve},
-        {QStringLiteral("stream"), true}
+        {QStringLiteral("stream"), true},
+        // Reutilizar el KV/prompt-cache del server entre iteraciones del loop de
+        // tools. En cada follow-up el prefijo (system+tools+historial) es estable,
+        // así el server procesa sólo el sufijo nuevo en vez de re-evaluar todo el
+        // contexto. No dependemos del default del fork (que puede venir en false).
+        {QStringLiteral("cache_prompt"), true},
+        // Pedir el bloque `usage` en el chunk final del stream → tokens reales de
+        // generación (en vez de estimar chars/4) para métricas/tps fiables.
+        {QStringLiteral("stream_options"), QJsonObject{{QStringLiteral("include_usage"), true}}}
     };
     if (m_temperature >= 0.0) payload.insert(QStringLiteral("temperature"), m_temperature);
     // Razonamiento: SOLO mandar params si está activado. Si está off, no enviar
@@ -558,6 +825,8 @@ void LlamaAgentBackend::resetStreamState()
     m_streamContent.clear();
     m_streamReason.clear();
     m_streamToolCalls.clear();
+    m_genTokens = 0;
+    m_genMs = 0.0;
     // Base = lo que el bubble ya muestra (texto previo + marcadores 🔧 de tools).
     m_streamBase.clear();
     if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size())
@@ -585,6 +854,18 @@ void LlamaAgentBackend::handleStreamData()
         const QJsonObject usage = obj.value(QStringLiteral("usage")).toObject();
         const int used = usage.value(QStringLiteral("total_tokens")).toInt(-1);
         if (used >= 0) emit contextUsage(used, m_ctxLimit);
+        // Métricas reales de generación. `usage.completion_tokens` = tokens
+        // generados (exacto). `timings` (llama.cpp) trae predicted_n/predicted_ms
+        // → tiempo de generación puro, sin prompt-processing. Preferir timings.
+        const int compTok = usage.value(QStringLiteral("completion_tokens")).toInt(-1);
+        if (compTok >= 0) m_genTokens = compTok;
+        const QJsonObject timings = obj.value(QStringLiteral("timings")).toObject();
+        if (!timings.isEmpty()) {
+            const int pn = timings.value(QStringLiteral("predicted_n")).toInt(-1);
+            const double pms = timings.value(QStringLiteral("predicted_ms")).toDouble(-1.0);
+            if (pn >= 0)  m_genTokens = pn;
+            if (pms > 0.0) m_genMs = pms;
+        }
 
         const QJsonArray choices = obj.value(QStringLiteral("choices")).toArray();
         if (choices.isEmpty()) continue;
@@ -609,8 +890,17 @@ void LlamaAgentBackend::handleStreamData()
             m_streamToolCalls.insert(idx, acc);
         }
 
+        // Progreso de tool_calls en streaming. Cuando el modelo está generando
+        // una tool (p.ej. write_file con un archivo grande), los tokens llegan
+        // como delta.tool_calls.arguments, NO como delta.content. Sin esto el
+        // bubble no mostraba NADA durante toda la generación —que a ~40 tok/s
+        // para un archivo de ~6k tokens son ~2-3 min— y la UI parecía colgada.
+        // Mostramos un indicador en vivo con la tool y el tamaño acumulado.
+        const bool toolStreaming = !m_streamToolCalls.isEmpty();
+
         // Abrir una burbuja nueva si la anterior se cerró tras una tool.
-        if ((!m_streamContent.isEmpty() || !m_streamReason.isEmpty()) && m_curAsstIdx < 0)
+        if ((!m_streamContent.isEmpty() || !m_streamReason.isEmpty() || toolStreaming)
+            && m_curAsstIdx < 0)
             ensureAssistantBubble();
 
         // Mostrar en vivo: base + <think>razonamiento</think> + respuesta.
@@ -618,6 +908,24 @@ void LlamaAgentBackend::handleStreamData()
         if (!m_streamReason.isEmpty())
             full += QStringLiteral("<think>") + m_streamReason + QStringLiteral("</think>\n");
         full += m_streamContent;
+        // Indicador transitorio mientras se generan args de tool (sin texto aún).
+        // Se limpia en handleStreamFinished antes de cerrar/finalizar el bubble,
+        // así no queda pegado en el chat ni envenena m_streamContent.
+        if (toolStreaming && m_streamContent.isEmpty()) {
+            int argChars = 0;
+            QString toolName;
+            const QList<int> ks = m_streamToolCalls.keys();
+            for (int k : ks) {
+                const QJsonObject tc = m_streamToolCalls.value(k);
+                argChars += tc.value(QStringLiteral("arguments")).toString().size();
+                if (toolName.isEmpty())
+                    toolName = tc.value(QStringLiteral("name")).toString();
+            }
+            if (toolName.isEmpty()) toolName = QStringLiteral("tool");
+            if (!full.isEmpty()) full += QLatin1Char('\n');
+            full += QStringLiteral("⏳ preparando `%1`… (~%2 tokens generados)")
+                        .arg(toolName).arg((argChars + 3) / 4);
+        }
         if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
             QVariantMap m = m_messages[m_curAsstIdx].toMap();
             // Marca el inicio real de la generación (primer token) para medir tps
@@ -628,13 +936,15 @@ void LlamaAgentBackend::handleStreamData()
             m[QStringLiteral("content")] = full;
             m[QStringLiteral("tokens")] = estimateTokens(full);
             m_messages[m_curAsstIdx] = m;
-            // Throttle: el modelo emite muchos tokens/seg y cada messagesChanged
-            // reconstruye todo el ListView. Limitar a ~15 fps evita congelar la UI.
-            // El render final está garantizado por handleStreamFinished/finishTurn.
+            // Throttle a ~30 fps. Durante el stream NO emitimos messagesChanged
+            // (reconstruye todo el ListView por cada token → jank). Mandamos sólo
+            // el delta de texto de ESTA burbuja vía streamingText; la UI refresca
+            // un único delegate. El estado final/estructural lo cierra
+            // handleStreamFinished/finishTurn con messagesChanged.
             const qint64 now = QDateTime::currentMSecsSinceEpoch();
-            if (now - m_lastUiEmitMs >= 66) {
+            if (now - m_lastUiEmitMs >= 33) {
                 m_lastUiEmitMs = now;
-                emit messagesChanged();
+                emit streamingText(m_curAsstIdx, full);
             }
         }
     }
@@ -643,6 +953,20 @@ void LlamaAgentBackend::handleStreamData()
 void LlamaAgentBackend::handleStreamFinished(bool ok, const QString &err)
 {
     if (!ok) { finishTurn(QStringLiteral("[error: %1]").arg(err)); return; }
+
+    // Quitar el indicador "⏳ preparando…" de tool en streaming: dejar el bubble
+    // con el contenido REAL del modelo antes de cerrarlo/finalizarlo. Sin esto el
+    // texto transitorio quedaría pegado en el chat y haría que closeAssistantBubble
+    // no descarte una burbuja que en realidad está vacía (sólo tool_calls).
+    if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
+        QString clean = m_streamBase;
+        if (!m_streamReason.isEmpty())
+            clean += QStringLiteral("<think>") + m_streamReason + QStringLiteral("</think>\n");
+        clean += m_streamContent;
+        QVariantMap m = m_messages[m_curAsstIdx].toMap();
+        m[QStringLiteral("content")] = clean;
+        m_messages[m_curAsstIdx] = m;
+    }
 
     // Reensamblar tool_calls ordenados por index.
     QJsonArray toolCalls;
@@ -729,7 +1053,8 @@ void LlamaAgentBackend::processPendingCalls()
     // ── Robustez: tool desconocida ───────────────────────────────────────
     static const QStringList known{
         QStringLiteral("read_file"), QStringLiteral("list_dir"), QStringLiteral("grep"),
-        QStringLiteral("write_file"), QStringLiteral("run_shell")};
+        QStringLiteral("write_file"), QStringLiteral("edit_file"),
+        QStringLiteral("glob"), QStringLiteral("run_shell"), QStringLiteral("web_fetch")};
     if (!known.contains(name) && !name.startsWith(kMcpPrefix)) {
         ++m_toolFail;
         m_pendingCalls.removeFirst();
@@ -766,8 +1091,22 @@ void LlamaAgentBackend::processPendingCalls()
         return;
     }
 
+    // PLAN MODE: bloquear cualquier tool que mute (write/shell/mcp). Las read
+    // ya están filtradas del schema, pero defendemos por si el modelo igual la pide.
+    if (m_approvalMode == QLatin1String("plan")
+        && kind != QLatin1String("read")) {
+        ++m_toolFail;
+        m_pendingCalls.removeFirst();
+        appendToolResult(id, name, QStringLiteral(
+            "[MODO PLAN: '%1' bloqueada (solo lectura). Proponé el cambio en texto; "
+            "el usuario saldrá de plan para ejecutarlo.]").arg(name));
+        processPendingCalls();
+        return;
+    }
+
     const bool autoAll  = (m_approvalMode == QLatin1String("auto")
-                           || m_approvalMode == QLatin1String("super"));
+                           || m_approvalMode == QLatin1String("super")
+                           || m_approvalMode == QLatin1String("plan"));   // plan = todo read → auto
     const bool autoRead = (m_approvalMode == QLatin1String("ask") && kind == QLatin1String("read"));
     const bool always   = m_alwaysAllowed.contains(kind);
 
@@ -784,14 +1123,32 @@ void LlamaAgentBackend::processPendingCalls()
     if (detail.isEmpty()) detail = args.value(QStringLiteral("path")).toString();
     if (detail.isEmpty()) detail = args.value(QStringLiteral("pattern")).toString();
     QString diff;
-    if (name == QLatin1String("write_file")) {
+    if (name == QLatin1String("write_file") || name == QLatin1String("edit_file")) {
         const QString rel = args.value(QStringLiteral("path")).toString();
         detail = rel;
         const QString abs = QDir::cleanPath(QDir(m_cwd).absoluteFilePath(rel));
         QString oldText;
         QFile prev(abs);
         if (prev.open(QIODevice::ReadOnly)) oldText = QString::fromUtf8(prev.read(4 * 1024 * 1024));
-        diff = makeDiff(oldText, args.value(QStringLiteral("content")).toString());
+        QString newText;
+        if (name == QLatin1String("write_file")) {
+            newText = args.value(QStringLiteral("content")).toString();
+        } else {
+            // edit_file: previsualizar el reemplazo (igual lógica que el worker).
+            const QString oldS = args.value(QStringLiteral("old_string")).toString();
+            const QString newS = args.value(QStringLiteral("new_string")).toString();
+            newText = oldText;
+            if (!oldS.isEmpty()) {
+                if (args.value(QStringLiteral("replace_all")).toBool()) {
+                    newText.replace(oldS, newS);
+                } else {
+                    const int idx = oldText.indexOf(oldS);
+                    if (idx >= 0)
+                        newText = oldText.left(idx) + newS + oldText.mid(idx + oldS.size());
+                }
+            }
+        }
+        diff = makeDiff(oldText, newText);
     }
     emit toolApprovalNeeded(QVariantMap{
         {QStringLiteral("id"),        m_awaitId},
@@ -851,15 +1208,45 @@ void LlamaAgentBackend::onToolExecuted(const QVariantMap &result)
 
     const QString name = result.value(QStringLiteral("name")).toString();
     const bool ok      = result.value(QStringLiteral("ok")).toBool();
-    const QString res  = result.value(QStringLiteral("result")).toString();
+    QString res        = result.value(QStringLiteral("result")).toString();
     const bool isWrite = result.value(QStringLiteral("isWrite")).toBool();
     if (ok) ++m_toolOk; else ++m_toolFail;
 
-    // write_file se representa con la tarjeta de diff (abajo). El resto de las
-    // tools van como tarjeta independiente con comando + salida colapsables, en
-    // vez de apilarse en el texto del LLM.
-    if (!isWrite)
+    // Read-dedup: si el modelo re-lee un archivo que ya leyó y NO cambió, no
+    // reenviamos el contenido (el server reprocesa todo el prompt cada iter por
+    // SWA → re-leer 300 líneas idénticas es puro desperdicio). Devolvemos un stub.
+    bool dedup = false;
+    if (name == QLatin1String("read_file") && ok) {
+        const QString rel = result.value(QStringLiteral("readRel")).toString();
+        const QString fp  = result.value(QStringLiteral("readFp")).toString();
+        if (!rel.isEmpty() && !fp.isEmpty()) {
+            if (m_readFingerprints.value(rel) == fp) {
+                res = QStringLiteral("[read_file: '%1' ya leído antes y sin cambios; "
+                                     "contenido omitido para ahorrar contexto]").arg(rel);
+                dedup = true;
+            } else {
+                m_readFingerprints.insert(rel, fp);
+            }
+        }
+    }
+
+    // run_shell async: ya hay una tarjeta "en vivo" (onToolStarted) con la salida
+    // streameada → finalizarla en vez de crear otra.
+    if (callId == m_liveToolCallId && m_liveToolMsgIdx >= 0
+        && m_liveToolMsgIdx < m_messages.size()) {
+        QVariantMap card = m_messages[m_liveToolMsgIdx].toMap();
+        card[QStringLiteral("ok")] = ok;
+        card[QStringLiteral("typing")] = false;
+        // Mostrar la salida real final (ya recortada por el worker).
+        card[QStringLiteral("output")] = res.left(64 * 1024);
+        m_messages[m_liveToolMsgIdx] = card;
+        emit messagesChanged();
+        m_liveToolCallId.clear();
+        m_liveToolMsgIdx = -1;
+    } else if (!isWrite) {
+        // write_file/edit_file → tarjeta de diff (abajo). El resto → tarjeta propia.
         appendToolCard(name, toolKind(name), ok, m_execCommand, res);
+    }
     m_execCommand.clear();
 
     // write_file: snapshot (revert) + entrada de diff en el chat.
@@ -879,8 +1266,53 @@ void LlamaAgentBackend::onToolExecuted(const QVariantMap &result)
         emit messagesChanged();
     }
 
-    appendToolResult(callId, name, res);
+    // Al contexto va la versión acotada (salvo que ya sea un stub de dedup).
+    appendToolResult(callId, name, dedup ? res : budgetToolOutput(name, res));
     processPendingCalls();
+}
+
+// run_shell async: arranca → crear tarjeta "en vivo" (typing) con el comando.
+void LlamaAgentBackend::onToolStarted(const QVariantMap &info)
+{
+    const QString callId = info.value(QStringLiteral("callId")).toString();
+    if (callId.isEmpty() || callId != m_execCallId) return;   // ajeno/tardío
+    const QString name = info.value(QStringLiteral("name")).toString();
+    const QString cmd  = info.value(QStringLiteral("command")).toString();
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    m_messages.append(QVariantMap{
+        {QStringLiteral("role"),    QStringLiteral("toolcall")},
+        {QStringLiteral("name"),    name},
+        {QStringLiteral("kind"),    info.value(QStringLiteral("kind"))},
+        {QStringLiteral("ok"),      true},
+        {QStringLiteral("command"), cmd},
+        {QStringLiteral("output"),  QString()},
+        {QStringLiteral("typing"),  true},          // en ejecución
+        {QStringLiteral("createdAt"),   static_cast<double>(nowMs)},
+        {QStringLiteral("completedAt"), static_cast<double>(nowMs)},
+        {QStringLiteral("elapsedMs"), 0},
+        {QStringLiteral("tokens"), 0},
+        {QStringLiteral("tps"), 0.0}});
+    m_liveToolMsgIdx = m_messages.size() - 1;
+    m_liveToolCallId = callId;
+    m_lastToolEmitMs = 0;
+    emit messagesChanged();
+}
+
+// run_shell async: chunk de salida → anexar a la tarjeta en vivo (throttle).
+void LlamaAgentBackend::onToolOutputChunk(const QString &callId, const QString &chunk)
+{
+    if (callId != m_liveToolCallId || m_liveToolMsgIdx < 0
+        || m_liveToolMsgIdx >= m_messages.size()) return;
+    QVariantMap card = m_messages[m_liveToolMsgIdx].toMap();
+    QString out = card.value(QStringLiteral("output")).toString() + chunk;
+    if (out.size() > 64 * 1024) out = out.right(64 * 1024);   // cola visible
+    card[QStringLiteral("output")] = out;
+    m_messages[m_liveToolMsgIdx] = card;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastToolEmitMs >= 100) {        // ~10 fps
+        m_lastToolEmitMs = now;
+        emit messagesChanged();
+    }
 }
 
 void LlamaAgentBackend::appendToolResult(const QString &id, const QString &name, const QString &content)
@@ -897,8 +1329,13 @@ QStringList LlamaAgentBackend::requiredArgs(const QString &name)
 {
     if (name == QLatin1String("read_file"))  return {QStringLiteral("path")};
     if (name == QLatin1String("grep"))       return {QStringLiteral("pattern")};
+    if (name == QLatin1String("glob"))       return {QStringLiteral("pattern")};
     if (name == QLatin1String("write_file")) return {QStringLiteral("path"), QStringLiteral("content")};
+    // edit_file: new_string puede ser vacío (borrar texto) → NO requerirlo aquí
+    // (el chequeo de requeridos rechaza strings vacíos).
+    if (name == QLatin1String("edit_file")) return {QStringLiteral("path"), QStringLiteral("old_string")};
     if (name == QLatin1String("run_shell"))  return {QStringLiteral("command")};
+    if (name == QLatin1String("web_fetch"))  return {QStringLiteral("url")};
     return {};   // list_dir: path opcional
 }
 
@@ -948,7 +1385,7 @@ void LlamaAgentBackend::closeAssistantBubble()
             // Finalizar métricas: en modo agente esta es la vía habitual de cierre
             // (la respuesta va seguida de tool calls), así que el cálculo de
             // tiempo/tps debe hacerse aquí igual que en finishTurn/setTyping.
-            finalizeMsgMetrics(m);
+            finalizeMsgMetrics(m, m_genTokens, m_genMs);
             m_messages[m_curAsstIdx] = m;
         }
         emit messagesChanged();
@@ -1016,7 +1453,7 @@ void LlamaAgentBackend::finishTurn(const QString &finalText)
         }
         m[QStringLiteral("content")] = cur;
         m[QStringLiteral("typing")]  = false;
-        finalizeMsgMetrics(m);
+        finalizeMsgMetrics(m, m_genTokens, m_genMs);
         m_messages[m_curAsstIdx] = m;
         emit messagesChanged();
     }
@@ -1039,6 +1476,11 @@ void LlamaAgentBackend::finishTurn(const QString &finalText)
                              .arg(qRound(100.0 * m_toolOk / total)));
 
     saveCurrentSession();   // persistir al cerrar el turno
+
+    // Turno cerrado → si hay mensajes encolados, enviar el próximo. Async (cola)
+    // para no anidar runCompletion dentro del stack del turno que recién terminó.
+    if (!m_msgQueue.isEmpty())
+        QMetaObject::invokeMethod(this, "flushQueue", Qt::QueuedConnection);
 }
 
 // ───────────────────────────── Tools ─────────────────────────────────────
@@ -1046,7 +1488,8 @@ QString LlamaAgentBackend::toolKind(const QString &name)
 {
     if (name.startsWith(kMcpPrefix)) return QStringLiteral("mcp");
     if (name == QLatin1String("run_shell")) return QStringLiteral("shell");
-    if (name == QLatin1String("write_file")) return QStringLiteral("write");
+    if (name == QLatin1String("write_file") || name == QLatin1String("edit_file"))
+        return QStringLiteral("write");
     return QStringLiteral("read");
 }
 
@@ -1074,26 +1517,72 @@ QJsonArray LlamaAgentBackend::toolSchemas()
         return QJsonObject{{QStringLiteral("type"), QStringLiteral("string")},
                            {QStringLiteral("description"), d}};
     };
+    auto intProp = [](const QString &d) {
+        return QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")},
+                           {QStringLiteral("description"), d}};
+    };
+    auto boolProp = [](const QString &d) {
+        return QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
+                           {QStringLiteral("description"), d}};
+    };
     return QJsonArray{
-        fn(QStringLiteral("read_file"), QStringLiteral("Lee un archivo de texto del proyecto."),
-           QJsonObject{{QStringLiteral("path"), strProp(QStringLiteral("Ruta relativa al proyecto."))}},
+        fn(QStringLiteral("read_file"),
+           QStringLiteral("Lee un archivo de texto del proyecto. Para archivos grandes, "
+                          "leé sólo el tramo que necesites con offset/limit en vez de todo."),
+           QJsonObject{
+               {QStringLiteral("path"), strProp(QStringLiteral("Ruta relativa al proyecto."))},
+               {QStringLiteral("offset"), intProp(QStringLiteral("Línea inicial (1-based). Opcional."))},
+               {QStringLiteral("limit"), intProp(QStringLiteral("Cantidad de líneas a leer desde offset. Opcional."))}},
            QJsonArray{QStringLiteral("path")}),
         fn(QStringLiteral("list_dir"), QStringLiteral("Lista archivos y carpetas de un directorio."),
-           QJsonObject{{QStringLiteral("path"), strProp(QStringLiteral("Ruta relativa (vacío = raíz)."))}},
-           QJsonArray{}),
-        fn(QStringLiteral("grep"), QStringLiteral("Busca un patrón (texto) en los archivos del proyecto."),
            QJsonObject{
-               {QStringLiteral("pattern"), strProp(QStringLiteral("Texto a buscar."))},
+               {QStringLiteral("path"), strProp(QStringLiteral("Ruta relativa (vacío = raíz)."))},
+               {QStringLiteral("recursive"), boolProp(QStringLiteral("Listar recursivo (ignora node_modules/.git/etc). Default false."))}},
+           QJsonArray{}),
+        fn(QStringLiteral("grep"),
+           QStringLiteral("Busca una EXPRESIÓN REGULAR en los archivos del proyecto (recursivo). "
+                          "Ignora node_modules/.git/build/dist/venv/__pycache__ y binarios."),
+           QJsonObject{
+               {QStringLiteral("pattern"), strProp(QStringLiteral("Regex a buscar (sintaxis estilo PCRE)."))},
                {QStringLiteral("path"), strProp(QStringLiteral("Subdirectorio opcional."))}},
            QJsonArray{QStringLiteral("pattern")}),
-        fn(QStringLiteral("write_file"), QStringLiteral("Escribe (crea/sobrescribe) un archivo de texto."),
+        fn(QStringLiteral("glob"),
+           QStringLiteral("Lista archivos que matchean un patrón glob (recursivo). Ej: '**/*.qml', "
+                          "'src/**/*.cpp', '*.json'. Usá '**' para cualquier subcarpeta."),
+           QJsonObject{
+               {QStringLiteral("pattern"), strProp(QStringLiteral("Patrón glob. '*'=segmento, '**'=recursivo, '?'=1 char."))},
+               {QStringLiteral("path"), strProp(QStringLiteral("Subdirectorio base opcional."))}},
+           QJsonArray{QStringLiteral("pattern")}),
+        fn(QStringLiteral("write_file"), QStringLiteral("Escribe (crea/sobrescribe) un archivo de texto. "
+                          "Para CAMBIOS PUNTUALES en un archivo existente preferí edit_file (mucho más rápido)."),
            QJsonObject{
                {QStringLiteral("path"), strProp(QStringLiteral("Ruta relativa al proyecto."))},
                {QStringLiteral("content"), strProp(QStringLiteral("Contenido completo del archivo."))}},
            QJsonArray{QStringLiteral("path"), QStringLiteral("content")}),
-        fn(QStringLiteral("run_shell"), QStringLiteral("Ejecuta un comando de shell en el directorio del proyecto."),
-           QJsonObject{{QStringLiteral("command"), strProp(QStringLiteral("Comando a ejecutar."))}},
-           QJsonArray{QStringLiteral("command")})
+        fn(QStringLiteral("edit_file"),
+           QStringLiteral("Edita un archivo existente reemplazando un fragmento EXACTO de texto. "
+                          "old_string debe aparecer una sola vez (incluí contexto suficiente) salvo "
+                          "que uses replace_all. new_string vacío = borrar el fragmento. Preferí esto "
+                          "a reescribir el archivo entero con write_file."),
+           QJsonObject{
+               {QStringLiteral("path"), strProp(QStringLiteral("Ruta relativa al proyecto."))},
+               {QStringLiteral("old_string"), strProp(QStringLiteral("Texto exacto a reemplazar (con su indentación)."))},
+               {QStringLiteral("new_string"), strProp(QStringLiteral("Texto nuevo (vacío = borrar)."))},
+               {QStringLiteral("replace_all"), boolProp(QStringLiteral("Reemplazar TODAS las apariciones. Default false."))}},
+           QJsonArray{QStringLiteral("path"), QStringLiteral("old_string")}),
+        fn(QStringLiteral("run_shell"),
+           QStringLiteral("Ejecuta un comando de shell en el directorio del proyecto. "
+                          "Para builds/tests largos pasá timeout_s alto (default 120, máx 1800)."),
+           QJsonObject{
+               {QStringLiteral("command"), strProp(QStringLiteral("Comando a ejecutar."))},
+               {QStringLiteral("timeout_s"), intProp(QStringLiteral("Timeout en segundos (default 120, máx 1800)."))}},
+           QJsonArray{QStringLiteral("command")}),
+        fn(QStringLiteral("web_fetch"),
+           QStringLiteral("Descarga una URL http(s) y devuelve su texto (HTML limpiado a texto plano). "
+                          "Para docs/referencias online."),
+           QJsonObject{
+               {QStringLiteral("url"), strProp(QStringLiteral("URL completa (http:// o https://)."))}},
+           QJsonArray{QStringLiteral("url")})
     };
 }
 
@@ -1115,6 +1604,8 @@ void LlamaAgentBackend::ensureWorker()
     connect(m_worker, &AgentToolRunner::logAppended, this, &LlamaAgentBackend::logAppended);
     connect(m_worker, &AgentToolRunner::serversReady, this, &LlamaAgentBackend::onServersReady);
     connect(m_worker, &AgentToolRunner::toolExecuted, this, &LlamaAgentBackend::onToolExecuted);
+    connect(m_worker, &AgentToolRunner::toolStarted, this, &LlamaAgentBackend::onToolStarted);
+    connect(m_worker, &AgentToolRunner::toolOutputChunk, this, &LlamaAgentBackend::onToolOutputChunk);
     m_workerThread->start();
 }
 
@@ -1148,6 +1639,22 @@ void LlamaAgentBackend::onServersReady(const QVariantList &toolDefs)
 // Built-in + tools MCP (cache de m_mcpTools, prefijo mcp__<server>__<tool>).
 QJsonArray LlamaAgentBackend::buildToolSchemas() const
 {
+    // PLAN MODE: solo lectura. Excluir write_file/edit_file/run_shell y MCP
+    // (no podemos saber si una tool MCP muta), dejar read_file/list_dir/grep/
+    // glob/web_fetch.
+    if (m_approvalMode == QLatin1String("plan")) {
+        static const QSet<QString> planAllowed{
+            QStringLiteral("read_file"), QStringLiteral("list_dir"),
+            QStringLiteral("grep"), QStringLiteral("glob"), QStringLiteral("web_fetch")};
+        QJsonArray ro;
+        for (const QJsonValue &v : toolSchemas()) {
+            const QString n = v.toObject().value(QStringLiteral("function"))
+                                  .toObject().value(QStringLiteral("name")).toString();
+            if (planAllowed.contains(n)) ro.append(v);
+        }
+        return ro;
+    }
+
     QJsonArray all = toolSchemas();
     for (const QVariant &v : m_mcpTools) {
         const QVariantMap t = v.toMap();
@@ -1338,6 +1845,9 @@ void LlamaAgentBackend::setCurrentSession(const QString &sessionId)
     m_curAsstIdx = -1;
     m_messages.clear();
     m_apiMessages = {};
+    m_readFingerprints.clear();
+    m_checkpoints.clear();
+    if (!m_msgQueue.isEmpty()) { m_msgQueue.clear(); emit queueChanged(); }
 
     QFile f(sessionFilePath(sessionId));
     if (f.open(QIODevice::ReadOnly)) {

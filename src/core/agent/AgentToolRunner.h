@@ -1,11 +1,15 @@
 #pragma once
 #include <QObject>
+#include <QByteArray>
+#include <QElapsedTimer>
 #include <QJsonObject>
 #include <QList>
 #include <QVariantList>
 #include <QVariantMap>
 
 class McpClient;
+class QProcess;
+class QTimer;
 
 // Ejecuta las tools del agente (nativas + MCP) en un hilo worker, para no
 // bloquear el hilo de UI (run_shell, descarga de npx en el handshake MCP y
@@ -28,17 +32,38 @@ public slots:
                      const QString &argsJson, const QString &cwd);
     // Confinamiento al cwd. false = "Super Agente" (acceso a todo el disco).
     void setConfined(bool confined);
+    // Mata el run_shell en curso (cancelación real desde PARAR/steer).
+    void cancelShell();
     void shutdown();
 
 signals:
     void logAppended(const QString &chunk);
     void serversReady(const QVariantList &toolDefs); // {server,name,description,schema}
     void toolExecuted(const QVariantMap &result);
+    // run_shell async: arranque (crea tarjeta en vivo) y chunks de salida.
+    void toolStarted(const QVariantMap &info);       // {callId,name,kind,command}
+    void toolOutputChunk(const QString &callId, const QString &chunk);
+
+private slots:
+    void onShellReadyRead();
+    void onShellFinished();
+    void onShellTimeout();
 
 private:
     QString runNative(const QString &name, const QJsonObject &args,
                       const QString &cwd, QVariantMap &out, bool *ok);
+    void startShell(const QString &callId, const QString &command,
+                    const QString &cwd, int timeoutS);
+    void finishShell(bool timedOut, bool cancelled);
 
     QList<McpClient *> m_mcp;
     bool m_confined = true;
+
+    // Estado del run_shell async en curso (uno a la vez; el loop es secuencial).
+    QProcess   *m_shellProc = nullptr;
+    QTimer     *m_shellTimer = nullptr;
+    QString     m_shellCallId;
+    QByteArray  m_shellOut;          // salida acumulada
+    QElapsedTimer m_shellClock;
+    int         m_shellTimeoutS = 120;
 };

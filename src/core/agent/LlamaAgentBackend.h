@@ -28,6 +28,15 @@ public:
     void stop() override;
     void sendMessage(const QString &text) override;
     void cancelGeneration() override;
+    void steerMessage(const QString &text) override;
+    void queueMessage(const QString &text) override;
+    int queuedCount() const override { return m_msgQueue.size(); }
+    QStringList queuedMessages() const override { return m_msgQueue; }
+    void clearQueue() override;
+
+    // Rebobinar la conversación al estado previo a un mensaje de usuario (índice
+    // en la lista de UI). Trunca mensajes + contexto y revierte edits posteriores.
+    void rollbackToMessage(int msgIndex);
 
     void newSession() override;
     void newSessionInProject(const QString &projectDir) override;
@@ -83,6 +92,15 @@ private:
 private slots:
     void onServersReady(const QVariantList &toolDefs);
     void onToolExecuted(const QVariantMap &result);
+    void onToolStarted(const QVariantMap &info);          // run_shell async: tarjeta en vivo
+    void onToolOutputChunk(const QString &callId, const QString &chunk);
+    void flushQueue();                 // envía el próximo mensaje encolado (si lo hay)
+
+private:
+    bool isBusy() const;               // turno/tool/compactación en curso
+    void interruptForSteer();          // aborta y deja m_apiMessages consistente
+    void repairDanglingToolCalls();    // cierra tool_calls sin respuesta tras abortar
+    void finalizeLiveToolCard(bool cancelled);  // cierra tarjeta run_shell en vivo
 
 private:
     void approveAndContinue(const QString &id, const QString &response); // once|always|reject
@@ -142,6 +160,16 @@ private:
     QString m_execCallId;            // tool_call en ejecución ("" = ninguno)
     QString m_execCommand;           // comando/ruta del tool en ejecución (para la tarjeta)
     qint64  m_lastUiEmitMs = 0;       // throttle de messagesChanged durante streaming
+    // run_shell async: tarjeta de tool "en vivo" (creada al arrancar, actualizada
+    // con chunks de salida, finalizada al terminar).
+    QString m_liveToolCallId;
+    int     m_liveToolMsgIdx = -1;
+    qint64  m_lastToolEmitMs = 0;     // throttle de chunks de salida del shell
+    // Métricas REALES de generación del server (no estimadas chars/4 + wall):
+    // del objeto `timings`/`usage` del último completion. predicted_n tokens en
+    // predicted_ms ms → tps de generación pura (sin prompt-processing/TTFT).
+    int     m_genTokens = 0;
+    double  m_genMs = 0.0;
 
     QString m_sessionId;
     QString m_sessionTitle;
@@ -179,4 +207,20 @@ private:
     // Snapshots para revertir ediciones: path absoluto → {existía, contenido viejo}
     struct EditSnapshot { bool existed = false; QByteArray oldContent; };
     QHash<QString, EditSnapshot> m_editSnapshots;
+
+    // Read-dedup: ruta relativa → huella (md5) del último contenido leído en la
+    // sesión. Re-lectura con la misma huella → stub en el contexto. Se limpia al
+    // cambiar/crear sesión.
+    QHash<QString, QString> m_readFingerprints;
+
+    // Mensajes encolados (modo "encolar"): se envían uno por uno al terminar cada
+    // turno. Se limpia al cambiar/crear sesión.
+    QStringList m_msgQueue;
+
+    // Checkpoints para rollback: uno por turno de usuario (antes de enviar). Guarda
+    // longitudes de m_messages/m_apiMessages y qué archivos ya estaban editados
+    // (para revertir solo los editados DESPUÉS al rebobinar).
+    struct Checkpoint { int apiLen; int msgLen; QStringList editKeys; };
+    QList<Checkpoint> m_checkpoints;
+    void pushCheckpoint();
 };

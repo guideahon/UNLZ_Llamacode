@@ -128,6 +128,7 @@ void RawChatBackend::createSession(const QString &projectId, const QString &proj
     m_projectDir = projectDir;
     m_messages.clear();
     m_curAsstIdx = -1;
+    if (!m_msgQueue.isEmpty()) { m_msgQueue.clear(); emit queueChanged(); }
     persistIndex();
     persistSession(id);
     emit sessionsChanged();
@@ -141,6 +142,7 @@ void RawChatBackend::setCurrentSession(const QString &sessionId)
     m_sessionId = sessionId;
     m_messages = loadMessagesForSession(sessionId);
     m_curAsstIdx = -1;
+    if (!m_msgQueue.isEmpty()) { m_msgQueue.clear(); emit queueChanged(); }
     for (const QVariant &v : std::as_const(m_sessions)) {
         const QVariantMap s = v.toMap();
         if (s.value(QStringLiteral("id")).toString() == sessionId) {
@@ -456,6 +458,9 @@ void RawChatBackend::sendMessage(const QString &text)
         if (!ok && !m_stopping)
             emit errorOccurred(QStringLiteral("raw chat error: %1").arg(err));
         m_curAsstIdx = -1;
+        // Respuesta cerrada → enviar el próximo encolado (async para no anidar).
+        if (!m_msgQueue.isEmpty())
+            QMetaObject::invokeMethod(this, "flushQueue", Qt::QueuedConnection);
     });
 }
 
@@ -484,6 +489,42 @@ void RawChatBackend::cancelGeneration()
         emit messagesChanged();
     }
     m_curAsstIdx = -1;
+    if (!m_msgQueue.isEmpty()) { m_msgQueue.clear(); emit queueChanged(); }
+}
+
+// Steering: cortar la respuesta en curso y enviar el mensaje nuevo de inmediato.
+void RawChatBackend::steerMessage(const QString &text)
+{
+    const QString t = text.trimmed();
+    if (!m_running || t.isEmpty()) return;
+    if (m_reply) cancelGeneration();
+    sendMessage(t);
+}
+
+// Cola: si hay una respuesta en curso, guardar y enviar al terminar; si no, ya.
+void RawChatBackend::queueMessage(const QString &text)
+{
+    const QString t = text.trimmed();
+    if (!m_running || t.isEmpty()) return;
+    if (!m_reply) { sendMessage(t); return; }
+    m_msgQueue << t;
+    emit queueChanged();
+    emit logAppended(QStringLiteral("[encolado (%1 en cola)]\n").arg(m_msgQueue.size()));
+}
+
+void RawChatBackend::flushQueue()
+{
+    if (!m_running || m_reply || m_msgQueue.isEmpty()) return;
+    const QString t = m_msgQueue.takeFirst();
+    emit queueChanged();
+    sendMessage(t);
+}
+
+void RawChatBackend::clearQueue()
+{
+    if (m_msgQueue.isEmpty()) return;
+    m_msgQueue.clear();
+    emit queueChanged();
 }
 
 bool RawChatBackend::updateSessionProject(const QString &sessionId, const QString &projectId,

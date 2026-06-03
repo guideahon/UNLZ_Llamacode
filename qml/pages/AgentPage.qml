@@ -384,7 +384,8 @@ Item {
                         { key: "auto",   label: "Aprobar todo" },
                         { key: "ask",    label: "Pedir escritura" },
                         { key: "manual", label: "Pedir todo" },
-                        { key: "super",  label: "Super Agente ⚠" }
+                        { key: "super",  label: "Super Agente ⚠" },
+                        { key: "plan",   label: "Plan (solo lectura)" }
                     ]
                     textRole: "label"
                     valueRole: "key"
@@ -393,7 +394,8 @@ Item {
                     // real sea "ask"). Mapeo explícito para que UI y backend coincidan.
                     currentIndex: App.agentApprovalMode === "manual" ? 2
                                   : App.agentApprovalMode === "auto" ? 0
-                                  : App.agentApprovalMode === "super" ? 3 : 1
+                                  : App.agentApprovalMode === "super" ? 3
+                                  : App.agentApprovalMode === "plan" ? 4 : 1
                     onActivated: {
                         if (currentValue === "super" && App.agentApprovalMode !== "super") {
                             superAgentDialog.open()   // confirmar antes de aplicar
@@ -850,7 +852,13 @@ Item {
                         readonly property bool isUser: modelData.role === "user"
                         readonly property bool isDiff: modelData.role === "diff"
                         readonly property bool isTool: modelData.role === "toolcall"
-                        readonly property string content: modelData.content ?? ""
+                        // Durante streaming, esta burbuja usa el texto en vivo
+                        // (App.agentStreamingText) en vez de modelData.content, así
+                        // sólo este delegate se refresca por token (sin reset de lista).
+                        readonly property bool isStreaming: index === App.agentStreamingIndex
+                        readonly property string content: isStreaming
+                            ? App.agentStreamingText
+                            : (modelData.content ?? "")
                         readonly property bool isTyping: modelData.typing ?? false
                         readonly property string metaLine: root.formatMeta(modelData)
 
@@ -911,6 +919,7 @@ Item {
                                 Row {
                                     width: parent.width
                                     layoutDirection: Qt.RightToLeft
+                                    spacing: 12
                                     visible: delegateRoot.content.length > 0 && !delegateRoot.isTyping
                                     Text {
                                         text: bubbleRect.justCopied ? "✓ Copiado" : "⧉ Copiar"
@@ -927,6 +936,21 @@ Item {
                                                 bubbleRect.justCopied = true
                                                 copyResetTimer.restart()
                                             }
+                                        }
+                                    }
+                                    // Rebobinar: descarta este turno y los siguientes
+                                    // (revierte edits posteriores). Solo en mensajes del usuario.
+                                    Text {
+                                        visible: delegateRoot.isUser && !App.agentRunning
+                                        text: "↩ Rebobinar"
+                                        color: rewindMA.containsMouse ? Theme.textPrimary : Theme.textMuted
+                                        font.pixelSize: 10
+                                        MouseArea {
+                                            id: rewindMA
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: App.rollbackAgentToMessage(index)
                                         }
                                     }
                                 }
@@ -1058,7 +1082,10 @@ Item {
                             color: Theme.inputBg
                             border.color: Theme.borderColor
 
-                            property bool expanded: false
+                            // run_shell async en ejecución → expandido y "corriendo".
+                            readonly property bool running: modelData.typing ?? false
+                            property bool userExpanded: false
+                            readonly property bool expanded: running || userExpanded
                             readonly property bool ok: modelData.ok ?? true
                             readonly property string toolName: modelData.name ?? ""
                             readonly property string command: modelData.command ?? ""
@@ -1078,7 +1105,7 @@ Item {
                                         color: Theme.textMuted; font.pixelSize: 12
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: toolCard.expanded = !toolCard.expanded
+                                            onClicked: toolCard.userExpanded = !toolCard.expanded
                                         }
                                     }
                                     Text { text: "🔧"; font.pixelSize: 13 }
@@ -1091,19 +1118,22 @@ Item {
                                         elide: Text.ElideRight
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: toolCard.expanded = !toolCard.expanded
+                                            onClicked: toolCard.userExpanded = !toolCard.expanded
                                         }
                                     }
-                                    // Estado ok/error
+                                    // Estado: corriendo / ok / error
                                     Rectangle {
                                         radius: 4
-                                        color: toolCard.ok ? Theme.highlight : "#7a2230"
+                                        color: toolCard.running ? "#5a4a1a"
+                                               : (toolCard.ok ? Theme.highlight : "#7a2230")
                                         implicitHeight: 18; implicitWidth: statusTxt.implicitWidth + 12
                                         Text {
                                             id: statusTxt
                                             anchors.centerIn: parent
-                                            text: toolCard.ok ? "ok" : "error"
-                                            color: toolCard.ok ? Theme.textPrimary : "#ffd5d5"
+                                            text: toolCard.running ? "corriendo…"
+                                                  : (toolCard.ok ? "ok" : "error")
+                                            color: toolCard.running ? "#ffe9a8"
+                                                   : (toolCard.ok ? Theme.textPrimary : "#ffd5d5")
                                             font.pixelSize: 10
                                         }
                                     }
@@ -1112,7 +1142,7 @@ Item {
                                         secondary: true
                                         implicitHeight: 24
                                         visible: toolCard.hasBody
-                                        onClicked: toolCard.expanded = !toolCard.expanded
+                                        onClicked: toolCard.userExpanded = !toolCard.expanded
                                     }
                                     LcButton {
                                         text: "Copiar"; secondary: true
@@ -1370,33 +1400,63 @@ Item {
                     id: agentInput
                     Layout.fillWidth: true
                     enabled: App.serverRunning && App.serverReady
+                    readonly property bool busy: root.hasTypingMessage
                     placeholderText: (!App.serverRunning)
                         ? "Servidor no disponible. Iniciá el modelo en Lanzar."
-                        : (App.serverReady
-                        ? (App.langV, App.l("agent.input"))
-                        : "Modelo cargando...")
-                    onAccepted: {
+                        : (!App.serverReady
+                           ? "Modelo cargando..."
+                           : (busy
+                              ? ("Enter encola · Shift+Enter interrumpe"
+                                 + (App.agentQueuedCount > 0 ? "  ·  " + App.agentQueuedCount + " en cola" : ""))
+                              : (App.langV, App.l("agent.input"))))
+                    // Enter = enviar (idle) o encolar (ocupado). Shift+Enter = interrumpir.
+                    Keys.onPressed: (event) => {
+                        if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) return
+                        event.accepted = true
                         const t = text.trim()
                         if (t.length === 0 || !App.serverRunning || !App.serverReady) return
-                        if (root.hasTypingMessage) return   // generando: no enviar (usar PARAR)
+                        if (event.modifiers & Qt.ShiftModifier) { App.steerAgent(t); text = ""; return }
+                        if (busy) { App.queueAgent(t); text = ""; return }
                         App.sendToAgent(t); text = ""
                     }
                 }
+                // Idle: un solo botón "Enviar".
                 LcButton {
-                    // Mientras la IA piensa/genera, el botón pasa a "PARAR" (rojo)
-                    // y aborta el turno en curso. Si no, envía el mensaje.
-                    readonly property bool busy: root.hasTypingMessage
-                    text: busy ? "PARAR" : (App.langV, App.l("agent.send"))
-                    danger: busy
-                    enabled: busy
-                        ? true
-                        : (agentInput.text.trim().length > 0 && App.serverRunning && App.serverReady)
+                    visible: !agentInput.busy
+                    text: (App.langV, App.l("agent.send"))
+                    enabled: agentInput.text.trim().length > 0 && App.serverRunning && App.serverReady
                     onClicked: {
-                        if (busy) { App.cancelAgentGeneration(); return }
                         const t = agentInput.text.trim()
                         if (t.length === 0) return
                         App.sendToAgent(t); agentInput.text = ""
                     }
+                }
+                // Ocupado + hay texto: Encolar (manda al terminar) / Interrumpir (corta y manda ya).
+                LcButton {
+                    visible: agentInput.busy && agentInput.text.trim().length > 0
+                    text: "Encolar" + (App.agentQueuedCount > 0 ? " (" + App.agentQueuedCount + ")" : "")
+                    onClicked: {
+                        const t = agentInput.text.trim()
+                        if (t.length === 0) return
+                        App.queueAgent(t); agentInput.text = ""
+                    }
+                }
+                LcButton {
+                    visible: agentInput.busy && agentInput.text.trim().length > 0
+                    text: "Interrumpir"
+                    danger: true
+                    onClicked: {
+                        const t = agentInput.text.trim()
+                        if (t.length === 0) return
+                        App.steerAgent(t); agentInput.text = ""
+                    }
+                }
+                // PARAR: abortar el turno sin enviar nada (siempre visible si genera).
+                LcButton {
+                    visible: agentInput.busy
+                    text: "PARAR"
+                    danger: true
+                    onClicked: App.cancelAgentGeneration()
                 }
             }
         }

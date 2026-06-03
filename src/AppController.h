@@ -47,6 +47,13 @@ class AppController : public QObject
     Q_PROPERTY(bool agentRunning      READ agentRunning      NOTIFY agentRunningChanged)
     Q_PROPERTY(QString agentLog       READ agentLog          NOTIFY agentLogChanged)
     Q_PROPERTY(QVariantList agentMessages  READ agentMessages  NOTIFY agentMessagesChanged)
+    // Streaming incremental: índice del mensaje en streaming (-1 = ninguno) y su
+    // texto en vivo. La UI override sólo esa burbuja sin re-bindear toda la lista.
+    Q_PROPERTY(int agentStreamingIndex READ agentStreamingIndex NOTIFY agentStreamingChanged)
+    Q_PROPERTY(QString agentStreamingText READ agentStreamingText NOTIFY agentStreamingChanged)
+    // Mensajes encolados pendientes (modo "encolar"), agente y chat.
+    Q_PROPERTY(int agentQueuedCount READ agentQueuedCount NOTIFY agentQueueChanged)
+    Q_PROPERTY(int chatQueuedCount READ chatQueuedCount NOTIFY chatQueueChanged)
     Q_PROPERTY(QVariantList agentSessions  READ agentSessions  NOTIFY agentSessionsChanged)
     Q_PROPERTY(QString opencodeSessionId   READ opencodeSessionId   NOTIFY agentSessionsChanged)
     Q_PROPERTY(QString opencodeSessionTitle READ opencodeSessionTitle NOTIFY agentSessionsChanged)
@@ -113,6 +120,10 @@ public:
     }
     QString agentLog() const { return m_agentLog; }
     QVariantList agentMessages()  const { return m_agentMessages; }
+    int agentStreamingIndex() const { return m_agentStreamingIndex; }
+    QString agentStreamingText() const { return m_agentStreamingText; }
+    int agentQueuedCount() const { return m_agentQueuedCount; }
+    int chatQueuedCount() const { return m_chatQueuedCount; }
     QVariantList agentSessions()  const { return m_agentSessions; }
     QString opencodeSessionId()   const { return m_opencodeSessionId; }
     QString opencodeSessionTitle() const { return m_opencodeSessionTitle; }
@@ -148,6 +159,9 @@ public:
     Q_INVOKABLE void renameChatProject(const QString &oldName, const QString &newName);
     Q_INVOKABLE void sendChatMessage(const QString &text);
     Q_INVOKABLE void sendChatMessageWithAttachments(const QString &text, const QStringList &paths);
+    Q_INVOKABLE void steerChat(const QString &text);
+    Q_INVOKABLE void queueChat(const QString &text);
+    Q_INVOKABLE void clearChatQueue();
     Q_INVOKABLE QStringList pickChatAttachments();
     // Si el portapapeles tiene una imagen, la guarda a temp y devuelve la ruta; "" si no.
     Q_INVOKABLE QString pasteClipboardImage();
@@ -178,6 +192,12 @@ public:
     Q_INVOKABLE void startAgent(const QString &launchProfileId);
     Q_INVOKABLE void stopAgent();
     Q_INVOKABLE void sendToAgent(const QString &text);
+    // Steering (interrumpe el turno y manda ya) / cola (manda al terminar).
+    Q_INVOKABLE void steerAgent(const QString &text);
+    Q_INVOKABLE void queueAgent(const QString &text);
+    Q_INVOKABLE void clearAgentQueue();
+    // Rebobinar la conversación del agente al estado previo a un mensaje de usuario.
+    Q_INVOKABLE void rollbackAgentToMessage(int msgIndex);
     // Aborta la generación/turno en curso sin matar el backend (botón PARAR).
     Q_INVOKABLE void cancelAgentGeneration();
     Q_INVOKABLE void approveAgentTool(const QString &id, bool always = false);
@@ -249,6 +269,9 @@ signals:
     void agentRunningChanged();
     void agentLogChanged();
     void agentMessagesChanged();
+    void agentStreamingChanged();
+    void agentQueueChanged();
+    void chatQueueChanged();
     void agentSessionsChanged();
     void agentPendingToolChanged();
     void agentApprovalModeChanged();
@@ -346,6 +369,10 @@ private:
     QString   m_opencodeSessionTitle;
     bool           m_agentStopping = false;   // reservado para path genérico (stdin)
     QVariantList m_agentMessages;
+    int       m_agentStreamingIndex = -1;
+    QString   m_agentStreamingText;
+    int       m_agentQueuedCount = 0;
+    int       m_chatQueuedCount = 0;
     int       m_currentAssistantIdx = -1;
     QVariantList m_agentSessions;
     QVariantMap m_agentPendingTool;   // tool esperando aprobación ({} si ninguna)

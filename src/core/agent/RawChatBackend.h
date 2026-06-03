@@ -20,6 +20,11 @@ public:
     void stop() override;
     void sendMessage(const QString &text) override;
     void cancelGeneration() override;
+    void steerMessage(const QString &text) override;
+    void queueMessage(const QString &text) override;
+    int queuedCount() const override { return m_msgQueue.size(); }
+    QStringList queuedMessages() const override { return m_msgQueue; }
+    void clearQueue() override;
 
     void newSession() override;
     void newSessionInProject(const QString &projectDir) override;
@@ -72,4 +77,8 @@ private:
     QString m_reasonBuf;   // reasoning_content acumulado (thinking)
     QString m_answerBuf;   // content acumulado (respuesta)
     QStringList m_pendingAttachments;  // rutas a adjuntar en el próximo envío
+    QStringList m_msgQueue;            // mensajes encolados (se envían al terminar)
+
+private slots:
+    void flushQueue();
 };
