@@ -47,6 +47,7 @@ void SubAgentRunner::start()
     m_worker = new AgentToolRunner;
     m_worker->moveToThread(m_workerThread);
     m_worker->setConfined(true);
+    m_worker->setServerBaseUrl(m_serverBaseUrl);
     connect(m_worker, &AgentToolRunner::toolExecuted, this, &SubAgentRunner::onToolExecuted);
     m_workerThread->start();
 

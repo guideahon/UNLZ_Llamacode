@@ -20,6 +20,11 @@ ProfileManager::ProfileManager(QObject *parent) : QObject(parent)
     }
 }
 
+void ProfileManager::reloadFromDisk()
+{
+    load();
+}
+
 // ---- BackendProfile ----
 
 QString ProfileManager::addBackend(const QString &name, const QString &binaryId,

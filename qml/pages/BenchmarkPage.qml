@@ -17,7 +17,13 @@ Item {
         }
     }
 
-    Component.onCompleted: App.loadBenchmarkResults ? App.loadBenchmarkResults() : null
+    // Custom benchmark selection: "" = standard tasks, else a custom benchmark id
+    property string customId: ""
+
+    Component.onCompleted: {
+        if (App.loadBenchmarkResults) App.loadBenchmarkResults()
+        if (App.loadCustomBenchmarks) App.loadCustomBenchmarks()
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -59,6 +65,66 @@ Item {
                         Item { height: 2 }
                         RadioButton { id: fullMode; text: "Completa (~5 min)" }
                         Text { text: "5 speed + 7 quality tasks"; color: Theme.textMuted; font.pixelSize: 11; leftPadding: 24 }
+                        Item { height: 2 }
+                        RadioButton { id: customMode; text: "Custom benchmark" }
+                        Text { text: "Tus prompts personalizados"; color: Theme.textMuted; font.pixelSize: 11; leftPadding: 24 }
+                    }
+
+                    // ── Selector de benchmark personalizado (solo en modo custom) ──
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        visible: customMode.checked
+
+                        ComboBox {
+                            id: benchCombo
+                            Layout.fillWidth: true
+                            textRole: "text"
+                            valueRole: "id"
+                            model: {
+                                const arr = []
+                                const cs = App.customBenchmarks || []
+                                for (let i = 0; i < cs.length; i++)
+                                    arr.push({ id: cs[i].id, text: cs[i].name || "(sin nombre)" })
+                                if (arr.length === 0)
+                                    arr.push({ id: "", text: "(sin benchmarks — creá uno)" })
+                                return arr
+                            }
+                            onActivated: root.customId = currentValue
+                            onModelChanged: { currentIndex = Math.max(0, indexOfValue(root.customId)); root.customId = currentValue }
+                            Component.onCompleted: { currentIndex = Math.max(0, indexOfValue(root.customId)); root.customId = currentValue }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            LcButton {
+                                Layout.fillWidth: true
+                                text: "Nuevo"
+                                onClicked: { editor.loadDef(null); editor.open() }
+                            }
+                            LcButton {
+                                Layout.fillWidth: true
+                                text: "Editar"
+                                enabled: root.customId !== ""
+                                onClicked: {
+                                    const cs = App.customBenchmarks || []
+                                    for (let i = 0; i < cs.length; i++)
+                                        if (cs[i].id === root.customId) { editor.loadDef(cs[i]); editor.open(); break }
+                                }
+                            }
+                            LcButton {
+                                Layout.fillWidth: true
+                                text: "Borrar"
+                                danger: true
+                                enabled: root.customId !== ""
+                                onClicked: {
+                                    App.deleteCustomBenchmark(root.customId)
+                                    root.customId = ""
+                                    benchCombo.currentIndex = 0
+                                }
+                            }
+                        }
                     }
 
                     Rectangle { height: 1; Layout.fillWidth: true; color: Theme.divider }
@@ -71,7 +137,8 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 200
+                        Layout.fillHeight: true
+                        Layout.minimumHeight: 120
                         color: Theme.inputBg
                         radius: 6
                         border.color: Theme.divider; border.width: 1
@@ -143,7 +210,23 @@ Item {
                         }
                     }
 
-                    Item { Layout.fillHeight: true }
+                    // Pasadas por perfil
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        enabled: !App.benchmarkRunning
+                        Text {
+                            text: "Pasadas por perfil"
+                            color: Theme.textSecondary; font.pixelSize: 12
+                            Layout.fillWidth: true
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        SpinBox {
+                            id: passesSpin
+                            from: 1; to: 20; value: 1; editable: true
+                            implicitWidth: 96
+                        }
+                    }
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -153,12 +236,17 @@ Item {
                             Layout.fillWidth: true
                             text: App.benchmarkRunning ? "Cancelar" : "Iniciar benchmark"
                             danger: App.benchmarkRunning
-                            enabled: App.benchmarkRunning || root.selectedIds.length > 0
+                            enabled: App.benchmarkRunning
+                                     || (root.selectedIds.length > 0
+                                         && (!customMode.checked || root.customId !== ""))
                             onClicked: {
                                 if (App.benchmarkRunning) {
                                     App.cancelBenchmark()
+                                } else if (customMode.checked) {
+                                    if (root.customId !== "")
+                                        App.startCustomBenchmark(root.selectedIds, root.customId, passesSpin.value)
                                 } else {
-                                    App.startBenchmark(root.selectedIds, shortMode.checked ? "short" : "full")
+                                    App.startBenchmark(root.selectedIds, shortMode.checked ? "short" : "full", passesSpin.value)
                                 }
                             }
                         }
@@ -249,6 +337,20 @@ Item {
                             Behavior on height { NumberAnimation { duration: 150 } }
 
                             HoverHandler { id: rowHover }
+
+                            // Click derecho → menú contextual
+                            TapHandler {
+                                acceptedButtons: Qt.RightButton
+                                onTapped: rowMenu.popup()
+                            }
+                            Menu {
+                                id: rowMenu
+                                MenuItem {
+                                    text: "Ver carpeta contenedora"
+                                    enabled: (modelData.runDir ?? "") !== ""
+                                    onTriggered: App.openBenchmarkFolder(modelData.runDir ?? "")
+                                }
+                            }
 
                             // ── Main row ───────────────────────────────────
                             RowLayout {
@@ -349,28 +451,59 @@ Item {
 
                                 Repeater {
                                     model: modelData.tasks ?? []
-                                    delegate: RowLayout {
+                                    delegate: Column {
                                         width: taskList.width
-                                        spacing: 8
+                                        spacing: 1
+                                        // true cuando el task viene de un benchmark custom (heurísticas presentes)
+                                        property bool isCustom: modelData.codeOnly !== undefined
 
-                                        Text {
-                                            text: modelData.type === "speed" ? "⚡" : (modelData.passed ? "✓" : "✗")
-                                            color: modelData.type === "speed" ? Theme.accent
-                                                 : (modelData.passed ? Theme.successText : Theme.errorText)
-                                            font.pixelSize: 11
-                                            Layout.preferredWidth: 16
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 8
+
+                                            Text {
+                                                text: modelData.type === "speed" ? "⚡" : (modelData.passed ? "✓" : "✗")
+                                                color: modelData.type === "speed" ? Theme.accent
+                                                     : (modelData.passed ? Theme.successText : Theme.errorText)
+                                                font.pixelSize: 11
+                                                Layout.preferredWidth: 16
+                                            }
+                                            Text {
+                                                text: modelData.id ?? ""
+                                                color: Theme.textSecondary; font.pixelSize: 11
+                                                Layout.preferredWidth: 160
+                                            }
+                                            Text {
+                                                text: modelData.type === "speed"
+                                                    ? (modelData.tps ?? 0).toFixed(1) + " t/s  TTFT " + (modelData.ttft_ms ?? 0).toFixed(0) + " ms"
+                                                    : (modelData.passed ? "correcto" : "incorrecto") + "  " + (modelData.elapsed_ms ?? 0) + " ms"
+                                                color: Theme.textMuted; font.pixelSize: 10
+                                                Layout.fillWidth: true
+                                            }
                                         }
+
+                                        // ── Métricas extra (benchmarks custom) ──────────
                                         Text {
-                                            text: modelData.id ?? ""
-                                            color: Theme.textSecondary; font.pixelSize: 11
-                                            Layout.preferredWidth: 160
-                                        }
-                                        Text {
-                                            text: modelData.type === "speed"
-                                                ? (modelData.tps ?? 0).toFixed(1) + " t/s  TTFT " + (modelData.ttft_ms ?? 0).toFixed(0) + " ms"
-                                                : (modelData.passed ? "correcto" : "incorrecto") + "  " + (modelData.elapsed_ms ?? 0) + " ms"
+                                            visible: parent.isCustom
+                                            leftPadding: 24
                                             color: Theme.textMuted; font.pixelSize: 10
-                                            Layout.fillWidth: true
+                                            text: {
+                                                const tok = modelData.tokens ?? 0
+                                                const tot = ((modelData.elapsed_ms ?? 0) / 1000.0).toFixed(2)
+                                                return tok + " tok · " + tot + " s total"
+                                            }
+                                        }
+                                        Text {
+                                            visible: parent.isCustom
+                                            leftPadding: 24
+                                            font.pixelSize: 10
+                                            color: modelData.codeOnly ? Theme.successText : Theme.warnText
+                                            text: (modelData.codeOnly ? "✓ solo código" : "✗ incluye prosa")
+                                                + (modelData.hasCode
+                                                    ? "   ·   " + (modelData.inventedDeps
+                                                        ? "⚠ deps no-stdlib (" + (modelData.depCount ?? 0) + "): " + ((modelData.depList ?? []).join(", "))
+                                                        : "✓ sin deps externas")
+                                                    : "")
                                         }
                                     }
                                 }
@@ -379,6 +512,162 @@ Item {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // ── Editor de benchmark personalizado ──────────────────────────────────────
+    Dialog {
+        id: editor
+        modal: true
+        parent: Overlay.overlay
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        width: Math.min(parent ? parent.width - 80 : 860, 860)
+        height: Math.min(parent ? parent.height - 60 : 720, 760)
+        padding: 0
+        closePolicy: Popup.CloseOnEscape
+
+        property string editId: ""
+
+        Overlay.modal: Rectangle { color: Theme.overlayColor }
+        background: Rectangle {
+            color: Theme.popupBg
+            radius: 12
+            border.color: Theme.popupBorderColor; border.width: 1
+        }
+
+        ListModel { id: taskModel }
+
+        function loadDef(def) {
+            taskModel.clear()
+            if (def) {
+                editId = def.id || ""
+                nameField.text = def.name || ""
+                const ps = def.prompts || []
+                for (let i = 0; i < ps.length; i++)
+                    taskModel.append({ prompt: ps[i].prompt || "" })
+            } else {
+                editId = ""
+                nameField.text = ""
+            }
+            if (taskModel.count === 0)
+                taskModel.append({ prompt: "" })
+        }
+
+        function save() {
+            const prompts = []
+            for (let i = 0; i < taskModel.count; i++) {
+                const it = taskModel.get(i)
+                if ((it.prompt || "").trim() === "") continue
+                prompts.push({ id: "task_" + (i + 1), prompt: it.prompt, isSpeed: true, maxTokens: 8192 })
+            }
+            if (nameField.text.trim() === "" || prompts.length === 0) return
+            const def = { name: nameField.text.trim(), prompts: prompts }
+            if (editId !== "") def.id = editId
+            const newId = App.saveCustomBenchmark(def)
+            root.customId = newId
+            benchCombo.currentIndex = Math.max(0, benchCombo.indexOfValue(newId))
+            editor.close()
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+
+            // Header
+            Rectangle {
+                Layout.fillWidth: true
+                height: 52
+                color: Theme.popupHeaderBg
+                radius: 12
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.popupHeaderBorder }
+                Text {
+                    anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                    text: "Benchmark personalizado"
+                    color: Theme.textPrimary; font.pixelSize: 14; font.bold: true
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.margins: 18
+                spacing: 10
+
+                LcTextField {
+                    id: nameField
+                    Layout.fillWidth: true
+                    placeholderText: "Nombre del benchmark"
+                }
+
+                Text {
+                    text: "PROMPTS"
+                    color: Theme.textSecondary; font.pixelSize: 10; font.bold: true
+                }
+
+                ListView {
+                    id: taskEditList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    model: taskModel
+                    spacing: 8
+                    ScrollBar.vertical: LcScrollBar {}
+
+                    delegate: Rectangle {
+                        width: taskEditList.width - 4
+                        height: rowCol.implicitHeight + 16
+                        color: Theme.inputBg; radius: 6
+                        border.color: promptArea.activeFocus ? Theme.inputBorderFocus : Theme.divider
+                        border.width: promptArea.activeFocus ? 2 : 1
+
+                        RowLayout {
+                            id: rowCol
+                            anchors { fill: parent; margins: 8 }
+                            spacing: 8
+
+                            TextArea {
+                                id: promptArea
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Math.max(100, contentHeight + topPadding + bottomPadding)
+                                wrapMode: TextArea.Wrap
+                                placeholderText: "Prompt..."
+                                color: Theme.textPrimary
+                                placeholderTextColor: Theme.textMuted
+                                font.pixelSize: 13
+                                text: model.prompt
+                                onTextChanged: taskModel.setProperty(index, "prompt", text)
+                                background: null
+                            }
+                            Rectangle {
+                                Layout.alignment: Qt.AlignTop
+                                width: 24; height: 24; radius: 4
+                                color: delTaskHover.containsMouse ? Theme.errorText : "transparent"
+                                opacity: taskModel.count > 1 ? 1 : 0.3
+                                Text {
+                                    anchors.centerIn: parent; text: "✕"; font.pixelSize: 12
+                                    color: delTaskHover.containsMouse ? "white" : Theme.textMuted
+                                }
+                                HoverHandler { id: delTaskHover }
+                                TapHandler { onTapped: if (taskModel.count > 1) taskModel.remove(index) }
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    LcButton {
+                        text: "+ Prompt"
+                        secondary: true
+                        onClicked: taskModel.append({ prompt: "" })
+                    }
+                    Item { Layout.fillWidth: true }
+                    LcButton { text: "Cancelar"; secondary: true; onClicked: editor.close() }
+                    LcButton { text: "Guardar"; onClicked: editor.save() }
                 }
             }
         }

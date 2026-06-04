@@ -134,7 +134,7 @@ Item {
                         enabled: !App.serverStopping && launchCombo.count > 0 && (launchCombo.currentValue !== undefined || App.serverRunning)
                         onClicked: {
                             if (App.serverRunning) App.stopServer()
-                            else App.startServer(launchCombo.currentValue ?? "")
+                            else App.startServerAndAgent(launchCombo.currentValue ?? "")
                         }
                     }
 

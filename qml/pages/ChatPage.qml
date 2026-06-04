@@ -41,7 +41,7 @@ Item {
         if (App.chatGenerating) doQueue(); else doSend()
     }
 
-    function scrollToBottom() { Qt.callLater(() => { msgList.positionViewAtEnd() }) }
+    function scrollToBottom() { msgList.followBottom = true; Qt.callLater(() => { msgList.scrollToBottom() }) }
 
     function projectIdForSection(sectionName) {
         for (let i = 0; i < App.chatSessions.length; i++) {
@@ -668,6 +668,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
+                boundsBehavior: Flickable.StopAtBounds
                 spacing: 4
                 topMargin: 12
                 bottomMargin: 12
@@ -880,11 +881,40 @@ Item {
                         Timer { id: chatCopyResetTimer; interval: 1500; onTriggered: bubbleRect.justCopied = false }
                     }
 
-                    Component.onCompleted: Qt.callLater(() => { msgList.positionViewAtEnd() })
+                    Component.onCompleted: { msgList.followBottom = true; Qt.callLater(() => { msgList.scrollToBottom() }) }
                 }
 
-                onCountChanged: Qt.callLater(() => { msgList.positionViewAtEnd() })
-                onModelChanged: Qt.callLater(() => { msgList.positionViewAtEnd() })
+                // Auto-scroll por contentY directo (no positionViewAtEnd) para
+                // evitar oscilación con delegates de altura variable.
+                property bool followBottom: true
+
+                function scrollToBottom() {
+                    var maxY = Math.max(0, contentHeight - height)
+                    if (contentY !== maxY)
+                        contentY = maxY
+                }
+
+                onMovementEnded: followBottom = atYEnd
+                onContentHeightChanged: if (followBottom) chatBottomTimer.restart()
+                onCountChanged: { followBottom = true; chatBottomTimer.restart() }
+                onModelChanged: { followBottom = true; chatBottomTimer.restart() }
+
+                Timer {
+                    id: chatBottomTimer
+                    interval: 16
+                    onTriggered: if (msgList.followBottom) msgList.scrollToBottom()
+                }
+
+                WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: function(ev) {
+                        var step = ev.angleDelta.y / 120 * 90
+                        var maxY = Math.max(0, msgList.contentHeight - msgList.height)
+                        msgList.contentY = Math.max(0, Math.min(maxY, msgList.contentY - step))
+                        msgList.followBottom = (msgList.contentY >= maxY - 2)
+                        ev.accepted = true
+                    }
+                }
             }
 
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }

@@ -20,6 +20,8 @@
 #include "core/agent/OpencodeBackend.h"
 #include "core/agent/RawChatBackend.h"
 #include "core/agent/LlamaAgentBackend.h"
+#include "core/agent/McpClient.h"
+#include <QtConcurrent>
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
@@ -28,18 +30,70 @@
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QCoreApplication>
 #include <QUuid>
+#include <QDirIterator>
 #include <functional>
 #include <QSet>
 #include <memory>
 #include <QFile>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QThread>
+#include <algorithm>
+#include <cmath>
+
+struct ResearchHit {
+    QString title;
+    QString url;
+    QString snippet;
+};
+
+// Agrupa sesiones por proyecto (secciones contiguas), proyecto más reciente
+// arriba, y dentro de cada proyecto la sesión más nueva primero. Necesario
+// porque ListView.section sólo agrupa filas contiguas: si la lista no viene
+// ordenada por projectName, el mismo proyecto aparece partido en secciones.
+static QVariantList groupSessionsByProject(const QVariantList &in)
+{
+    QVector<QVariantMap> rows;
+    rows.reserve(in.size());
+    for (const QVariant &v : in) rows.append(v.toMap());
+
+    auto stamp = [](const QVariantMap &s) {
+        const double u = s.value(QStringLiteral("updated")).toDouble();
+        return u > 0.0 ? u : s.value(QStringLiteral("created")).toDouble();
+    };
+
+    QHash<QString, double> projLatest;
+    for (const auto &s : std::as_const(rows)) {
+        const QString p = s.value(QStringLiteral("projectName")).toString();
+        const double u = stamp(s);
+        if (u > projLatest.value(p, 0.0)) projLatest[p] = u;
+    }
+    std::stable_sort(rows.begin(), rows.end(), [&](const QVariantMap &a, const QVariantMap &b) {
+        const QString pa = a.value(QStringLiteral("projectName")).toString();
+        const QString pb = b.value(QStringLiteral("projectName")).toString();
+        if (pa != pb) {
+            const double la = projLatest.value(pa);
+            const double lb = projLatest.value(pb);
+            // Desempate por nombre: si los timestamps de proyecto empatan, igual
+            // hay que forzar contigüidad o las secciones quedan intercaladas.
+            if (la != lb) return la > lb;
+            return pa < pb;
+        }
+        return stamp(a) > stamp(b);
+    });
+
+    QVariantList out;
+    out.reserve(rows.size());
+    for (const auto &s : std::as_const(rows)) out.append(s);
+    return out;
+}
 
 static bool isSupportedImageAttachment(const QString &path)
 {
@@ -47,6 +101,85 @@ static bool isSupportedImageAttachment(const QString &path)
     return ext == QLatin1String("png") || ext == QLatin1String("jpg")
            || ext == QLatin1String("jpeg") || ext == QLatin1String("webp")
            || ext == QLatin1String("gif") || ext == QLatin1String("bmp");
+}
+
+static QString researchCleanHtmlToText(QString text)
+{
+    text.remove(QRegularExpression(QStringLiteral("(?is)<(script|style)[^>]*>.*?</\\1>")));
+    text.remove(QRegularExpression(QStringLiteral("(?s)<[^>]+>")));
+    text.replace(QStringLiteral("&nbsp;"), QStringLiteral(" "));
+    text.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
+    text.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
+    text.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
+    text.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
+    text.replace(QStringLiteral("&#x27;"), QStringLiteral("'"));
+    text.replace(QRegularExpression(QStringLiteral("[ \t]+")), QStringLiteral(" "));
+    text.replace(QRegularExpression(QStringLiteral("\n[ \t]*(?:\n[ \t]*)+")), QStringLiteral("\n\n"));
+    return text.trimmed();
+}
+
+static QString researchResolveDdgRedirect(QString raw)
+{
+    if (raw.startsWith(QLatin1String("//"))) raw = QStringLiteral("https:") + raw;
+    QUrl ru(raw);
+    if (ru.path().endsWith(QLatin1String("/l/")) || ru.path() == QLatin1String("/l")) {
+        const QString uddg = QUrlQuery(ru).queryItemValue(QStringLiteral("uddg"), QUrl::FullyDecoded);
+        if (!uddg.isEmpty()) return uddg;
+    }
+    return raw;
+}
+
+static QVector<ResearchHit> researchParseDdg(const QString &html, int count)
+{
+    QVector<ResearchHit> hits;
+    QRegularExpression reTitle(
+        QStringLiteral("(?is)<a[^>]+class=\"[^\"]*result__a[^\"]*\"[^>]+href=\"([^\"]+)\"[^>]*>(.*?)</a>"));
+    QRegularExpression reSnip(
+        QStringLiteral("(?is)class=\"[^\"]*result__snippet[^\"]*\"[^>]*>(.*?)</a>"));
+    auto snipIt = reSnip.globalMatch(html);
+    auto titleIt = reTitle.globalMatch(html);
+    while (titleIt.hasNext() && hits.size() < count) {
+        const auto tm = titleIt.next();
+        ResearchHit h;
+        h.url = researchResolveDdgRedirect(tm.captured(1));
+        h.title = researchCleanHtmlToText(tm.captured(2));
+        if (snipIt.hasNext()) h.snippet = researchCleanHtmlToText(snipIt.next().captured(1));
+        if (!h.url.isEmpty()) hits.append(h);
+    }
+    return hits;
+}
+
+static QStringList researchQueriesFor(const QString &topic, const QString &mode)
+{
+    QStringList queries;
+    queries << topic;
+    if (mode == QLatin1String("compare")) {
+        queries << topic + QStringLiteral(" comparison benchmarks alternatives");
+        queries << topic + QStringLiteral(" pros cons limitations");
+    } else if (mode == QLatin1String("product")) {
+        queries << topic + QStringLiteral(" official pricing features docs");
+        queries << topic + QStringLiteral(" review limitations competitors");
+    } else if (mode == QLatin1String("howto")) {
+        queries << topic + QStringLiteral(" official docs tutorial setup");
+        queries << topic + QStringLiteral(" common errors troubleshooting");
+    } else if (mode == QLatin1String("factcheck")) {
+        queries << topic + QStringLiteral(" source evidence fact check");
+        queries << topic + QStringLiteral(" controversy correction");
+    } else {
+        queries << topic + QStringLiteral(" official docs latest");
+        queries << topic + QStringLiteral(" analysis risks limitations");
+    }
+    queries.removeDuplicates();
+    return queries.mid(0, 4);
+}
+
+static QString researchModeTitle(const QString &mode)
+{
+    if (mode == QLatin1String("product")) return QStringLiteral("Product");
+    if (mode == QLatin1String("compare")) return QStringLiteral("Compare");
+    if (mode == QLatin1String("howto")) return QStringLiteral("How-to");
+    if (mode == QLatin1String("factcheck")) return QStringLiteral("Fact-check");
+    return QStringLiteral("Auto");
 }
 
 AppController::AppController(QObject *parent) : QObject(parent)
@@ -58,6 +191,10 @@ AppController::AppController(QObject *parent) : QObject(parent)
     m_agentSystemPrompt = s.value(QStringLiteral("agent/systemPrompt")).toString();
     m_agentPermRules    = s.value(QStringLiteral("agent/permRules")).toString();
     m_agentTemperature  = s.value(QStringLiteral("agent/temperature"), -1.0).toDouble();
+    m_agentDisabledTools = s.value(QStringLiteral("agent/disabledTools")).toStringList();
+    m_agentTeacherUrl   = s.value(QStringLiteral("agent/teacherUrl")).toString();
+    m_agentTeacherModel = s.value(QStringLiteral("agent/teacherModel")).toString();
+    m_agentTeacherKey   = s.value(QStringLiteral("agent/teacherKey")).toString();
     m_gitAvailable      = !QStandardPaths::findExecutable(QStringLiteral("git")).isEmpty();
 
     killManagedOrphans();
@@ -75,11 +212,13 @@ AppController::AppController(QObject *parent) : QObject(parent)
     m_roots.refresh();
     connect(&m_binaries, &BinaryRegistry::countChanged, this, &AppController::setupStateChanged);
     connect(&m_catalog, &ModelCatalog::countChanged, this, &AppController::setupStateChanged);
+    rescanHardware();
 
     // If folders are registered but no models were found yet (e.g. a root added
     // in "manual" mode), scan them once on startup so the catalog is populated.
     if (m_roots.count() > 0 && m_catalog.count() == 0)
         m_roots.scanAll();
+    refreshResearchReports();
 }
 
 void AppController::startServer(const QString &launchProfileId)
@@ -179,6 +318,11 @@ void AppController::startServer(const QString &launchProfileId)
                 "llama-server crasheó (0xC0000409). Revisá el perfil de lanzamiento activo (args/runtime)."));
         }
         clearServiceState(QStringLiteral("server"));
+        if (!m_pendingAutoAgentLaunchId.isEmpty()) {
+            m_pendingAutoAgentLaunchId.clear();
+            m_agentStarting = false;
+            emit agentStartingChanged();
+        }
         if (m_stopKillTimer) { m_stopKillTimer->stop(); m_stopKillTimer->deleteLater(); m_stopKillTimer = nullptr; }
         stopHealthPolling();
         m_serverStopping = false;
@@ -240,10 +384,59 @@ void AppController::startHealthPolling()
                 emit serverReadyChanged();
                 stopHealthPolling();
                 fetchChatThinkingSupport();
+                if (!m_pendingAutoAgentLaunchId.isEmpty() && !agentRunning()) {
+                    const QString launchId = m_pendingAutoAgentLaunchId;
+                    m_pendingAutoAgentLaunchId.clear();
+                    emit agentStartingChanged();
+                    appendAgentEvent(QStringLiteral("lifecycle"),
+                                     QStringLiteral("Servidor listo; iniciando agente del perfil."));
+                    startAgent(launchId);
+                }
             }
         });
     });
     m_healthPollTimer->start();
+}
+
+void AppController::startServerAndAgent(const QString &launchProfileId)
+{
+    const auto ctx = buildContext(launchProfileId);
+    const QString adapter = ctx.harness.adapter.trimmed();
+    const bool hasAgent = !adapter.isEmpty()
+                          && adapter != QLatin1String("none")
+                          && adapter != QLatin1String("raw");
+
+    if (serverRunning()) {
+        if (hasAgent && !agentRunning())
+            startAgent(launchProfileId);
+        return;
+    }
+
+    m_pendingAutoAgentLaunchId = hasAgent ? launchProfileId : QString();
+    if (hasAgent) {
+        m_agentStarting = true;
+        emit agentStartingChanged();
+        appendAgentEvent(QStringLiteral("lifecycle"),
+                         QStringLiteral("Agente programado para iniciar cuando el servidor este listo."));
+    }
+
+    startServer(launchProfileId);
+
+    if (!serverRunning()) {
+        m_pendingAutoAgentLaunchId.clear();
+        if (m_agentStarting) {
+            m_agentStarting = false;
+            emit agentStartingChanged();
+        }
+        return;
+    }
+
+    if (m_serverReady && !m_pendingAutoAgentLaunchId.isEmpty() && !agentRunning()) {
+        const QString launchId = m_pendingAutoAgentLaunchId;
+        m_pendingAutoAgentLaunchId.clear();
+        emit agentStartingChanged();
+        startAgent(launchId);
+    }
 }
 
 void AppController::fetchChatThinkingSupport()
@@ -281,6 +474,11 @@ void AppController::stopHealthPolling()
 void AppController::stopServer()
 {
     if (!m_proc || m_serverStopping) return;
+    if (m_agentStarting || !m_pendingAutoAgentLaunchId.isEmpty()) {
+        m_agentStarting = false;
+        m_pendingAutoAgentLaunchId.clear();
+        emit agentStartingChanged();
+    }
     stopHealthPolling();
     m_serverReady    = false;
     m_serverStopping = true;
@@ -1071,7 +1269,7 @@ IAgentBackend *AppController::ensureAgentBackend(const QString &adapter)
         emit gitRequiredForSubagents();   // la UI ofrece instalar git
     });
     connect(b, &IAgentBackend::sessionsChanged, this, [this, b]() {
-        m_agentSessions = b->sessions();
+        m_agentSessions = groupSessionsByProject(b->sessions());
         m_opencodeSessionId = b->currentSessionId();
         m_opencodeSessionTitle = b->currentSessionTitle();
         emit agentSessionsChanged();
@@ -1080,6 +1278,10 @@ IAgentBackend *AppController::ensureAgentBackend(const QString &adapter)
         appendAgentEvent(QStringLiteral("backend"), chunk);
     });
     connect(b, &IAgentBackend::runningChanged, this, [this, b]() {
+        if (m_agentStarting) {
+            m_agentStarting = false;
+            emit agentStartingChanged();
+        }
         if (!b->running()) {
             m_activeAgentAdapter.clear();
             if (!m_agentPendingTool.isEmpty()) {
@@ -1092,6 +1294,10 @@ IAgentBackend *AppController::ensureAgentBackend(const QString &adapter)
         emit agentRunningChanged();
     });
     connect(b, &IAgentBackend::errorOccurred, this, [this](const QString &m) {
+        if (m_agentStarting) {
+            m_agentStarting = false;
+            emit agentStartingChanged();
+        }
         appendAgentEvent(QStringLiteral("error"), m);
         emit serverError(m);
     });
@@ -1108,6 +1314,10 @@ IAgentBackend *AppController::ensureAgentBackend(const QString &adapter)
     b->setApprovalPolicy(m_agentApprovalMode);
     b->setPermissionRules(m_agentPermRules);
     b->setAgentTuning(m_agentSystemPrompt, m_agentTemperature >= 0.0 ? m_agentTemperature : m_resolvedProfileTemperature);
+    if (auto *cb = qobject_cast<LlamaAgentBackend *>(b)) {
+        cb->setDisabledTools(m_agentDisabledTools);
+        cb->setTeacherConfig(m_agentTeacherUrl, m_agentTeacherModel, m_agentTeacherKey);
+    }
     m_agentBackend = b;
     return b;
 }
@@ -1157,6 +1367,60 @@ void AppController::setAgentThinkingEnabled(bool enabled)
     if (auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
         cb->setThinkingEnabled(enabled);
     emit agentThinkingChanged();
+}
+
+void AppController::setAgentTeacherUrl(const QString &url)
+{
+    if (url == m_agentTeacherUrl) return;
+    m_agentTeacherUrl = url;
+    writeSetting(QStringLiteral("agent/teacherUrl"), url);
+    if (auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
+        cb->setTeacherConfig(m_agentTeacherUrl, m_agentTeacherModel, m_agentTeacherKey);
+    emit agentTeacherChanged();
+}
+
+void AppController::setAgentTeacherModel(const QString &model)
+{
+    if (model == m_agentTeacherModel) return;
+    m_agentTeacherModel = model;
+    writeSetting(QStringLiteral("agent/teacherModel"), model);
+    if (auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
+        cb->setTeacherConfig(m_agentTeacherUrl, m_agentTeacherModel, m_agentTeacherKey);
+    emit agentTeacherChanged();
+}
+
+void AppController::setAgentTeacherKey(const QString &key)
+{
+    if (key == m_agentTeacherKey) return;
+    m_agentTeacherKey = key;
+    writeSetting(QStringLiteral("agent/teacherKey"), key);
+    if (auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
+        cb->setTeacherConfig(m_agentTeacherUrl, m_agentTeacherModel, m_agentTeacherKey);
+    emit agentTeacherChanged();
+}
+
+QVariantList AppController::agentToolCatalog() const
+{
+    QVariantList out = LlamaAgentBackend::toolCatalog();
+    for (QVariant &v : out) {
+        QVariantMap m = v.toMap();
+        m.insert(QStringLiteral("enabled"),
+                 !m_agentDisabledTools.contains(m.value(QStringLiteral("name")).toString()));
+        v = m;
+    }
+    return out;
+}
+
+void AppController::setAgentToolEnabled(const QString &name, bool enabled)
+{
+    const bool isDisabled = m_agentDisabledTools.contains(name);
+    if (enabled == !isDisabled) return;               // sin cambio
+    if (enabled) m_agentDisabledTools.removeAll(name);
+    else if (!isDisabled) m_agentDisabledTools.append(name);
+    writeSetting(QStringLiteral("agent/disabledTools"), m_agentDisabledTools);
+    if (auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
+        cb->setDisabledTools(m_agentDisabledTools);   // efectivo en el próximo turno
+    emit agentToolsChanged();
 }
 
 void AppController::approveAgentTool(const QString &id, bool always)
@@ -1232,7 +1496,7 @@ IAgentBackend *AppController::ensureChatBackend()
         emit chatQueueChanged();
     });
     connect(b, &IAgentBackend::sessionsChanged, this, [this, b]() {
-        m_chatSessions = b->sessions();
+        m_chatSessions = groupSessionsByProject(b->sessions());
         m_chatSessionId = b->currentSessionId();
         m_chatSessionTitle = b->currentSessionTitle();
         emit chatSessionsChanged();
@@ -1258,14 +1522,21 @@ void AppController::startAgent(const QString &launchProfileId)
     const auto ctx = buildContext(launchProfileId);
     const QString adapter = ctx.harness.adapter;
     if (adapter.isEmpty() || adapter == QLatin1String("none")) {
+        if (m_agentStarting) { m_agentStarting = false; emit agentStartingChanged(); }
         appendAgentEvent(QStringLiteral("lifecycle"), QStringLiteral("Error: no harness configured for this profile"));
         return;
     }
     if (adapter == QLatin1String("raw")) {
+        if (m_agentStarting) { m_agentStarting = false; emit agentStartingChanged(); }
         appendAgentEvent(QStringLiteral("lifecycle"),
                          QStringLiteral("Error: 'raw' no soporta tool-calling. Usá 'opencode' para modo Agente."));
         emit serverError(QStringLiteral("El harness 'raw' no soporta tool-calling en modo Agente."));
         return;
+    }
+
+    if (!m_agentStarting) {
+        m_agentStarting = true;
+        emit agentStartingChanged();
     }
 
     // Backend propio: sin binario externo, corre dentro de la app.
@@ -1278,6 +1549,8 @@ void AppController::startAgent(const QString &launchProfileId)
                 "El harness 'LlamaAgent' necesita el servidor corriendo. Iniciá el modelo en 'Lanzar' primero.");
             appendAgentEvent(QStringLiteral("lifecycle"), QStringLiteral("Error: %1").arg(msg));
             emit serverError(msg);
+            m_agentStarting = false;
+            emit agentStartingChanged();
             return;
         }
 
@@ -1296,7 +1569,12 @@ void AppController::startAgent(const QString &launchProfileId)
         }
 
         IAgentBackend *b = ensureAgentBackend(adapter);
-        if (!b) { appendAgentEvent(QStringLiteral("lifecycle"), QStringLiteral("Error: backend LlamaAgent no disponible")); return; }
+        if (!b) {
+            appendAgentEvent(QStringLiteral("lifecycle"), QStringLiteral("Error: backend LlamaAgent no disponible"));
+            m_agentStarting = false;
+            emit agentStartingChanged();
+            return;
+        }
         b->setAgentTuning(m_agentSystemPrompt, m_agentTemperature >= 0.0 ? m_agentTemperature : m_resolvedProfileTemperature);
         const QString agentCwd = m_agentCwdOverride.isEmpty()
             ? ctx.workspace.cwd.trimmed() : m_agentCwdOverride;
@@ -1320,6 +1598,8 @@ void AppController::startAgent(const QString &launchProfileId)
     if (exe.isEmpty()) {
         appendAgentEvent(QStringLiteral("lifecycle"),
                          QStringLiteral("Error: '%1' not found in PATH — install it first").arg(adapter));
+        m_agentStarting = false;
+        emit agentStartingChanged();
         return;
     }
 
@@ -1365,12 +1645,14 @@ void AppController::startAgent(const QString &launchProfileId)
                            + QString::number(QDateTime::currentMSecsSinceEpoch()) + QStringLiteral(".json");
         m_agentCwdOverride.clear();
         m_piActive            = true;
+        m_agentStarting       = false;
         m_activeAgentAdapter  = adapter;
         m_agentInTerminal     = false;
         m_agentMessages.clear();
         m_currentAssistantIdx = -1;
         appendAgentEvent(QStringLiteral("pi/lifecycle"), QStringLiteral("pi listo - modo print por mensaje"));
         emit agentMessagesChanged();
+        emit agentStartingChanged();
         emit agentRunningChanged();
         return;
     }
@@ -1378,7 +1660,12 @@ void AppController::startAgent(const QString &launchProfileId)
     // Backends estructurados (proceso propio o sin proceso): delegados a IAgentBackend.
     if (adapter == QLatin1String("opencode")) {
         IAgentBackend *b = ensureAgentBackend(adapter);
-        if (!b) { appendAgentEvent(QStringLiteral("lifecycle"), QStringLiteral("Error: backend %1 no disponible").arg(adapter)); return; }
+        if (!b) {
+            appendAgentEvent(QStringLiteral("lifecycle"), QStringLiteral("Error: backend %1 no disponible").arg(adapter));
+            m_agentStarting = false;
+            emit agentStartingChanged();
+            return;
+        }
         AgentContext c;
         c.adapter         = adapter;
         c.launchProfileId = launchProfileId;
@@ -1450,10 +1737,18 @@ void AppController::startAgent(const QString &launchProfileId)
     m_agentProc->start(program, programArgs);
     if (!m_agentProc->waitForStarted(5000)) {
         appendAgentEvent(QStringLiteral("lifecycle"), QStringLiteral("Error: failed to start agent process"));
+        if (m_agentStarting) {
+            m_agentStarting = false;
+            emit agentStartingChanged();
+        }
         m_agentProc->deleteLater();
         m_agentProc = nullptr;
         m_activeAgentAdapter.clear();
         return;
+    }
+    if (m_agentStarting) {
+        m_agentStarting = false;
+        emit agentStartingChanged();
     }
     m_agentPid = m_agentProc->processId();
     assignToJobObject(m_agentPid);
@@ -1474,6 +1769,11 @@ void AppController::cancelAgentGeneration()
 void AppController::stopAgent()
 {
     m_agentStopping = true;
+    if (m_agentStarting || !m_pendingAutoAgentLaunchId.isEmpty()) {
+        m_agentStarting = false;
+        m_pendingAutoAgentLaunchId.clear();
+        emit agentStartingChanged();
+    }
     if (m_agentBackend && m_agentBackend->running()) {
         m_agentBackend->stop();
         return;
@@ -1888,6 +2188,225 @@ bool AppController::toggleMcpServer(const QString &scope, const QString &project
     return ocWriteConfigObj(scope, projectDir, root);
 }
 
+// ───────────────────────── Integrations ──────────────────────────────
+QString AppController::integrationsFilePath() const
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QDir().mkpath(dir);
+    return dir + QStringLiteral("/integrations.json");
+}
+
+QJsonArray AppController::readApiServices() const
+{
+    QFile f(integrationsFilePath());
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    return QJsonDocument::fromJson(f.readAll()).array();
+}
+
+bool AppController::writeApiServices(const QJsonArray &arr)
+{
+    QFile f(integrationsFilePath());
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+    f.write(QJsonDocument(arr).toJson());
+    f.close();
+    emit integrationsChanged();
+    return true;
+}
+
+QVariantList AppController::integrations() const
+{
+    QVariantList out;
+    // MCP servers desde el config opencode global (single source: lo consume el agente).
+    for (const QVariant &mv : listMcpServers(QStringLiteral("global"), QString())) {
+        const QVariantMap m = mv.toMap();
+        const QString type = m.value(QStringLiteral("type")).toString();
+        QVariantMap it;
+        it[QStringLiteral("id")]      = QStringLiteral("mcp:") + m.value(QStringLiteral("name")).toString();
+        it[QStringLiteral("type")]    = QStringLiteral("mcp");
+        it[QStringLiteral("name")]    = m.value(QStringLiteral("name"));
+        it[QStringLiteral("enabled")] = m.value(QStringLiteral("enabled"), true);
+        it[QStringLiteral("summary")] = type == QLatin1String("remote")
+            ? m.value(QStringLiteral("url")).toString()
+            : m.value(QStringLiteral("command")).toString();
+        it[QStringLiteral("config")]  = m;
+        out.append(it);
+    }
+    // API services desde integrations.json.
+    for (const QJsonValue &v : readApiServices()) {
+        const QJsonObject o = v.toObject();
+        QVariantMap it;
+        it[QStringLiteral("id")]      = QStringLiteral("api:") + o.value(QStringLiteral("id")).toString();
+        it[QStringLiteral("type")]    = QStringLiteral("api_service");
+        it[QStringLiteral("name")]    = o.value(QStringLiteral("name")).toString();
+        it[QStringLiteral("enabled")] = o.value(QStringLiteral("enabled")).toBool(true);
+        it[QStringLiteral("summary")] = o.value(QStringLiteral("baseUrl")).toString();
+        QVariantMap cfg;
+        cfg[QStringLiteral("baseUrl")] = o.value(QStringLiteral("baseUrl")).toString();
+        cfg[QStringLiteral("hasKey")]  = !o.value(QStringLiteral("apiKey")).toString().isEmpty();
+        it[QStringLiteral("config")]   = cfg;
+        out.append(it);
+    }
+    return out;
+}
+
+bool AppController::saveMcpIntegration(const QString &name, const QString &type,
+                                       const QString &commandOrUrl)
+{
+    if (name.trimmed().isEmpty()) return false;
+    QVariantMap def;
+    def[QStringLiteral("type")]    = type.isEmpty() ? QStringLiteral("local") : type;
+    def[QStringLiteral("enabled")] = true;
+    if (type == QLatin1String("remote")) def[QStringLiteral("url")]     = commandOrUrl;
+    else                                 def[QStringLiteral("command")] = commandOrUrl;
+    const bool ok = setMcpServer(QStringLiteral("global"), QString(), name.trimmed(), def);
+    if (ok) emit integrationsChanged();
+    return ok;
+}
+
+bool AppController::saveApiService(const QString &id, const QString &name,
+                                   const QString &baseUrl, const QString &apiKey, bool enabled)
+{
+    if (name.trimmed().isEmpty()) return false;
+    QJsonArray arr = readApiServices();
+    if (id.isEmpty()) {
+        arr.append(QJsonObject{
+            {QStringLiteral("id"),      QUuid::createUuid().toString(QUuid::WithoutBraces)},
+            {QStringLiteral("name"),    name.trimmed()},
+            {QStringLiteral("baseUrl"), baseUrl.trimmed()},
+            {QStringLiteral("apiKey"),  apiKey},
+            {QStringLiteral("enabled"), enabled}});
+        return writeApiServices(arr);
+    }
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject o = arr[i].toObject();
+        if (o.value(QStringLiteral("id")).toString() == id) {
+            o[QStringLiteral("name")]    = name.trimmed();
+            o[QStringLiteral("baseUrl")] = baseUrl.trimmed();
+            // key vacío en edición = conservar la existente.
+            if (!apiKey.isEmpty()) o[QStringLiteral("apiKey")] = apiKey;
+            o[QStringLiteral("enabled")] = enabled;
+            arr[i] = o;
+            return writeApiServices(arr);
+        }
+    }
+    return false;
+}
+
+bool AppController::removeIntegration(const QString &id)
+{
+    if (id.startsWith(QStringLiteral("mcp:"))) {
+        const bool ok = removeMcpServer(QStringLiteral("global"), QString(), id.mid(4));
+        if (ok) emit integrationsChanged();
+        return ok;
+    }
+    if (id.startsWith(QStringLiteral("api:"))) {
+        const QString aid = id.mid(4);
+        QJsonArray arr = readApiServices();
+        for (int i = 0; i < arr.size(); ++i)
+            if (arr[i].toObject().value(QStringLiteral("id")).toString() == aid) {
+                arr.removeAt(i);
+                return writeApiServices(arr);
+            }
+    }
+    return false;
+}
+
+bool AppController::setIntegrationEnabled(const QString &id, bool enabled)
+{
+    if (id.startsWith(QStringLiteral("mcp:"))) {
+        const bool ok = toggleMcpServer(QStringLiteral("global"), QString(), id.mid(4), enabled);
+        if (ok) emit integrationsChanged();
+        return ok;
+    }
+    if (id.startsWith(QStringLiteral("api:"))) {
+        const QString aid = id.mid(4);
+        QJsonArray arr = readApiServices();
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject o = arr[i].toObject();
+            if (o.value(QStringLiteral("id")).toString() == aid) {
+                o[QStringLiteral("enabled")] = enabled; arr[i] = o;
+                return writeApiServices(arr);
+            }
+        }
+    }
+    return false;
+}
+
+void AppController::testIntegration(const QString &id)
+{
+    if (id.startsWith(QStringLiteral("api:"))) {
+        const QString aid = id.mid(4);
+        QString baseUrl, apiKey;
+        for (const QJsonValue &v : readApiServices()) {
+            const QJsonObject o = v.toObject();
+            if (o.value(QStringLiteral("id")).toString() == aid) {
+                baseUrl = o.value(QStringLiteral("baseUrl")).toString();
+                apiKey  = o.value(QStringLiteral("apiKey")).toString();
+                break;
+            }
+        }
+        if (baseUrl.isEmpty()) { emit integrationTestResult(id, false, QStringLiteral("URL vacía")); return; }
+        if (!m_nam) m_nam = new QNetworkAccessManager(this);
+        QNetworkRequest req((QUrl(baseUrl)));
+        if (!apiKey.isEmpty())
+            req.setRawHeader(QByteArrayLiteral("Authorization"),
+                             QByteArrayLiteral("Bearer ") + apiKey.toUtf8());
+        QNetworkReply *reply = m_nam->get(req);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, id]() {
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const QString err = reply->errorString();
+            const bool neterr = reply->error() != QNetworkReply::NoError && status == 0;
+            reply->deleteLater();
+            if (neterr) emit integrationTestResult(id, false, err);
+            else        emit integrationTestResult(id, status > 0 && status < 500,
+                                                   QStringLiteral("HTTP %1").arg(status));
+        });
+        return;
+    }
+    if (id.startsWith(QStringLiteral("mcp:"))) {
+        const QString name = id.mid(4);
+        // Buscar command/url del MCP en el config global.
+        QString command, type;
+        for (const QVariant &mv : listMcpServers(QStringLiteral("global"), QString())) {
+            const QVariantMap m = mv.toMap();
+            if (m.value(QStringLiteral("name")).toString() == name) {
+                type = m.value(QStringLiteral("type")).toString();
+                command = (type == QLatin1String("remote"))
+                    ? m.value(QStringLiteral("url")).toString()
+                    : m.value(QStringLiteral("command")).toString();
+                break;
+            }
+        }
+        if (type == QLatin1String("remote")) {
+            emit integrationTestResult(id, false,
+                QStringLiteral("Test de MCP remoto no soportado todavía (solo stdio local)."));
+            return;
+        }
+        if (command.isEmpty()) { emit integrationTestResult(id, false, QStringLiteral("Sin comando")); return; }
+        const QString cwd = currentAgentProjectDir();
+        // Handshake en un hilo aparte (McpClient hace I/O bloqueante con QProcess).
+        QPointer<AppController> self(this);
+        (void)QtConcurrent::run([self, id, command, cwd]() {
+            McpClient client(QStringLiteral("test"));
+            const bool ready = client.start(command, cwd);
+            int n = ready ? client.tools().size() : 0;
+            QStringList names;
+            for (const auto &t : client.tools()) { names << t.name; if (names.size() >= 8) break; }
+            client.shutdown();
+            const QString msg = ready
+                ? QStringLiteral("OK · %1 tools%2").arg(n)
+                      .arg(names.isEmpty() ? QString() : QStringLiteral(": ") + names.join(QStringLiteral(", ")))
+                : QStringLiteral("Falló el handshake (revisá el comando).");
+            if (!self) return;
+            QMetaObject::invokeMethod(self, [self, id, ready, msg]() {
+                if (self) emit self->integrationTestResult(id, ready, msg);
+            }, Qt::QueuedConnection);
+        });
+        return;
+    }
+    emit integrationTestResult(id, false, QStringLiteral("Tipo desconocido"));
+}
+
 // ───────────────────────── Skills / comandos ─────────────────────────
 QVariantList AppController::listOpencodeCommands(const QString &scope, const QString &projectDir) const
 {
@@ -2075,6 +2594,350 @@ void AppController::writeSetting(const QString &key, const QVariant &value)
     s.setValue(key, value);
 }
 
+QJsonObject AppController::exportFileSet(const QString &root, const QStringList &relativePaths) const
+{
+    QJsonArray files;
+    const QDir base(root);
+    const QString basePath = QFileInfo(root).absoluteFilePath();
+
+    auto addFile = [&](const QString &absolutePath) {
+        QFileInfo fi(absolutePath);
+        if (!fi.exists() || !fi.isFile()) return;
+        const QString rel = base.relativeFilePath(fi.absoluteFilePath());
+        if (rel.startsWith(QStringLiteral(".."))) return;
+        QFile f(fi.absoluteFilePath());
+        if (!f.open(QIODevice::ReadOnly)) return;
+        files.append(QJsonObject{
+            {QStringLiteral("path"), rel},
+            {QStringLiteral("base64"), QString::fromLatin1(f.readAll().toBase64())}
+        });
+    };
+
+    for (const QString &rel : relativePaths) {
+        const QString cleanRel = QDir::cleanPath(rel);
+        const QFileInfo fi(base.filePath(cleanRel));
+        if (!fi.exists()) continue;
+        if (fi.isDir()) {
+            QDirIterator it(fi.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) addFile(it.next());
+        } else {
+            addFile(fi.absoluteFilePath());
+        }
+    }
+
+    return QJsonObject{
+        {QStringLiteral("rootName"), QFileInfo(basePath).fileName()},
+        {QStringLiteral("files"), files}
+    };
+}
+
+bool AppController::importFileSet(const QString &root, const QJsonObject &set, QStringList *written)
+{
+    const QDir base(root);
+    const QString basePath = QFileInfo(root).absoluteFilePath();
+    QDir().mkpath(basePath);
+
+    for (const QJsonValue &v : set.value(QStringLiteral("files")).toArray()) {
+        const QJsonObject o = v.toObject();
+        const QString rel = QDir::cleanPath(o.value(QStringLiteral("path")).toString());
+        if (rel.isEmpty() || rel.startsWith(QStringLiteral("..")) || QDir::isAbsolutePath(rel))
+            continue;
+
+        const QString path = base.filePath(rel);
+        const QString abs = QFileInfo(path).absoluteFilePath();
+        if (!abs.startsWith(basePath, Qt::CaseInsensitive))
+            continue;
+
+        QByteArray bytes = QByteArray::fromBase64(o.value(QStringLiteral("base64")).toString().toLatin1());
+        QDir().mkpath(QFileInfo(abs).absolutePath());
+
+        if (QFileInfo(abs).exists()) {
+            QJsonParseError newErr;
+            const QJsonDocument incoming = QJsonDocument::fromJson(bytes, &newErr);
+            QFile existing(abs);
+            if (newErr.error == QJsonParseError::NoError && existing.open(QIODevice::ReadOnly)) {
+                QJsonParseError oldErr;
+                const QJsonDocument current = QJsonDocument::fromJson(existing.readAll(), &oldErr);
+                existing.close();
+
+                if (oldErr.error == QJsonParseError::NoError && incoming.isArray() && current.isArray()) {
+                    QJsonArray merged = current.array();
+                    QSet<QString> ids;
+                    for (const QJsonValue &mv : std::as_const(merged)) {
+                        const QString id = mv.toObject().value(QStringLiteral("id")).toString();
+                        if (!id.isEmpty()) ids.insert(id);
+                    }
+                    for (const QJsonValue &mv : incoming.array()) {
+                        const QJsonObject obj = mv.toObject();
+                        const QString id = obj.value(QStringLiteral("id")).toString();
+                        if (!id.isEmpty() && ids.contains(id)) continue;
+                        merged.append(mv);
+                        if (!id.isEmpty()) ids.insert(id);
+                    }
+                    bytes = QJsonDocument(merged).toJson(QJsonDocument::Indented);
+                } else if (oldErr.error == QJsonParseError::NoError && incoming.isObject() && current.isObject()
+                           && QFileInfo(rel).fileName() == QLatin1String("opencode.json")) {
+                    QJsonObject merged = current.object();
+                    const QJsonObject inc = incoming.object();
+                    for (auto it = inc.begin(); it != inc.end(); ++it) {
+                        if (it.key() == QLatin1String("mcp") && it.value().isObject()) {
+                            QJsonObject mcp = merged.value(QStringLiteral("mcp")).toObject();
+                            const QJsonObject incMcp = it.value().toObject();
+                            for (auto mi = incMcp.begin(); mi != incMcp.end(); ++mi)
+                                if (!mcp.contains(mi.key())) mcp.insert(mi.key(), mi.value());
+                            merged[QStringLiteral("mcp")] = mcp;
+                        } else if (!merged.contains(it.key())) {
+                            merged.insert(it.key(), it.value());
+                        }
+                    }
+                    bytes = QJsonDocument(merged).toJson(QJsonDocument::Indented);
+                }
+            }
+        }
+
+        QFile f(abs);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            return false;
+        f.write(bytes);
+        f.close();
+        if (written) written->append(abs);
+    }
+    return true;
+}
+
+QString AppController::exportUserData()
+{
+    const QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString appLocal = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+
+    QVariantMap settings;
+    QSettings s;
+    for (const QString &key : s.allKeys())
+        settings.insert(key, s.value(key));
+
+    QJsonObject root;
+    root[QStringLiteral("app")] = QStringLiteral("LlamaCode");
+    root[QStringLiteral("version")] = 1;
+    root[QStringLiteral("exportedAt")] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    root[QStringLiteral("settings")] = QJsonObject::fromVariantMap(settings);
+    root[QStringLiteral("appData")] = exportFileSet(appData, {
+        QStringLiteral("binary_registry.json"),
+        QStringLiteral("model_roots.json"),
+        QStringLiteral("profiles")
+    });
+    root[QStringLiteral("appLocalData")] = exportFileSet(appLocal, {
+        QStringLiteral("integrations.json"),
+        QStringLiteral("chat"),
+        QStringLiteral("chat_raw"),
+        QStringLiteral("agent_llamaagent"),
+        QStringLiteral("benchmarks")
+    });
+    root[QStringLiteral("opencode")] = exportFileSet(ocGlobalConfigDir(), {
+        QStringLiteral("opencode.json"),
+        QStringLiteral("command")
+    });
+
+    const QString defName = QStringLiteral("llamacode_backup_%1.json")
+        .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    const QString path = QFileDialog::getSaveFileName(
+        nullptr, QStringLiteral("Exportar datos de LlamaCode"),
+        QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath(defName),
+        QStringLiteral("JSON (*.json)"));
+    if (path.isEmpty()) return QString();
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        emit serverError(QStringLiteral("No se pudo escribir el backup: %1").arg(path));
+        return QString();
+    }
+    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    f.close();
+    emit serverError(QStringLiteral("Backup exportado: %1").arg(QDir::toNativeSeparators(path)));
+    return path;
+}
+
+QString AppController::importUserData()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, QStringLiteral("Importar datos de LlamaCode"),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+        QStringLiteral("JSON (*.json)"));
+    if (path.isEmpty()) return QString();
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        emit serverError(QStringLiteral("No se pudo leer el backup."));
+        return QString();
+    }
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+    f.close();
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        emit serverError(QStringLiteral("Backup JSON inválido: %1").arg(err.errorString()));
+        return QString();
+    }
+    const QJsonObject root = doc.object();
+    if (root.value(QStringLiteral("app")).toString() != QLatin1String("LlamaCode")) {
+        emit serverError(QStringLiteral("El archivo no parece ser un backup de LlamaCode."));
+        return QString();
+    }
+
+    QStringList written;
+    const QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString appLocal = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (!importFileSet(appData, root.value(QStringLiteral("appData")).toObject(), &written) ||
+        !importFileSet(appLocal, root.value(QStringLiteral("appLocalData")).toObject(), &written) ||
+        !importFileSet(ocGlobalConfigDir(), root.value(QStringLiteral("opencode")).toObject(), &written)) {
+        emit serverError(QStringLiteral("No se pudo importar todo el backup."));
+        return QString();
+    }
+
+    QSettings s;
+    const QJsonObject settings = root.value(QStringLiteral("settings")).toObject();
+    for (auto it = settings.begin(); it != settings.end(); ++it)
+        s.setValue(it.key(), it.value().toVariant());
+
+    reloadPersistentStateAfterImportOrWipe();
+    emit serverError(QStringLiteral("Backup importado: %1 archivo(s).").arg(written.size()));
+    return path;
+}
+
+bool AppController::removePathForWipe(const QString &path)
+{
+    if (path.trimmed().isEmpty()) return true;
+    QFileInfo fi(path);
+    if (!fi.exists()) return true;
+    if (fi.isDir()) {
+        QDir d(fi.absoluteFilePath());
+        return d.removeRecursively();
+    }
+    return QFile::remove(fi.absoluteFilePath());
+}
+
+QVariantList AppController::wipeCategories() const
+{
+    return {
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("chats")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe all chats")},
+                    {QStringLiteral("description"), QStringLiteral("Every local chat and agent session stored by LlamaCode.")}},
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("memory")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe project memory")},
+                    {QStringLiteral("description"), QStringLiteral("Deletes .llamacode/memory.md for the current agent project.")}},
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("skills")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe all skills")},
+                    {QStringLiteral("description"), QStringLiteral("Deletes global opencode command skills from the LlamaCode-managed command folder.")}},
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("integrations")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe integrations")},
+                    {QStringLiteral("description"), QStringLiteral("Deletes API service entries and global MCP server config.")}},
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("profiles")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe profiles")},
+                    {QStringLiteral("description"), QStringLiteral("Deletes backend, model, runtime, harness, workspace, and launch profiles.")}},
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("benchmarks")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe benchmarks")},
+                    {QStringLiteral("description"), QStringLiteral("Deletes saved benchmark results and run summaries.")}},
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("logs")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe logs")},
+                    {QStringLiteral("description"), QStringLiteral("Deletes runtime server and agent logs.")}},
+        QVariantMap{{QStringLiteral("kind"), QStringLiteral("settings")},
+                    {QStringLiteral("title"), QStringLiteral("Wipe settings")},
+                    {QStringLiteral("description"), QStringLiteral("Clears QSettings preferences such as language, last launch, and agent tuning.")}}
+    };
+}
+
+bool AppController::wipeUserData(const QString &kind, const QString &confirmation)
+{
+    if (confirmation.trimmed() != QLatin1String("WIPE")) {
+        emit serverError(QStringLiteral("Escribí WIPE para confirmar el borrado."));
+        return false;
+    }
+
+    const QString k = kind.trimmed().toLower();
+    const QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString appLocal = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    bool ok = true;
+
+    if (k == QLatin1String("chats")) {
+        ok = removePathForWipe(appLocal + QStringLiteral("/chat"))
+          && removePathForWipe(appLocal + QStringLiteral("/chat_raw"))
+          && removePathForWipe(appLocal + QStringLiteral("/agent_llamaagent"))
+          && removePathForWipe(appData + QStringLiteral("/pi-sessions"));
+        m_chatSessions.clear();
+        m_chatMessages.clear();
+        m_chatSessionId.clear();
+        m_chatSessionTitle.clear();
+        m_agentSessions.clear();
+        m_agentMessages.clear();
+        emit chatSessionsChanged();
+        emit chatMessagesChanged();
+        emit agentSessionsChanged();
+        emit agentMessagesChanged();
+    } else if (k == QLatin1String("memory")) {
+        const QString dir = currentAgentProjectDir();
+        ok = !dir.isEmpty() && removePathForWipe(LlamaAgentBackend::memoryFilePath(dir));
+        if (dir.isEmpty())
+            emit serverError(QStringLiteral("No hay proyecto activo para borrar memoria."));
+    } else if (k == QLatin1String("skills")) {
+        ok = removePathForWipe(ocGlobalConfigDir() + QStringLiteral("/command"));
+    } else if (k == QLatin1String("integrations")) {
+        ok = removePathForWipe(integrationsFilePath());
+        QJsonObject cfg = ocReadConfigObj(QStringLiteral("global"), QString());
+        cfg.remove(QStringLiteral("mcp"));
+        ok = ok && ocWriteConfigObj(QStringLiteral("global"), QString(), cfg);
+        emit integrationsChanged();
+    } else if (k == QLatin1String("profiles")) {
+        ok = removePathForWipe(appData + QStringLiteral("/profiles"));
+        m_profiles.reloadFromDisk();
+        emit effectiveProfileChanged();
+    } else if (k == QLatin1String("benchmarks")) {
+        ok = removePathForWipe(appLocal + QStringLiteral("/benchmarks"));
+        m_benchmarkResults.clear();
+        emit benchmarkResultsChanged();
+    } else if (k == QLatin1String("logs")) {
+        ok = removePathForWipe(runtimeLogDir());
+        m_log.clear();
+        m_agentLog.clear();
+        emit serverLogChanged();
+        emit agentLogChanged();
+    } else if (k == QLatin1String("settings")) {
+        QSettings s;
+        s.clear();
+        m_language = QStringLiteral("es");
+        m_agentApprovalMode = QStringLiteral("ask");
+        m_agentThinkingEnabled = false;
+        m_agentSystemPrompt.clear();
+        m_agentPermRules.clear();
+        m_agentTemperature = -1.0;
+        emit languageChanged();
+        emit agentApprovalModeChanged();
+        emit agentThinkingChanged();
+        emit agentTuningChanged();
+    } else {
+        emit serverError(QStringLiteral("Categoría desconocida: %1").arg(kind));
+        return false;
+    }
+
+    if (!ok) {
+        emit serverError(QStringLiteral("No se pudo completar el borrado de %1.").arg(k));
+        return false;
+    }
+
+    reloadPersistentStateAfterImportOrWipe();
+    emit serverError(QStringLiteral("Borrado completado: %1.").arg(k));
+    return true;
+}
+
+void AppController::reloadPersistentStateAfterImportOrWipe()
+{
+    m_binaries.refresh();
+    m_roots.refresh();
+    loadChatSessions();
+    m_profiles.reloadFromDisk();
+    loadBenchmarkResults();
+    loadCustomBenchmarks();
+    emit integrationsChanged();
+    emit setupStateChanged();
+}
+
 // ── Chat sessions ─────────────────────────────────────────────────────────────
 
 QString AppController::chatStorageDir() const
@@ -2103,6 +2966,9 @@ void AppController::loadChatSessions()
         s[QStringLiteral("updated")]     = o.value(QStringLiteral("updated")).toDouble();
         sorted.append(s);
     }
+    // Draft (sesión activa sin persistir) ANTES de agrupar, así entra en el grupo
+    // de su proyecto en vez de aparecer como sección duplicada al tope.
+    injectDraftSession(sorted);
     // Group by project (contiguous sections), most-recently-used project first,
     // and within a project newest chat first.
     QHash<QString, double> projLatest;
@@ -2118,17 +2984,17 @@ void AppController::loadChatSessions()
         return a.value(QStringLiteral("updated")).toDouble() > b.value(QStringLiteral("updated")).toDouble();
     });
     for (const auto &s : sorted) m_chatSessions.append(s);
-    injectDraftSession();
     emit chatSessionsChanged();
 }
 
 // Active session may not be persisted yet (no messages sent). Show it in the
-// list anyway so the chat / new project is visible immediately.
-void AppController::injectDraftSession()
+// list anyway so the chat / new project is visible immediately. Se agrega al
+// vector ANTES del agrupado para que caiga en el grupo de su proyecto.
+void AppController::injectDraftSession(QVector<QVariantMap> &sessions)
 {
     if (m_chatSessionId.isEmpty()) return;
-    for (const QVariant &v : std::as_const(m_chatSessions))
-        if (v.toMap().value(QStringLiteral("id")).toString() == m_chatSessionId)
+    for (const auto &s : std::as_const(sessions))
+        if (s.value(QStringLiteral("id")).toString() == m_chatSessionId)
             return; // already persisted
 
     const QString projId = m_chatProjectIdOverride.isEmpty()
@@ -2152,7 +3018,7 @@ void AppController::injectDraftSession()
     s[QStringLiteral("projectName")] = projName;
     s[QStringLiteral("created")]     = now;
     s[QStringLiteral("updated")]     = now;
-    m_chatSessions.prepend(s);
+    sessions.append(s);
 }
 
 void AppController::saveChatSession()
@@ -2633,6 +3499,7 @@ static const TrEntry k_tr[] = {
     {"nav.binaries", "Binarios",       "Binaries",     "二进制", "Binaires",       "Binari",         "Binärdateien"},
     {"nav.chat",      "Chat",           "Chat",         "聊天",       "Discussion",     "Chat",           "Chat"},
     {"nav.benchmark", "Benchmark",     "Benchmark",    "基准测试",   "Benchmark",      "Benchmark",      "Benchmark"},
+    {"nav.research",  "Research",       "Research",     "研究",       "Recherche",      "Ricerca",        "Recherche"},
     {"nav.settings",  "Configuración", "Settings",     "设置",       "Paramètres",     "Impostazioni",   "Einstellungen"},
     // Launch page
     {"launch.title",       "Lanzar",          "Launch",          "启动",       "Lancer",          "Avvia",               "Starten"},
@@ -2945,7 +3812,476 @@ static QVector<BenchTaskDef> buildBenchTasks(const QString &mode)
     return t;
 }
 
+struct RecommendedModelDef {
+    QString name;
+    QString repo;
+    QString fileName;
+    QString family;
+    QString capabilities;
+    QString params;
+    QString quant;
+    double sizeGb;
+    double minRamGb;
+    double recommendedRamGb;
+    double minVramGb;
+    int ctxK;
+    QString notes;
+};
+
+static double catalogParamsB(const QJsonObject &model)
+{
+    const double raw = model.value(QStringLiteral("parameters_raw")).toDouble();
+    if (raw > 0)
+        return raw / 1000000000.0;
+
+    QString pc = model.value(QStringLiteral("parameter_count")).toString().trimmed().toUpper();
+    QRegularExpression re(QStringLiteral("^([\\d.]+)\\s*([BKMGT]?)$"));
+    const QRegularExpressionMatch m = re.match(pc);
+    if (!m.hasMatch())
+        return 0;
+    bool ok = false;
+    const double val = m.captured(1).toDouble(&ok);
+    if (!ok)
+        return 0;
+    const QString suffix = m.captured(2);
+    if (suffix == QLatin1String("B")) return val;
+    if (suffix == QLatin1String("M")) return val / 1000.0;
+    if (suffix == QLatin1String("K")) return val / 1000000.0;
+    if (suffix == QLatin1String("T")) return val * 1000.0;
+    if (val >= 1000000.0) return val / 1000000000.0;
+    return val / 1000.0;
+}
+
+static QString catalogFamily(const QString &name, const QString &arch)
+{
+    const QString s = (name + QLatin1Char(' ') + arch).toLower();
+    if (s.contains(QStringLiteral("qwen"))) return QStringLiteral("Qwen");
+    if (s.contains(QStringLiteral("mistral")) || s.contains(QStringLiteral("mixtral"))) return QStringLiteral("Mistral");
+    if (s.contains(QStringLiteral("deepseek"))) return QStringLiteral("DeepSeek");
+    if (s.contains(QStringLiteral("llama"))) return QStringLiteral("Llama");
+    if (s.contains(QStringLiteral("gemma"))) return QStringLiteral("Gemma");
+    if (s.contains(QStringLiteral("phi"))) return QStringLiteral("Phi");
+    if (s.contains(QStringLiteral("gpt-oss")) || s.contains(QStringLiteral("openai"))) return QStringLiteral("GPT OSS");
+    if (s.contains(QStringLiteral("olmo"))) return QStringLiteral("Olmo");
+    return name.section(QLatin1Char('/'), 0, 0);
+}
+
+static QString catalogCapabilities(const QJsonObject &model)
+{
+    QStringList caps;
+    const QString combined = (model.value(QStringLiteral("name")).toString() + QLatin1Char(' ') +
+                              model.value(QStringLiteral("use_case")).toString() + QLatin1Char(' ') +
+                              model.value(QStringLiteral("pipeline_tag")).toString()).toLower();
+    if (combined.contains(QStringLiteral("code"))) caps << QStringLiteral("code");
+    if (combined.contains(QStringLiteral("reason")) || combined.contains(QStringLiteral("thinking"))) caps << QStringLiteral("reasoning");
+    if (combined.contains(QStringLiteral("vision")) || combined.contains(QStringLiteral("multimodal")) || combined.contains(QStringLiteral("vl"))) caps << QStringLiteral("vision");
+    if (combined.contains(QStringLiteral("embed"))) caps << QStringLiteral("embedding");
+    if (combined.contains(QStringLiteral("chat")) || combined.contains(QStringLiteral("instruct")) || combined.contains(QStringLiteral("instruction"))) caps << QStringLiteral("chat");
+    if (model.value(QStringLiteral("is_moe")).toBool() || model.value(QStringLiteral("active_parameters")).toDouble() > 0) caps << QStringLiteral("moe");
+    if (caps.isEmpty()) caps << QStringLiteral("general");
+    caps.removeDuplicates();
+    return caps.join(QLatin1Char(','));
+}
+
+static QString catalogUseCase(const QString &caps)
+{
+    if (caps.contains(QStringLiteral("code"))) return QStringLiteral("coding");
+    if (caps.contains(QStringLiteral("reasoning"))) return QStringLiteral("reasoning");
+    if (caps.contains(QStringLiteral("vision"))) return QStringLiteral("multimodal");
+    if (caps.contains(QStringLiteral("embedding"))) return QStringLiteral("embedding");
+    if (caps.contains(QStringLiteral("chat"))) return QStringLiteral("chat");
+    return QStringLiteral("general");
+}
+
+static QString guessGgufFileName(const QString &repo, const QString &modelName, const QString &quant)
+{
+    QString base = repo.section(QLatin1Char('/'), -1);
+    base.remove(QRegularExpression(QStringLiteral("[-_]?GGUF$"), QRegularExpression::CaseInsensitiveOption));
+    if (base.isEmpty())
+        base = modelName.section(QLatin1Char('/'), -1);
+    return QStringLiteral("%1-%2.gguf").arg(base, quant.isEmpty() ? QStringLiteral("Q4_K_M") : quant);
+}
+
+static double quantBpp(const QString &quant)
+{
+    const QString q = quant.toUpper();
+    if (q.contains(QStringLiteral("Q8")) || q.contains(QStringLiteral("FP8")) || q.contains(QStringLiteral("INT8"))) return 1.05;
+    if (q.contains(QStringLiteral("Q6"))) return 0.80;
+    if (q.contains(QStringLiteral("Q5"))) return 0.68;
+    if (q.contains(QStringLiteral("Q3"))) return 0.48;
+    if (q.contains(QStringLiteral("Q2"))) return 0.37;
+    if (q.contains(QStringLiteral("BF16")) || q.contains(QStringLiteral("F16"))) return 2.0;
+    if (q.contains(QStringLiteral("AWQ")) || q.contains(QStringLiteral("GPTQ")) || q.contains(QStringLiteral("Q4")) || q.contains(QStringLiteral("FP4")) || q.contains(QStringLiteral("NVFP4")) || q.contains(QStringLiteral("MXFP4"))) return 0.58;
+    return 0.58;
+}
+
+static double estimateCatalogMemoryGb(const QJsonObject &model, double paramsB, const QString &quant, int ctx)
+{
+    double activeB = paramsB;
+    const double activeRaw = model.value(QStringLiteral("active_parameters")).toDouble();
+    if (model.value(QStringLiteral("is_moe")).toBool() && activeRaw > 0)
+        activeB = activeRaw / 1000000000.0;
+    return paramsB * quantBpp(quant) + 0.000008 * activeB * qMax(1024, ctx) + 0.5;
+}
+
+static double catalogSpeedTps(const QString &gpuName, double activeParamsB, double requiredGb, const QString &runMode)
+{
+    double bw = 220.0;
+    const QString g = gpuName.toLower();
+    if (g.contains(QStringLiteral("3090"))) bw = 936.0;
+    else if (g.contains(QStringLiteral("4090"))) bw = 1008.0;
+    else if (g.contains(QStringLiteral("4080"))) bw = 717.0;
+    else if (g.contains(QStringLiteral("3080"))) bw = 760.0;
+    else if (g.contains(QStringLiteral("3060"))) bw = 360.0;
+    else if (g.contains(QStringLiteral("a6000"))) bw = 768.0;
+    if (runMode == QLatin1String("cpu_only")) bw = 70.0;
+    if (runMode == QLatin1String("cpu_offload")) bw = qMin(bw, 110.0);
+    const double denom = qMax(0.2, activeParamsB * qMax(0.35, requiredGb / qMax(0.2, activeParamsB)));
+    return qMax(0.0, (bw / denom) * 0.55);
+}
+
+static int catalogScore(const QJsonObject &model, double paramsB, double requiredGb, double ramGb, double vramGb,
+                        const QString &quant, const QString &caps, int ctx, const QString &fit, double tps)
+{
+    Q_UNUSED(requiredGb)
+    int quality = 30;
+    if (paramsB < 3) quality = 45;
+    else if (paramsB < 7) quality = 60;
+    else if (paramsB < 10) quality = 75;
+    else if (paramsB < 20) quality = 82;
+    else if (paramsB < 40) quality = 89;
+    else quality = 95;
+
+    const QString name = model.value(QStringLiteral("name")).toString().toLower();
+    if (name.contains(QStringLiteral("qwen3"))) quality += 4;
+    else if (name.contains(QStringLiteral("qwen2.5"))) quality += 2;
+    if (name.contains(QStringLiteral("deepseek"))) quality += 3;
+    if (name.contains(QStringLiteral("llama"))) quality += 2;
+    if (quant.contains(QStringLiteral("Q4"))) quality -= 5;
+    if (quant.contains(QStringLiteral("Q5"))) quality -= 2;
+    if (quant.contains(QStringLiteral("Q6"))) quality -= 1;
+    if (caps.contains(QStringLiteral("code"))) quality += 4;
+    if (caps.contains(QStringLiteral("moe"))) quality += 2;
+
+    int fitScore = 0;
+    if (fit == QLatin1String("Perfecto")) fitScore = 100;
+    else if (fit == QLatin1String("Bueno")) fitScore = 82;
+    else if (fit == QLatin1String("Marginal")) fitScore = 55;
+    else fitScore = 10;
+
+    const int speedScore = qBound(0, int((tps / 40.0) * 100.0), 100);
+    const int ctxScore = ctx >= 32768 ? 100 : (ctx >= 8192 ? 80 : 55);
+    const int popularity = qBound(0, int(std::log10(qMax(1.0, model.value(QStringLiteral("hf_downloads")).toDouble())) * 12.0), 60);
+    int score = qRound(quality * 0.45 + speedScore * 0.20 + fitScore * 0.20 + ctxScore * 0.08 + popularity * 0.07);
+
+    if (ramGb >= 64 && vramGb >= 16 && paramsB < 7)
+        score -= 20;
+    return qBound(0, score, 100);
+}
+
 // ── Public methods ─────────────────────────────────────────────────────────────
+
+void AppController::rescanHardware()
+{
+    QVariantMap hw;
+    hw[QStringLiteral("cpuThreads")] = QThread::idealThreadCount();
+
+    double ramGb = 0;
+#ifdef Q_OS_WIN
+    {
+        ULONGLONG kb = 0;
+        if (GetPhysicallyInstalledSystemMemory(&kb))
+            ramGb = kb / 1024.0 / 1024.0;
+        if (ramGb <= 0) {
+            MEMORYSTATUSEX st;
+            st.dwLength = sizeof(st);
+            if (GlobalMemoryStatusEx(&st))
+                ramGb = st.ullTotalPhys / 1024.0 / 1024.0 / 1024.0;
+        }
+    }
+#endif
+    hw[QStringLiteral("ramGb")] = ramGb;
+
+    double vramGb = 0;
+    QString gpuName;
+    const QString nvidiaSmi = QStandardPaths::findExecutable(QStringLiteral("nvidia-smi"));
+    if (!nvidiaSmi.isEmpty()) {
+        QProcess p;
+        p.start(nvidiaSmi, {QStringLiteral("--query-gpu=name,memory.total"),
+                            QStringLiteral("--format=csv,noheader,nounits")});
+        if (p.waitForFinished(1800)) {
+            const QString firstLine = QString::fromUtf8(p.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts).value(0).trimmed();
+            const int comma = firstLine.lastIndexOf(',');
+            if (comma > 0) {
+                gpuName = firstLine.left(comma).trimmed();
+                vramGb = firstLine.mid(comma + 1).trimmed().toDouble() / 1024.0;
+            }
+        }
+    }
+    hw[QStringLiteral("gpuName")] = gpuName.isEmpty() ? QStringLiteral("GPU no detectada") : gpuName;
+    hw[QStringLiteral("vramGb")] = vramGb;
+    hw[QStringLiteral("backendHint")] = vramGb >= 6 ? QStringLiteral("GPU") : QStringLiteral("CPU");
+    hw[QStringLiteral("summary")] = QStringLiteral("%1 hilos · %2 GB RAM · %3")
+        .arg(QThread::idealThreadCount())
+        .arg(ramGb > 0 ? QString::number(ramGb, 'f', 1) : QStringLiteral("?"))
+        .arg(vramGb > 0
+                 ? QStringLiteral("%1 (%2 GB VRAM)").arg(gpuName).arg(QString::number(vramGb, 'f', 1))
+                 : QStringLiteral("sin VRAM NVIDIA detectada"));
+
+    m_hardwareSummary = hw;
+    emit hardwareSummaryChanged();
+    rebuildModelRecommendations();
+}
+
+void AppController::rebuildModelRecommendations()
+{
+    const double ramGb = m_hardwareSummary.value(QStringLiteral("ramGb")).toDouble();
+    const double vramGb = m_hardwareSummary.value(QStringLiteral("vramGb")).toDouble();
+    const QString gpuName = m_hardwareSummary.value(QStringLiteral("gpuName")).toString();
+
+    QVariantList rows;
+    QFile catalog(QStringLiteral(":/assets/hwfit/hf_models.json"));
+    if (catalog.open(QIODevice::ReadOnly)) {
+        const QJsonArray arr = QJsonDocument::fromJson(catalog.readAll()).array();
+        rows.reserve(arr.size());
+        for (const QJsonValue &value : arr) {
+            const QJsonObject m = value.toObject();
+            const QString name = m.value(QStringLiteral("name")).toString();
+            const double paramsB = catalogParamsB(m);
+            if (name.isEmpty() || paramsB <= 0)
+                continue;
+
+            const QString quant = m.value(QStringLiteral("quantization")).toString(QStringLiteral("Q4_K_M"));
+            const int ctx = qMax(1024, m.value(QStringLiteral("context_length")).toInt(4096));
+            const double requiredGb = estimateCatalogMemoryGb(m, paramsB, quant, ctx);
+            const double activeRaw = m.value(QStringLiteral("active_parameters")).toDouble();
+            const double activeB = (m.value(QStringLiteral("is_moe")).toBool() && activeRaw > 0)
+                ? activeRaw / 1000000000.0
+                : paramsB;
+
+            QString runMode;
+            QString fit;
+            if (vramGb > 0 && requiredGb <= vramGb) {
+                runMode = QStringLiteral("gpu");
+                fit = (m.value(QStringLiteral("recommended_ram_gb")).toDouble(requiredGb) <= vramGb)
+                    ? QStringLiteral("Perfecto")
+                    : QStringLiteral("Bueno");
+            } else if (requiredGb <= ramGb) {
+                runMode = vramGb > 0 ? QStringLiteral("cpu_offload") : QStringLiteral("cpu_only");
+                fit = ramGb >= requiredGb * 1.2 ? QStringLiteral("Bueno") : QStringLiteral("Marginal");
+            } else {
+                runMode = QStringLiteral("no_fit");
+                fit = QStringLiteral("No entra");
+            }
+
+            const QString caps = catalogCapabilities(m);
+            const double tps = runMode == QLatin1String("no_fit")
+                ? 0.0
+                : catalogSpeedTps(gpuName, activeB, requiredGb, runMode);
+            const int score = catalogScore(m, paramsB, requiredGb, ramGb, vramGb, quant, caps, ctx, fit, tps);
+
+            QString repo;
+            QString fileName;
+            const QJsonArray ggufSources = m.value(QStringLiteral("gguf_sources")).toArray();
+            if (!ggufSources.isEmpty()) {
+                const QJsonObject src = ggufSources.first().toObject();
+                repo = src.value(QStringLiteral("repo")).toString();
+                fileName = src.value(QStringLiteral("file")).toString();
+            }
+            if (repo.isEmpty() && (m.value(QStringLiteral("is_gguf")).toBool() || name.toLower().contains(QStringLiteral("gguf"))))
+                repo = name;
+            if (!repo.isEmpty() && fileName.isEmpty())
+                fileName = guessGgufFileName(repo, name, quant);
+
+            QVariantMap row;
+            row[QStringLiteral("name")] = name;
+            row[QStringLiteral("repo")] = repo.isEmpty() ? name : repo;
+            row[QStringLiteral("fileName")] = fileName;
+            row[QStringLiteral("family")] = catalogFamily(name, m.value(QStringLiteral("architecture")).toString());
+            row[QStringLiteral("capabilities")] = caps;
+            row[QStringLiteral("useCase")] = catalogUseCase(caps);
+            row[QStringLiteral("params")] = m.value(QStringLiteral("parameter_count")).toString(QStringLiteral("%1B").arg(QString::number(paramsB, 'f', 1)));
+            row[QStringLiteral("quant")] = quant;
+            row[QStringLiteral("sizeGb")] = requiredGb;
+            row[QStringLiteral("requiredGb")] = requiredGb;
+            row[QStringLiteral("minRamGb")] = m.value(QStringLiteral("min_ram_gb")).toDouble();
+            row[QStringLiteral("recommendedRamGb")] = m.value(QStringLiteral("recommended_ram_gb")).toDouble();
+            row[QStringLiteral("minVramGb")] = m.value(QStringLiteral("min_vram_gb")).toDouble();
+            row[QStringLiteral("ctxK")] = qRound(ctx / 1000.0);
+            row[QStringLiteral("context")] = ctx;
+            row[QStringLiteral("notes")] = QStringLiteral("%1 · %2 t/s est. · %3 downloads")
+                .arg(runMode)
+                .arg(QString::number(tps, 'f', 1))
+                .arg(qRound(m.value(QStringLiteral("hf_downloads")).toDouble()));
+            row[QStringLiteral("fit")] = fit;
+            row[QStringLiteral("score")] = score;
+            row[QStringLiteral("downloadable")] = !repo.isEmpty() && !fileName.isEmpty();
+            row[QStringLiteral("downloadUrl")] = (!repo.isEmpty() && !fileName.isEmpty())
+                ? QStringLiteral("https://huggingface.co/%1/resolve/main/%2?download=true")
+                    .arg(repo, QString::fromLatin1(QUrl::toPercentEncoding(fileName)))
+                : QString();
+            rows.append(row);
+        }
+    }
+
+    if (rows.isEmpty()) {
+        const QVector<RecommendedModelDef> fallback = {
+            {QStringLiteral("Qwen3 Coder 30B A3B Instruct"), QStringLiteral("unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF"),
+             QStringLiteral("Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf"), QStringLiteral("Qwen"), QStringLiteral("code,moe"),
+             QStringLiteral("30B MoE"), QStringLiteral("Q4_K_M"), 18.5, 48, 64, 18, 256, QStringLiteral("fallback local")},
+            {QStringLiteral("Qwen2.5 Coder 32B Instruct"), QStringLiteral("bartowski/Qwen2.5-Coder-32B-Instruct-GGUF"),
+             QStringLiteral("Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf"), QStringLiteral("Qwen"), QStringLiteral("code,chat"),
+             QStringLiteral("32B"), QStringLiteral("Q4_K_M"), 20.0, 48, 64, 24, 32, QStringLiteral("fallback local")}
+        };
+        for (const RecommendedModelDef &m : fallback) {
+            const QString fit = (ramGb >= m.recommendedRamGb && (vramGb <= 0 || vramGb >= m.minVramGb))
+                ? QStringLiteral("Perfecto")
+                : (ramGb >= m.minRamGb ? QStringLiteral("Bueno") : QStringLiteral("Marginal"));
+            const int score = qBound(0, int(70 + m.sizeGb), 100);
+            QVariantMap row;
+            row[QStringLiteral("name")] = m.name;
+            row[QStringLiteral("repo")] = m.repo;
+            row[QStringLiteral("fileName")] = m.fileName;
+            row[QStringLiteral("family")] = m.family;
+            row[QStringLiteral("capabilities")] = m.capabilities;
+            row[QStringLiteral("params")] = m.params;
+            row[QStringLiteral("quant")] = m.quant;
+            row[QStringLiteral("sizeGb")] = m.sizeGb;
+            row[QStringLiteral("ctxK")] = m.ctxK;
+            row[QStringLiteral("notes")] = m.notes;
+            row[QStringLiteral("fit")] = fit;
+            row[QStringLiteral("score")] = score;
+            row[QStringLiteral("downloadable")] = true;
+            rows.append(row);
+        }
+    }
+
+    std::sort(rows.begin(), rows.end(), [](const QVariant &a, const QVariant &b) {
+        return a.toMap().value(QStringLiteral("score")).toInt() >
+               b.toMap().value(QStringLiteral("score")).toInt();
+    });
+
+    m_modelRecommendations = rows;
+    emit modelRecommendationsChanged();
+}
+
+QString AppController::modelDownloadDir() const
+{
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
+                  + QStringLiteral("/models");
+    QDir().mkpath(dir);
+    return dir;
+}
+
+void AppController::openModelRecommendation(const QString &repo)
+{
+    if (repo.trimmed().isEmpty()) return;
+    QDesktopServices::openUrl(QUrl(QStringLiteral("https://huggingface.co/%1").arg(repo)));
+}
+
+void AppController::downloadRecommendedModel(const QString &repo, const QString &fileName)
+{
+    if (repo.trimmed().isEmpty() || fileName.trimmed().isEmpty() || m_modelDownloadReply)
+        return;
+
+    const QString dir = modelDownloadDir();
+    const QString outPath = dir + QLatin1Char('/') + QFileInfo(fileName).fileName();
+    if (QFileInfo::exists(outPath)) {
+        m_modelDownloadProgress = 100;
+        m_modelDownloadStatus = QStringLiteral("Ya existe: %1").arg(outPath);
+        emit modelDownloadChanged();
+        QString existingRootId;
+        for (int i = 0; i < m_roots.rowCount(); ++i) {
+            const QModelIndex mi = m_roots.index(i, 0);
+            if (QDir::cleanPath(m_roots.data(mi, ModelRootRegistry::PathRole).toString()) == QDir::cleanPath(dir)) {
+                existingRootId = m_roots.data(mi, ModelRootRegistry::IdRole).toString();
+                break;
+            }
+        }
+        if (existingRootId.isEmpty())
+            m_roots.add(dir, QStringLiteral("Modelos descargados"), QStringLiteral("startup"), {});
+        else
+            m_roots.scan(existingRootId);
+        return;
+    }
+
+    auto *file = new QFile(outPath, this);
+    if (!file->open(QIODevice::WriteOnly)) {
+        file->deleteLater();
+        emit serverError(QStringLiteral("No se pudo escribir el modelo en %1").arg(outPath));
+        return;
+    }
+
+    if (!m_nam) m_nam = new QNetworkAccessManager(this);
+    QUrl url(QStringLiteral("https://huggingface.co/%1/resolve/main/%2")
+                 .arg(repo, QString::fromLatin1(QUrl::toPercentEncoding(fileName))));
+    QNetworkRequest req(url);
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    req.setTransferTimeout(0);
+
+    m_modelDownloadFile = file;
+    m_modelDownloadPath = outPath;
+    m_modelDownloadProgress = 0;
+    m_modelDownloadStatus = QStringLiteral("Descargando %1...").arg(fileName);
+    emit modelDownloadChanged();
+
+    m_modelDownloadReply = m_nam->get(req);
+    connect(m_modelDownloadReply, &QNetworkReply::readyRead, this, [this]() {
+        if (m_modelDownloadFile && m_modelDownloadReply)
+            m_modelDownloadFile->write(m_modelDownloadReply->readAll());
+    });
+    connect(m_modelDownloadReply, &QNetworkReply::downloadProgress, this, [this](qint64 received, qint64 total) {
+        if (total > 0) {
+            m_modelDownloadProgress = qBound(0, int((received * 100) / total), 100);
+            m_modelDownloadStatus = QStringLiteral("Descargando modelo... %1/%2 MB")
+                .arg(received / 1024 / 1024).arg(total / 1024 / 1024);
+            emit modelDownloadChanged();
+        }
+    });
+    connect(m_modelDownloadReply, &QNetworkReply::finished, this, [this, dir]() {
+        QNetworkReply *reply = m_modelDownloadReply;
+        QFile *file = m_modelDownloadFile;
+        m_modelDownloadReply = nullptr;
+        m_modelDownloadFile = nullptr;
+
+        const bool ok = reply && reply->error() == QNetworkReply::NoError;
+        const QString err = reply ? reply->errorString() : QStringLiteral("respuesta inválida");
+        if (file) {
+            file->write(reply ? reply->readAll() : QByteArray());
+            file->close();
+            file->deleteLater();
+        }
+        if (reply)
+            reply->deleteLater();
+
+        if (!ok) {
+            QFile::remove(m_modelDownloadPath);
+            m_modelDownloadProgress = 0;
+            m_modelDownloadStatus = QStringLiteral("Error descargando modelo: %1").arg(err);
+            emit modelDownloadChanged();
+            emit serverError(m_modelDownloadStatus);
+            return;
+        }
+
+        m_modelDownloadProgress = 100;
+        m_modelDownloadStatus = QStringLiteral("Modelo descargado: %1").arg(m_modelDownloadPath);
+        emit modelDownloadChanged();
+
+        QString existingRootId;
+        for (int i = 0; i < m_roots.rowCount(); ++i) {
+            const QModelIndex mi = m_roots.index(i, 0);
+            if (QDir::cleanPath(m_roots.data(mi, ModelRootRegistry::PathRole).toString()) == QDir::cleanPath(dir)) {
+                existingRootId = m_roots.data(mi, ModelRootRegistry::IdRole).toString();
+                break;
+            }
+        }
+        if (existingRootId.isEmpty())
+            m_roots.add(dir, QStringLiteral("Modelos descargados"), QStringLiteral("startup"), {});
+        else
+            m_roots.scan(existingRootId);
+        emit setupStateChanged();
+    });
+}
 
 void AppController::clearBenchmarkResults()
 {
@@ -2996,7 +4332,132 @@ void AppController::cancelBenchmark()
     m_benchmarkCanceled = true;
 }
 
-void AppController::startBenchmark(const QStringList &profileIds, const QString &mode)
+// ── Heurísticas para benchmarks personalizados ───────────────────────────────
+
+// "Solo código": la respuesta es esencialmente código, sin prosa explicativa.
+// Heurística: si hay fences ```…```, mide cuánto texto queda fuera de ellos;
+// si no hay fences, mira si las líneas parecen código (indentación / símbolos).
+static bool benchCodeOnly(const QString &resp)
+{
+    const QString r = resp.trimmed();
+    if (r.isEmpty()) return false;
+
+    static const QRegularExpression fence(QStringLiteral("```[^\\n]*\\n.*?```"),
+                                          QRegularExpression::DotMatchesEverythingOption);
+    QString outside = r;
+    bool hadFence = false;
+    auto it = fence.globalMatch(r);
+    while (it.hasNext()) { hadFence = true; outside.remove(it.next().captured(0)); }
+
+    if (hadFence) {
+        // Prosa fuera de los bloques de código → no es "solo código".
+        const QString stray = outside.trimmed();
+        return stray.length() <= 40;   // tolera algún "Here:" mínimo
+    }
+
+    // Sin fences: heurística de líneas-código.
+    const QStringList lines = r.split('\n', Qt::SkipEmptyParts);
+    int codey = 0;
+    static const QRegularExpression codeHint(
+        QStringLiteral("(^\\s+|[;{}=()\\[\\]]|\\b(def|class|import|from|return|for|while|if|var|let|const|function)\\b)"));
+    for (const QString &l : lines)
+        if (codeHint.match(l).hasMatch()) codey++;
+    return lines.size() > 0 && (double)codey / lines.size() >= 0.7;
+}
+
+// Dependencias Python: extrae imports top-level y marca las que no son stdlib.
+// No verifica existencia real en PyPI (offline) → "invented" = no-stdlib.
+static QVariantMap benchPythonDeps(const QString &resp)
+{
+    static const QSet<QString> stdlib = {
+        "abc","argparse","array","asyncio","base64","bisect","calendar","collections",
+        "contextlib","copy","csv","datetime","decimal","enum","functools","glob","gzip",
+        "hashlib","heapq","hmac","html","http","io","itertools","json","logging","math",
+        "multiprocessing","os","pathlib","pickle","queue","random","re","shutil","signal",
+        "socket","sqlite3","statistics","string","struct","subprocess","sys","tempfile",
+        "textwrap","threading","time","timeit","traceback","types","typing","unittest",
+        "urllib","uuid","warnings","weakref","xml","zipfile","zlib","dataclasses","secrets",
+        "inspect","operator","platform","getpass","shlex","fnmatch","difflib","pprint"
+    };
+    static const QRegularExpression imp(
+        QStringLiteral("(?m)^\\s*(?:import\\s+([A-Za-z_][\\w]*)|from\\s+([A-Za-z_][\\w]*))"));
+
+    QSet<QString> nonStd;
+    QSet<QString> all;
+    auto it = imp.globalMatch(resp);
+    while (it.hasNext()) {
+        const auto m = it.next();
+        const QString mod = m.captured(1).isEmpty() ? m.captured(2) : m.captured(1);
+        if (mod.isEmpty()) continue;
+        all.insert(mod);
+        if (!stdlib.contains(mod)) nonStd.insert(mod);
+    }
+    QStringList list(nonStd.begin(), nonStd.end());
+    list.sort();
+    return QVariantMap{
+        {"hasCode", !all.isEmpty()},
+        {"invented", !nonStd.isEmpty()},
+        {"count", (int)nonStd.size()},
+        {"list", list}
+    };
+}
+
+// Convert user-defined custom tasks (QVariantList of maps) into BenchTaskDef.
+// Custom tasks have no auto-eval; quality tasks just record the response.
+static QVector<BenchTaskDef> buildCustomBenchTasks(const QVariantList &custom)
+{
+    QVector<BenchTaskDef> t;
+    int n = 0;
+    for (const QVariant &v : custom) {
+        const QVariantMap m = v.toMap();
+        const QString prompt = m.value("prompt").toString();
+        if (prompt.trimmed().isEmpty()) continue;
+        BenchTaskDef d;
+        d.id        = m.value("id").toString();
+        if (d.id.isEmpty()) d.id = QStringLiteral("task_%1").arg(++n);
+        d.isSpeed   = m.value("isSpeed", true).toBool();
+        d.category  = m.value("category", d.isSpeed ? "speed" : "custom").toString();
+        d.prompt    = prompt;
+        d.maxTokens = m.value("maxTokens", 8192).toInt();
+        d.eval      = nullptr;
+        t.append(d);
+    }
+    return t;
+}
+
+void AppController::startBenchmark(const QStringList &profileIds, const QString &mode, int passes)
+{
+    runBenchmarkInternal(profileIds, mode, {}, QStringLiteral("standard"), qMax(1, passes));
+}
+
+void AppController::startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes)
+{
+    QVariantMap def;
+    for (const QVariant &v : std::as_const(m_customBenchmarks)) {
+        const QVariantMap m = v.toMap();
+        if (m.value("id").toString() == customId) { def = m; break; }
+    }
+    if (def.isEmpty()) return;
+    const QString label = def.value("name").toString().isEmpty()
+                              ? QStringLiteral("custom") : def.value("name").toString();
+    runBenchmarkInternal(profileIds, QStringLiteral("custom"),
+                         def.value("prompts").toList(), label, qMax(1, passes));
+}
+
+void AppController::openBenchmarkFolder(const QString &path)
+{
+    if (path.trimmed().isEmpty()) return;
+    const QFileInfo fi(path);
+    if (!fi.exists()) {
+        emit serverError(QStringLiteral("La carpeta del benchmark ya no existe:\n%1").arg(path));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absoluteFilePath()));
+}
+
+void AppController::runBenchmarkInternal(const QStringList &profileIds, const QString &mode,
+                                         const QVariantList &customTasks, const QString &runLabel,
+                                         int passes)
 {
     if (m_benchmarkRunning || profileIds.isEmpty()) return;
 
@@ -3010,8 +4471,55 @@ void AppController::startBenchmark(const QStringList &profileIds, const QString 
 
     loadBenchmarkResults();
 
-    const QVector<BenchTaskDef> tasks = buildBenchTasks(mode);
-    const int totalSteps = profileIds.size() * tasks.size();
+    const bool isCustom = !customTasks.isEmpty();
+    const QVector<BenchTaskDef> tasks = isCustom
+                                            ? buildCustomBenchTasks(customTasks)
+                                            : buildBenchTasks(mode);
+    passes = qMax(1, passes);
+    const int totalSteps = profileIds.size() * tasks.size() * passes;
+
+    // ── Isolated run folder: benchmark/<label>_<timestamp>/ ───────────────────
+    auto sanitize = [](QString s) {
+        s.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]+")), QStringLiteral("_"));
+        return s.left(40);
+    };
+    const QString stamp   = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    const QString runDir  = benchmarkRunsDir() + "/" + sanitize(runLabel) + "_" + stamp;
+    QDir().mkpath(runDir);
+
+    // Write run metadata up front
+    {
+        QJsonObject meta;
+        meta["label"]      = runLabel;
+        meta["mode"]       = mode;
+        meta["startedAt"]  = QDateTime::currentDateTime().toString(Qt::ISODate);
+        meta["timestamp"]  = (double)QDateTime::currentMSecsSinceEpoch();
+        QJsonArray profArr;
+        for (const QString &pid : profileIds) {
+            const QVariantMap pd = m_profiles.getLaunchProfile(pid);
+            QJsonObject po;
+            po["profileId"]   = pid;
+            po["profileName"] = pd.value("name").toString();
+            profArr.append(po);
+        }
+        meta["profiles"] = profArr;
+        QJsonArray taskArr;
+        for (const BenchTaskDef &t : tasks) {
+            QJsonObject to;
+            to["id"]        = t.id;
+            to["category"]  = t.category;
+            to["isSpeed"]   = t.isSpeed;
+            to["maxTokens"] = t.maxTokens;
+            to["prompt"]    = t.prompt;
+            taskArr.append(to);
+        }
+        meta["tasks"] = taskArr;
+        meta["passes"] = passes;
+        QFile mf(runDir + "/metadata.json");
+        if (mf.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            mf.write(QJsonDocument(meta).toJson());
+    }
+    const auto runDirShared = std::make_shared<QString>(runDir);
     auto stepsDone = std::make_shared<int>(0);
 
     // Recursive per-profile sequence
@@ -3054,8 +4562,9 @@ void AppController::startBenchmark(const QStringList &profileIds, const QString 
                 emit benchmarkStatusChanged();
 
                 benchmarkRequest(url, "Say hi.", 32, true, [=](QVariantMap) {
-                    // Run all tasks sequentially
+                    // Run all tasks sequentially, repeated `passes` times per profile.
                     auto taskResults = std::make_shared<QVariantList>();
+                    auto passNo = std::make_shared<int>(1);
                     auto runTask = std::make_shared<std::function<void(int)>>();
 
                     *runTask = [=](int ti) {
@@ -3078,9 +4587,15 @@ void AppController::startBenchmark(const QStringList &profileIds, const QString 
                                 const double avgTps  = speedCount > 0 ? tpsSum  / speedCount : 0;
                                 const double avgTtft = speedCount > 0 ? ttftSum / speedCount : 0;
 
+                                const QString rowName = passes > 1
+                                    ? QString("%1 · pasada %2/%3").arg(profName).arg(*passNo).arg(passes)
+                                    : profName;
+
                                 QVariantMap result;
                                 result["profileId"]    = profileId;
-                                result["profileName"]  = profName;
+                                result["profileName"]  = rowName;
+                                result["pass"]         = *passNo;
+                                result["passesTotal"]  = passes;
                                 result["mode"]         = mode;
                                 result["timestamp"]    = (double)QDateTime::currentMSecsSinceEpoch();
                                 result["qualityScore"] = passed;
@@ -3092,9 +4607,36 @@ void AppController::startBenchmark(const QStringList &profileIds, const QString 
                                 result["tasks"]        = *taskResults;
                                 result["id"]           = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
+                                result["runLabel"] = runLabel;
+                                result["runDir"]   = *runDirShared;
+
                                 m_benchmarkResults.append(result);
                                 emit benchmarkResultsChanged();
                                 saveBenchmarkResult(result);
+
+                                // Also drop a per-profile file into the isolated run folder
+                                {
+                                    QString fname = profName;
+                                    fname.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]+")),
+                                                  QStringLiteral("_"));
+                                    QFile pf(*runDirShared + "/" + fname.left(60) + "_"
+                                             + result.value("id").toString() + ".json");
+                                    if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                                        pf.write(QJsonDocument(
+                                            QJsonObject::fromVariantMap(result)).toJson());
+                                }
+
+                                // Más pasadas para este perfil → reusar servidor cargado.
+                                if (!m_benchmarkCanceled && *passNo < passes) {
+                                    (*passNo)++;
+                                    taskResults->clear();
+                                    m_benchmarkStatus = QString("[%1/%2] %3 — pasada %4/%5...")
+                                        .arg(idx+1).arg(profileIds.size()).arg(profName)
+                                        .arg(*passNo).arg(passes);
+                                    emit benchmarkStatusChanged();
+                                    (*runTask)(0);
+                                    return;
+                                }
 
                                 stopServer();
                                 benchmarkWaitServerStopped(10000, [=]() {
@@ -3109,7 +4651,9 @@ void AppController::startBenchmark(const QStringList &profileIds, const QString 
                             .arg(idx+1).arg(profileIds.size()).arg(profName).arg(task.id);
                         emit benchmarkStatusChanged();
 
-                        benchmarkRequest(url, task.prompt, task.maxTokens, task.isSpeed, [=](QVariantMap res) {
+                        // Custom tasks always stream so we capture TTFT/tps/tokens for every prompt.
+                        const bool stream = isCustom ? true : task.isSpeed;
+                        benchmarkRequest(url, task.prompt, task.maxTokens, stream, [=](QVariantMap res) {
                             (*stepsDone)++;
                             m_benchmarkProgress = qMin(99, (*stepsDone * 100) / qMax(1, totalSteps));
                             emit benchmarkProgressChanged();
@@ -3118,6 +4662,18 @@ void AppController::startBenchmark(const QStringList &profileIds, const QString 
                             res["category"] = task.category;
                             if (!task.isSpeed && task.eval)
                                 res["passed"] = task.eval(res.value("response").toString());
+
+                            if (isCustom) {
+                                const QString resp = res.value("response").toString();
+                                res["isSpeedTask"] = task.isSpeed;
+                                res["codeOnly"]    = benchCodeOnly(resp);
+                                const QVariantMap deps = benchPythonDeps(resp);
+                                res["hasCode"]       = deps.value("hasCode");
+                                res["inventedDeps"]  = deps.value("invented");
+                                res["depCount"]      = deps.value("count");
+                                res["depList"]       = deps.value("list");
+                            }
+
                             taskResults->append(res);
                             (*runTask)(ti + 1);
                         });
@@ -3188,12 +4744,15 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
     payload["max_tokens"] = maxTokens;
     payload["temperature"]= 0.0;
     payload["top_p"]      = 1.0;
+    if (streaming)
+        payload["stream_options"] = QJsonObject{{"include_usage", true}};
 
     auto *reply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     const qint64 startMs = QDateTime::currentMSecsSinceEpoch();
 
     if (streaming) {
-        struct SpeedState { QByteArray buf; qint64 ttftMs = -1; int chunks = 0; QString response; };
+        struct SpeedState { QByteArray buf; qint64 ttftMs = -1; int chunks = 0;
+                            int tokens = 0; QString response; };
         auto state = std::make_shared<SpeedState>();
 
         connect(reply, &QNetworkReply::readyRead, this, [=]() {
@@ -3205,8 +4764,12 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
                 if (!line.startsWith("data: ")) continue;
                 const QByteArray json = line.mid(6);
                 if (json == "[DONE]") continue;
-                const QString delta = QJsonDocument::fromJson(json).object()
-                    .value("choices").toArray().first().toObject()
+                const QJsonObject obj = QJsonDocument::fromJson(json).object();
+                // Final usage chunk (choices empty, usage populated)
+                const QJsonObject usage = obj.value("usage").toObject();
+                if (!usage.isEmpty())
+                    state->tokens = usage.value("completion_tokens").toInt(state->tokens);
+                const QString delta = obj.value("choices").toArray().first().toObject()
                     .value("delta").toObject().value("content").toString();
                 if (!delta.isEmpty()) {
                     if (state->ttftMs < 0) state->ttftMs = QDateTime::currentMSecsSinceEpoch() - startMs;
@@ -3218,14 +4781,16 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
 
         connect(reply, &QNetworkReply::finished, this, [=]() {
             const qint64 totalMs = QDateTime::currentMSecsSinceEpoch() - startMs;
+            const int tokens = state->tokens > 0 ? state->tokens : state->chunks;
             double tps = 0;
-            if (state->ttftMs >= 0 && state->chunks > 0)
-                tps = state->chunks / qMax(0.001, (totalMs - state->ttftMs) / 1000.0);
+            if (state->ttftMs >= 0 && tokens > 0)
+                tps = tokens / qMax(0.001, (totalMs - state->ttftMs) / 1000.0);
             QVariantMap r;
             r["type"]       = "speed";
             r["ttft_ms"]    = state->ttftMs;
             r["tps"]        = tps;
             r["chunks"]     = state->chunks;
+            r["tokens"]     = tokens;
             r["elapsed_ms"] = totalMs;
             r["response"]   = state->response;
             reply->deleteLater();
@@ -3235,14 +4800,17 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
         connect(reply, &QNetworkReply::finished, this, [=]() {
             const qint64 totalMs = QDateTime::currentMSecsSinceEpoch() - startMs;
             QString response;
+            int tokens = 0;
             if (reply->error() == QNetworkReply::NoError) {
-                response = QJsonDocument::fromJson(reply->readAll()).object()
-                    .value("choices").toArray().first().toObject()
+                const QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+                response = obj.value("choices").toArray().first().toObject()
                     .value("message").toObject().value("content").toString();
+                tokens = obj.value("usage").toObject().value("completion_tokens").toInt();
             }
             QVariantMap r;
             r["type"]       = "quality";
             r["elapsed_ms"] = totalMs;
+            r["tokens"]     = tokens;
             r["response"]   = response;
             reply->deleteLater();
             onDone(r);
@@ -3347,4 +4915,447 @@ void AppController::loadBenchmarkResults()
             m_benchmarkResults.append(m);
     }
     emit benchmarkResultsChanged();
+}
+
+// ── Custom benchmarks ───────────────────────────────────────────────────────
+
+QString AppController::benchmarkRunsDir() const
+{
+    // Isolated, timestamped run folders live under <appDir>/benchmark
+    const QString dir = QCoreApplication::applicationDirPath() + "/benchmark";
+    QDir().mkpath(dir);
+    return dir;
+}
+
+QString AppController::customBenchmarkDir() const
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
+                        + "/benchmarks/custom";
+    QDir().mkpath(dir);
+    return dir;
+}
+
+void AppController::loadCustomBenchmarks()
+{
+    m_customBenchmarks.clear();
+    const QDir dir(customBenchmarkDir());
+    const auto files = dir.entryList({QStringLiteral("*.json")}, QDir::Files, QDir::Name);
+    for (const QString &f : files) {
+        QFile jf(dir.filePath(f));
+        if (!jf.open(QIODevice::ReadOnly)) continue;
+        const QJsonObject o = QJsonDocument::fromJson(jf.readAll()).object();
+        if (!o.isEmpty()) m_customBenchmarks.append(o.toVariantMap());
+    }
+    emit customBenchmarksChanged();
+}
+
+QString AppController::saveCustomBenchmark(const QVariantMap &def)
+{
+    QVariantMap m = def;
+    QString id = m.value("id").toString();
+    if (id.isEmpty()) {
+        id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        m["id"] = id;
+    }
+    QFile f(customBenchmarkDir() + "/" + id + ".json");
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        f.write(QJsonDocument(QJsonObject::fromVariantMap(m)).toJson());
+        f.close();   // flush before reload, else loadCustomBenchmarks reads empty file
+    }
+    loadCustomBenchmarks();
+    return id;
+}
+
+void AppController::deleteCustomBenchmark(const QString &id)
+{
+    if (id.isEmpty()) return;
+    QFile::remove(customBenchmarkDir() + "/" + id + ".json");
+    loadCustomBenchmarks();
+}
+
+// ── Deep Research ─────────────────────────────────────────────────────────────
+
+QString AppController::researchStorageDir() const
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
+                        + QStringLiteral("/research");
+    QDir().mkpath(dir);
+    return dir;
+}
+
+void AppController::setResearchState(bool running, int progress, const QString &status)
+{
+    m_researchRunning = running;
+    m_researchProgress = qBound(0, progress, 100);
+    m_researchStatus = status;
+    emit researchChanged();
+}
+
+void AppController::refreshResearchReports()
+{
+    const QString idxPath = researchStorageDir() + QStringLiteral("/index.json");
+    QFile f(idxPath);
+    QVariantList out;
+    if (f.open(QIODevice::ReadOnly)) {
+        const QJsonArray arr = QJsonDocument::fromJson(f.readAll()).array();
+        QList<QJsonObject> objs;
+        for (const QJsonValue &v : arr) objs.append(v.toObject());
+        std::sort(objs.begin(), objs.end(), [](const QJsonObject &a, const QJsonObject &b) {
+            return a.value(QStringLiteral("timestamp")).toDouble()
+                   > b.value(QStringLiteral("timestamp")).toDouble();
+        });
+        for (const QJsonObject &o : objs)
+            out.append(o.toVariantMap());
+    }
+    m_researchReports = out;
+    emit researchReportsChanged();
+}
+
+void AppController::saveResearchReport(const QVariantMap &summary, const QString &markdown,
+                                       const QJsonObject &full)
+{
+    const QString dir = researchStorageDir();
+    const QString id = summary.value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) return;
+
+    QFile md(dir + QLatin1Char('/') + id + QStringLiteral(".md"));
+    if (md.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        md.write(markdown.toUtf8());
+
+    QFile json(dir + QLatin1Char('/') + id + QStringLiteral(".json"));
+    if (json.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        json.write(QJsonDocument(full).toJson(QJsonDocument::Indented));
+
+    const QString idxPath = dir + QStringLiteral("/index.json");
+    QJsonArray idx;
+    QFile idxFile(idxPath);
+    if (idxFile.open(QIODevice::ReadOnly)) {
+        idx = QJsonDocument::fromJson(idxFile.readAll()).array();
+        idxFile.close();
+    }
+    QJsonArray kept;
+    for (const QJsonValue &v : idx)
+        if (v.toObject().value(QStringLiteral("id")).toString() != id)
+            kept.append(v);
+    kept.prepend(QJsonObject::fromVariantMap(summary));
+    if (idxFile.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        idxFile.write(QJsonDocument(kept).toJson(QJsonDocument::Indented));
+
+    refreshResearchReports();
+}
+
+void AppController::startResearch(const QString &topic, const QString &mode, int maxPages)
+{
+    const QString cleanTopic = topic.trimmed();
+    if (cleanTopic.isEmpty()) return;
+    if (m_researchRunning) {
+        emit serverError(QStringLiteral("Ya hay una investigación en curso."));
+        return;
+    }
+    if (!serverRunning() || !serverReady()) {
+        emit serverError(QStringLiteral("Deep Research necesita el servidor listo para sintetizar el reporte."));
+        return;
+    }
+
+    if (!m_nam) m_nam = new QNetworkAccessManager(this);
+    maxPages = qBound(2, maxPages <= 0 ? 6 : maxPages, 10);
+
+    const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString normalizedMode = mode.trimmed().isEmpty() ? QStringLiteral("auto") : mode.trimmed();
+    const QStringList queries = researchQueriesFor(cleanTopic, normalizedMode);
+    auto hits = std::make_shared<QVector<ResearchHit>>();
+    auto sourceTexts = std::make_shared<QStringList>();
+    auto sources = std::make_shared<QJsonArray>();
+    auto searchLogs = std::make_shared<QStringList>();
+    auto addHit = [hits](const ResearchHit &h) {
+        if (h.url.isEmpty()) return;
+        for (const ResearchHit &existing : std::as_const(*hits))
+            if (existing.url == h.url) return;
+        hits->append(h);
+    };
+
+    setResearchState(true, 1, QStringLiteral("Preparando búsqueda..."));
+
+    auto fail = [this](const QString &message) {
+        if (m_researchReply) {
+            m_researchReply->deleteLater();
+            m_researchReply = nullptr;
+        }
+        setResearchState(false, 0, message);
+        emit serverError(message);
+    };
+
+    auto synthesize = std::make_shared<std::function<void()>>();
+    auto fetchNext = std::make_shared<std::function<void(int)>>();
+    auto searchNext = std::make_shared<std::function<void(int)>>();
+
+    *synthesize = [=]() {
+        setResearchState(true, 82, QStringLiteral("Sintetizando reporte..."));
+
+        QStringList sourceLines;
+        for (int i = 0; i < sources->size(); ++i) {
+            const QJsonObject s = sources->at(i).toObject();
+            sourceLines << QStringLiteral("[%1] %2 — %3")
+                               .arg(i + 1)
+                               .arg(s.value(QStringLiteral("title")).toString(),
+                                    s.value(QStringLiteral("url")).toString());
+        }
+
+        QString dossier;
+        dossier += QStringLiteral("# Dossier: %1\n\n").arg(cleanTopic);
+        dossier += QStringLiteral("Mode: %1\n\n").arg(researchModeTitle(normalizedMode));
+        dossier += QStringLiteral("## Search log\n%1\n\n").arg(searchLogs->join(QLatin1Char('\n')));
+        dossier += QStringLiteral("## Sources\n%1\n\n").arg(sourceLines.join(QLatin1Char('\n')));
+        dossier += QStringLiteral("## Extracts\n%1\n").arg(sourceTexts->join(QStringLiteral("\n\n")));
+
+        const QString sys = QStringLiteral(
+            "Sos un investigador técnico. Sintetizá fuentes web en español. "
+            "Separá hechos confirmados de inferencias, citá fuentes como [1], [2], "
+            "marcá contradicciones y no inventes evidencia.");
+        const QString user = QStringLiteral(
+            "Tema: %1\nModo: %2\n\n"
+            "Usá el dossier de fuentes de abajo y devolvé un reporte Markdown con: "
+            "Resumen ejecutivo, Hallazgos clave, Evidencia, Riesgos/limitaciones, "
+            "Próximos pasos. Para Product/Compare agregá matriz de recomendación; "
+            "para How-to pasos; para Fact-check veredictos.\n\n%3")
+            .arg(cleanTopic, researchModeTitle(normalizedMode), dossier.left(30000));
+
+        QJsonObject payload{
+            {QStringLiteral("model"), QStringLiteral("research")},
+            {QStringLiteral("messages"), QJsonArray{
+                QJsonObject{{QStringLiteral("role"), QStringLiteral("system")},
+                            {QStringLiteral("content"), sys}},
+                QJsonObject{{QStringLiteral("role"), QStringLiteral("user")},
+                            {QStringLiteral("content"), user}}}},
+            {QStringLiteral("stream"), false},
+            {QStringLiteral("temperature"), 0.2},
+            {QStringLiteral("max_tokens"), 2200},
+            {QStringLiteral("cache_prompt"), true}
+        };
+
+        QNetworkRequest req(QUrl(serverBaseUrl() + QStringLiteral("/v1/chat/completions")));
+        req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
+        req.setTransferTimeout(180000);
+        m_researchReply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+        connect(m_researchReply, &QNetworkReply::finished, this, [=]() {
+            QNetworkReply *reply = m_researchReply;
+            m_researchReply = nullptr;
+            if (!reply) return;
+            const QByteArray raw = reply->readAll();
+            const bool ok = reply->error() == QNetworkReply::NoError;
+            const QString err = reply->errorString();
+            reply->deleteLater();
+            if (!m_researchRunning) return;
+
+            QString report;
+            if (ok) {
+                const QJsonObject root = QJsonDocument::fromJson(raw).object();
+                const QJsonArray choices = root.value(QStringLiteral("choices")).toArray();
+                if (!choices.isEmpty())
+                    report = choices.first().toObject()
+                                 .value(QStringLiteral("message")).toObject()
+                                 .value(QStringLiteral("content")).toString().trimmed();
+            }
+            if (report.isEmpty()) {
+                report = QStringLiteral("# Deep Research: %1\n\n"
+                                        "> No se pudo sintetizar con el modelo (%2). "
+                                        "Se guarda el dossier crudo.\n\n%3")
+                             .arg(cleanTopic, ok ? QStringLiteral("respuesta vacía") : err, dossier);
+            }
+
+            const double ts = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+            const QString title = cleanTopic.left(96);
+            QVariantMap summary{
+                {QStringLiteral("id"), id},
+                {QStringLiteral("title"), title},
+                {QStringLiteral("topic"), cleanTopic},
+                {QStringLiteral("mode"), normalizedMode},
+                {QStringLiteral("modeLabel"), researchModeTitle(normalizedMode)},
+                {QStringLiteral("timestamp"), ts},
+                {QStringLiteral("sourceCount"), sources->size()},
+                {QStringLiteral("path"), researchStorageDir() + QLatin1Char('/') + id + QStringLiteral(".md")}
+            };
+            QJsonObject full{
+                {QStringLiteral("id"), id},
+                {QStringLiteral("topic"), cleanTopic},
+                {QStringLiteral("mode"), normalizedMode},
+                {QStringLiteral("timestamp"), ts},
+                {QStringLiteral("sources"), *sources},
+                {QStringLiteral("dossier"), dossier},
+                {QStringLiteral("report"), report}
+            };
+            saveResearchReport(summary, report, full);
+            setResearchState(false, 100, QStringLiteral("Reporte guardado."));
+        });
+    };
+
+    *fetchNext = [=](int index) {
+        const int wanted = qMin(maxPages, hits->size());
+        if (index >= wanted) {
+            if (sources->isEmpty()) {
+                fail(QStringLiteral("No se pudieron descargar fuentes útiles."));
+                return;
+            }
+            (*synthesize)();
+            return;
+        }
+
+        const ResearchHit h = hits->at(index);
+        setResearchState(true, 35 + (index * 45 / qMax(1, wanted)),
+                         QStringLiteral("Leyendo fuente %1/%2...").arg(index + 1).arg(wanted));
+        QNetworkRequest req(QUrl(h.url));
+        req.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Mozilla/5.0 LlamaCode/0.1"));
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
+        req.setTransferTimeout(25000);
+        m_researchReply = m_nam->get(req);
+        connect(m_researchReply, &QNetworkReply::finished, this, [=]() {
+            QNetworkReply *reply = m_researchReply;
+            m_researchReply = nullptr;
+            if (!reply) return;
+            const QByteArray raw = reply->readAll();
+            const bool ok = reply->error() == QNetworkReply::NoError;
+            reply->deleteLater();
+            if (!m_researchRunning) return;
+
+            QString text;
+            if (ok && !raw.isEmpty())
+                text = researchCleanHtmlToText(QString::fromUtf8(raw)).left(4200);
+            if (!text.trimmed().isEmpty()) {
+                sources->append(QJsonObject{
+                    {QStringLiteral("title"), h.title.isEmpty() ? h.url : h.title},
+                    {QStringLiteral("url"), h.url},
+                    {QStringLiteral("snippet"), h.snippet}
+                });
+                sourceTexts->append(QStringLiteral("### [%1] %2\n%3")
+                                        .arg(sources->size())
+                                        .arg(h.title.isEmpty() ? h.url : h.title,
+                                             text));
+            }
+            (*fetchNext)(index + 1);
+        });
+    };
+
+    *searchNext = [=](int index) {
+        if (index >= queries.size() || hits->size() >= maxPages) {
+            if (hits->isEmpty()) {
+                fail(QStringLiteral("No se encontraron resultados para la investigación."));
+                return;
+            }
+            (*fetchNext)(0);
+            return;
+        }
+
+        const QString query = queries.at(index);
+        setResearchState(true, 5 + (index * 25 / qMax(1, queries.size())),
+                         QStringLiteral("Buscando: %1").arg(query.left(80)));
+
+        const QString searxng = qEnvironmentVariable("LLAMACODE_SEARXNG_URL").trimmed();
+        QUrl url;
+        if (!searxng.isEmpty()) {
+            url = QUrl(searxng.endsWith(QLatin1Char('/'))
+                           ? searxng + QStringLiteral("search")
+                           : searxng + QStringLiteral("/search"));
+            QUrlQuery q;
+            q.addQueryItem(QStringLiteral("q"), query);
+            q.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
+            url.setQuery(q);
+        } else {
+            url = QUrl(QStringLiteral("https://html.duckduckgo.com/html/"));
+            QUrlQuery q;
+            q.addQueryItem(QStringLiteral("q"), query);
+            url.setQuery(q);
+        }
+
+        QNetworkRequest req(url);
+        req.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Mozilla/5.0 LlamaCode/0.1"));
+        req.setTransferTimeout(25000);
+        m_researchReply = m_nam->get(req);
+        connect(m_researchReply, &QNetworkReply::finished, this, [=]() {
+            QNetworkReply *reply = m_researchReply;
+            m_researchReply = nullptr;
+            if (!reply) return;
+            const QByteArray raw = reply->readAll();
+            const bool ok = reply->error() == QNetworkReply::NoError;
+            reply->deleteLater();
+            if (!m_researchRunning) return;
+
+            int addedBefore = hits->size();
+            if (ok && !raw.isEmpty()) {
+                if (!searxng.isEmpty()) {
+                    const QJsonArray arr = QJsonDocument::fromJson(raw).object()
+                                               .value(QStringLiteral("results")).toArray();
+                    for (const QJsonValue &v : arr) {
+                        const QJsonObject o = v.toObject();
+                        addHit({o.value(QStringLiteral("title")).toString(),
+                                o.value(QStringLiteral("url")).toString(),
+                                o.value(QStringLiteral("content")).toString()});
+                        if (hits->size() >= maxPages) break;
+                    }
+                } else {
+                    const QVector<ResearchHit> parsed = researchParseDdg(QString::fromUtf8(raw), 6);
+                    for (const ResearchHit &h : parsed) {
+                        addHit(h);
+                        if (hits->size() >= maxPages) break;
+                    }
+                }
+            }
+            searchLogs->append(QStringLiteral("- \"%1\" -> %2 new result(s)")
+                                   .arg(query).arg(hits->size() - addedBefore));
+            (*searchNext)(index + 1);
+        });
+    };
+
+    (*searchNext)(0);
+}
+
+void AppController::cancelResearch()
+{
+    if (m_researchReply) {
+        QNetworkReply *reply = m_researchReply;
+        m_researchReply = nullptr;
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
+    }
+    if (m_researchRunning)
+        setResearchState(false, 0, QStringLiteral("Investigación cancelada."));
+}
+
+QString AppController::readResearchReport(const QString &id) const
+{
+    if (id.trimmed().isEmpty()) return QString();
+    QFile f(researchStorageDir() + QLatin1Char('/') + id + QStringLiteral(".md"));
+    if (!f.open(QIODevice::ReadOnly)) return QString();
+    return QString::fromUtf8(f.readAll());
+}
+
+void AppController::openResearchReport(const QString &id)
+{
+    if (id.trimmed().isEmpty()) return;
+    const QString path = researchStorageDir() + QLatin1Char('/') + id + QStringLiteral(".md");
+    if (!QFileInfo::exists(path)) return;
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+void AppController::deleteResearchReport(const QString &id)
+{
+    if (id.trimmed().isEmpty()) return;
+    const QString dir = researchStorageDir();
+    QFile::remove(dir + QLatin1Char('/') + id + QStringLiteral(".md"));
+    QFile::remove(dir + QLatin1Char('/') + id + QStringLiteral(".json"));
+
+    const QString idxPath = dir + QStringLiteral("/index.json");
+    QFile f(idxPath);
+    QJsonArray kept;
+    if (f.open(QIODevice::ReadOnly)) {
+        const QJsonArray arr = QJsonDocument::fromJson(f.readAll()).array();
+        f.close();
+        for (const QJsonValue &v : arr)
+            if (v.toObject().value(QStringLiteral("id")).toString() != id)
+                kept.append(v);
+    }
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        f.write(QJsonDocument(kept).toJson(QJsonDocument::Indented));
+    refreshResearchReports();
 }

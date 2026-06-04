@@ -3,6 +3,7 @@
 #include "LlamaAgentBackend.h"   // LlamaAgentBackend::makeDiff (static)
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -18,6 +19,14 @@
 #include <QSet>
 #include <QTimer>
 #include <QUrl>
+#include <QUrlQuery>
+#include <QJsonObject>
+#include <QStandardPaths>
+#include <QThread>
+#include <QtSql/QSqlDatabase>
+#include <QtSql/QSqlQuery>
+#include <cmath>
+#include <cstring>
 
 static const QString kMcpPrefix = QStringLiteral("mcp__");
 
@@ -79,10 +88,223 @@ static QRegularExpression globToRegex(const QString &glob)
     return QRegularExpression(rx);
 }
 
+// ── Helpers web (compartidos por web_fetch / web_search / deep_research) ──
+struct WebHit { QString title, url, snippet; };
+
+// GET sincrónico con timeout (corre en el hilo worker, sin event loop propio del caller).
+static QByteArray httpGetSync(const QUrl &url, QString *err, int timeoutMs = 20000)
+{
+    QNetworkAccessManager nam;
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Mozilla/5.0 LlamaCode/0.1"));
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply *reply = nam.get(req);
+    QEventLoop loop;
+    QTimer killer; killer.setSingleShot(true);
+    QObject::connect(&killer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    killer.start(timeoutMs);
+    loop.exec();
+    if (reply->isRunning()) { reply->abort(); reply->deleteLater(); if (err) *err = QStringLiteral("timeout"); return {}; }
+    if (reply->error() != QNetworkReply::NoError) { if (err) *err = reply->errorString(); reply->deleteLater(); return {}; }
+    const QByteArray body = reply->readAll(); reply->deleteLater(); return body;
+}
+
+// HTML crudo → texto plano: saca script/style, tags, entidades, colapsa espacios.
+static QString cleanHtmlToText(QString text)
+{
+    text.remove(QRegularExpression(QStringLiteral("(?is)<(script|style)[^>]*>.*?</\\1>")));
+    text.remove(QRegularExpression(QStringLiteral("(?s)<[^>]+>")));
+    text.replace(QStringLiteral("&nbsp;"), QStringLiteral(" "));
+    text.replace(QStringLiteral("&amp;"),  QStringLiteral("&"));
+    text.replace(QStringLiteral("&lt;"),   QStringLiteral("<"));
+    text.replace(QStringLiteral("&gt;"),   QStringLiteral(">"));
+    text.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
+    text.replace(QStringLiteral("&#x27;"), QStringLiteral("'"));
+    text.replace(QRegularExpression(QStringLiteral("[ \t]+")), QStringLiteral(" "));
+    text.replace(QRegularExpression(QStringLiteral("\n[ \t]*(?:\n[ \t]*)+")), QStringLiteral("\n\n"));
+    return text.trimmed();
+}
+
+// Descarga una URL y devuelve su texto limpiado (cap chars). "" si falla.
+static QString fetchUrlText(const QString &url, int cap, QString *err = nullptr)
+{
+    if (!url.startsWith(QLatin1String("http"))) { if (err) *err = QStringLiteral("url inválida"); return {}; }
+    const QByteArray body = httpGetSync(QUrl(url), err);
+    if (body.isEmpty()) return {};
+    const QString text = cleanHtmlToText(QString::fromUtf8(body));
+    return text.left(cap);
+}
+
+// Resuelve el redirect /l/?uddg= de DuckDuckGo a la URL destino.
+static QString resolveDdgRedirect(QString raw)
+{
+    if (raw.startsWith(QLatin1String("//"))) raw = QStringLiteral("https:") + raw;
+    QUrl ru(raw);
+    if (ru.path().endsWith(QLatin1String("/l/")) || ru.path() == QLatin1String("/l")) {
+        const QString uddg = QUrlQuery(ru).queryItemValue(QStringLiteral("uddg"), QUrl::FullyDecoded);
+        if (!uddg.isEmpty()) return uddg;
+    }
+    return raw;
+}
+
+// Búsqueda web: SearXNG si LLAMACODE_SEARXNG_URL está seteado, si no DuckDuckGo HTML.
+static QVector<WebHit> runWebSearch(const QString &query, int count, QString *err = nullptr)
+{
+    QVector<WebHit> hits;
+    const QString searxng = qEnvironmentVariable("LLAMACODE_SEARXNG_URL").trimmed();
+    if (!searxng.isEmpty()) {
+        QUrl u(searxng.endsWith(QLatin1Char('/')) ? searxng + QStringLiteral("search")
+                                                   : searxng + QStringLiteral("/search"));
+        QUrlQuery q;
+        q.addQueryItem(QStringLiteral("q"), query);
+        q.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
+        u.setQuery(q);
+        const QByteArray body = httpGetSync(u, err);
+        if (!body.isEmpty()) {
+            const QJsonArray arr = QJsonDocument::fromJson(body).object()
+                                       .value(QStringLiteral("results")).toArray();
+            for (const QJsonValue &v : arr) {
+                const QJsonObject o = v.toObject();
+                hits.append({o.value(QStringLiteral("title")).toString(),
+                             o.value(QStringLiteral("url")).toString(),
+                             o.value(QStringLiteral("content")).toString()});
+                if (hits.size() >= count) break;
+            }
+        }
+    }
+    if (hits.isEmpty()) {
+        QUrl u(QStringLiteral("https://html.duckduckgo.com/html/"));
+        QUrlQuery q; q.addQueryItem(QStringLiteral("q"), query); u.setQuery(q);
+        const QByteArray body = httpGetSync(u, err);
+        if (body.isEmpty()) return hits;
+        const QString html = QString::fromUtf8(body);
+        QRegularExpression reTitle(
+            QStringLiteral("(?is)<a[^>]+class=\"[^\"]*result__a[^\"]*\"[^>]+href=\"([^\"]+)\"[^>]*>(.*?)</a>"));
+        QRegularExpression reSnip(
+            QStringLiteral("(?is)class=\"[^\"]*result__snippet[^\"]*\"[^>]*>(.*?)</a>"));
+        auto snipIt = reSnip.globalMatch(html);
+        auto titleIt = reTitle.globalMatch(html);
+        while (titleIt.hasNext() && hits.size() < count) {
+            const auto tm = titleIt.next();
+            WebHit h;
+            h.url = resolveDdgRedirect(tm.captured(1));
+            h.title = cleanHtmlToText(tm.captured(2));
+            if (snipIt.hasNext()) h.snippet = cleanHtmlToText(snipIt.next().captured(1));
+            if (!h.url.isEmpty()) hits.append(h);
+        }
+    }
+    return hits;
+}
+
+// ── Embeddings + cache de vectores (RAG semántico vía /v1/embeddings) ──
+
+// POST JSON sincrónico. Devuelve el body o {} con *err.
+static QByteArray httpPostJson(const QUrl &url, const QByteArray &body, QString *err,
+                               int timeoutMs = 60000, const QString &bearer = QString())
+{
+    QNetworkAccessManager nam;
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
+    if (!bearer.isEmpty())
+        req.setRawHeader(QByteArrayLiteral("Authorization"),
+                         QByteArrayLiteral("Bearer ") + bearer.toUtf8());
+    QNetworkReply *reply = nam.post(req, body);
+    QEventLoop loop;
+    QTimer killer; killer.setSingleShot(true);
+    QObject::connect(&killer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    killer.start(timeoutMs);
+    loop.exec();
+    if (reply->isRunning()) { reply->abort(); reply->deleteLater(); if (err) *err = QStringLiteral("timeout"); return {}; }
+    if (reply->error() != QNetworkReply::NoError) {
+        const QByteArray b = reply->readAll(); QString e = reply->errorString();
+        if (!b.isEmpty()) e += QStringLiteral(" · ") + QString::fromUtf8(b.left(200));
+        reply->deleteLater(); if (err) *err = e; return {};
+    }
+    const QByteArray out = reply->readAll(); reply->deleteLater(); return out;
+}
+
+// Llama /v1/embeddings con un batch de textos → vectores. "" en *err si OK.
+static QVector<QVector<float>> embedTexts(const QString &baseUrl, const QStringList &texts,
+                                          QString *err)
+{
+    QVector<QVector<float>> out;
+    if (baseUrl.isEmpty()) { if (err) *err = QStringLiteral("sin URL de server"); return out; }
+    QJsonArray inputs;
+    for (const QString &t : texts) inputs.append(t);
+    const QJsonObject payload{
+        {QStringLiteral("input"), inputs},
+        {QStringLiteral("model"), QStringLiteral("llamacode-embed")}};
+    const QByteArray body = httpPostJson(QUrl(baseUrl + QStringLiteral("/v1/embeddings")),
+                                         QJsonDocument(payload).toJson(QJsonDocument::Compact), err);
+    if (body.isEmpty()) return out;
+    const QJsonArray data = QJsonDocument::fromJson(body).object()
+                                .value(QStringLiteral("data")).toArray();
+    if (data.isEmpty()) { if (err) *err = QStringLiteral("respuesta sin embeddings (¿server sin --embeddings?)"); return out; }
+    out.resize(data.size());
+    for (const QJsonValue &dv : data) {
+        const QJsonObject o = dv.toObject();
+        const int idx = o.value(QStringLiteral("index")).toInt();
+        const QJsonArray emb = o.value(QStringLiteral("embedding")).toArray();
+        QVector<float> vec; vec.reserve(emb.size());
+        for (const QJsonValue &ev : emb) vec.append(static_cast<float>(ev.toDouble()));
+        if (idx >= 0 && idx < out.size()) out[idx] = vec; else out.append(vec);
+    }
+    return out;
+}
+
+// Conexión SQLite per-thread al cache de vectores. Tabla: key TEXT PK, dim INT, vec BLOB.
+static QSqlDatabase embedCacheDb()
+{
+    const QString conn = QStringLiteral("embed_cache_%1")
+                             .arg(reinterpret_cast<quintptr>(QThread::currentThreadId()));
+    if (QSqlDatabase::contains(conn)) return QSqlDatabase::database(conn);
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QDir().mkpath(dir);
+    QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), conn);
+    db.setDatabaseName(dir + QStringLiteral("/embeddings_cache.db"));
+    if (db.open()) {
+        QSqlQuery q(db);
+        q.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS vecs ("
+                              "key TEXT PRIMARY KEY, dim INTEGER, vec BLOB)"));
+    }
+    return db;
+}
+
+static QByteArray vecToBlob(const QVector<float> &v)
+{
+    return QByteArray(reinterpret_cast<const char *>(v.constData()),
+                      int(v.size() * sizeof(float)));
+}
+static QVector<float> blobToVec(const QByteArray &b)
+{
+    QVector<float> v(int(b.size() / sizeof(float)));
+    memcpy(v.data(), b.constData(), v.size() * sizeof(float));
+    return v;
+}
+
+static float cosineSim(const QVector<float> &a, const QVector<float> &b)
+{
+    if (a.size() != b.size() || a.isEmpty()) return 0.f;
+    double dot = 0, na = 0, nb = 0;
+    for (int i = 0; i < a.size(); ++i) { dot += double(a[i]) * b[i]; na += double(a[i]) * a[i]; nb += double(b[i]) * b[i]; }
+    if (na == 0 || nb == 0) return 0.f;
+    return float(dot / (std::sqrt(na) * std::sqrt(nb)));
+}
+
 AgentToolRunner::AgentToolRunner(QObject *parent) : QObject(parent) {}
 AgentToolRunner::~AgentToolRunner() { shutdown(); }
 
 void AgentToolRunner::setConfined(bool confined) { m_confined = confined; }
+void AgentToolRunner::setServerBaseUrl(const QString &url) { m_serverBaseUrl = url; }
+void AgentToolRunner::setTeacherConfig(const QString &url, const QString &model, const QString &key)
+{
+    m_teacherUrl = url.trimmed();
+    m_teacherModel = model.trimmed();
+    m_teacherKey = key.trimmed();
+}
 
 void AgentToolRunner::shutdown()
 {
@@ -258,39 +480,272 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
         const QString url = args.value(QStringLiteral("url")).toString();
         if (!url.startsWith(QLatin1String("http")))
             return QStringLiteral("[url inválida: debe empezar con http(s)://]");
-        QNetworkAccessManager nam;
-        QNetworkRequest req((QUrl(url)));
-        req.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("LlamaCode/0.1"));
-        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-        QNetworkReply *reply = nam.get(req);
-        QEventLoop loop;
-        QTimer killer; killer.setSingleShot(true);
-        QObject::connect(&killer, &QTimer::timeout, &loop, &QEventLoop::quit);
-        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-        killer.start(20000);   // 20s
-        loop.exec();
-        if (reply->isRunning()) { reply->abort(); reply->deleteLater();
-            return QStringLiteral("[timeout al descargar %1]").arg(url); }
-        if (reply->error() != QNetworkReply::NoError) {
-            const QString e = reply->errorString(); reply->deleteLater();
-            return QStringLiteral("[error de red: %1]").arg(e);
+        QString err;
+        const QString text = fetchUrlText(url, 48 * 1024, &err);
+        if (text.isEmpty()) {
+            if (!err.isEmpty()) return QStringLiteral("[error al descargar %1: %2]").arg(url, err);
+            return QStringLiteral("[respuesta vacía]");
         }
-        QByteArray body = reply->readAll();
-        reply->deleteLater();
-        QString text = QString::fromUtf8(body);
-        // Limpieza HTML cruda → texto: sacar script/style, tags, colapsar espacios.
-        text.remove(QRegularExpression(QStringLiteral("(?is)<(script|style)[^>]*>.*?</\\1>")));
-        text.remove(QRegularExpression(QStringLiteral("(?s)<[^>]+>")));
-        text.replace(QRegularExpression(QStringLiteral("&nbsp;")), QStringLiteral(" "));
-        text.replace(QRegularExpression(QStringLiteral("&amp;")), QStringLiteral("&"));
-        text.replace(QRegularExpression(QStringLiteral("&lt;")), QStringLiteral("<"));
-        text.replace(QRegularExpression(QStringLiteral("&gt;")), QStringLiteral(">"));
-        text.replace(QRegularExpression(QStringLiteral("[ \t]+")), QStringLiteral(" "));
-        text.replace(QRegularExpression(QStringLiteral("\n[ \t]*(?:\n[ \t]*)+")), QStringLiteral("\n\n"));
-        text = text.trimmed();
         if (ok) *ok = true;
-        return text.isEmpty() ? QStringLiteral("[respuesta vacía]") : text.left(48 * 1024);
+        return text;
+    }
+    if (name == QLatin1String("web_search")) {
+        const QString query = args.value(QStringLiteral("query")).toString().trimmed();
+        if (query.isEmpty()) return QStringLiteral("[query vacía]");
+        int count = args.value(QStringLiteral("count")).toInt();
+        if (count <= 0) count = 5;
+        count = qBound(1, count, 10);
+        QString err;
+        const QVector<WebHit> hits = runWebSearch(query, count, &err);
+        if (hits.isEmpty())
+            return QStringLiteral("[sin resultados para: %1%2]").arg(query,
+                       err.isEmpty() ? QString() : QStringLiteral(" — ") + err);
+        QStringList out;
+        for (int i = 0; i < hits.size(); ++i)
+            out << QStringLiteral("%1. %2\n   %3\n   %4")
+                       .arg(i + 1).arg(hits[i].title, hits[i].url, hits[i].snippet);
+        if (ok) *ok = true;
+        return out.join(QStringLiteral("\n\n"));
+    }
+    if (name == QLatin1String("deep_research")) {
+        const QString query = args.value(QStringLiteral("query")).toString().trimmed();
+        if (query.isEmpty()) return QStringLiteral("[query vacía]");
+        int maxPages = args.value(QStringLiteral("max_pages")).toInt();
+        if (maxPages <= 0) maxPages = 5;
+        maxPages = qBound(1, maxPages, 10);
+
+        // Ángulos: el modelo puede pasar varias sub-consultas; si no, usa la query sola.
+        QStringList queries;
+        const QJsonArray angles = args.value(QStringLiteral("angles")).toArray();
+        for (const QJsonValue &v : angles) {
+            const QString a = v.toString().trimmed();
+            if (!a.isEmpty()) queries << a;
+        }
+        if (queries.isEmpty()) queries << query;
+        if (queries.size() > 4) queries = queries.mid(0, 4);   // cap
+
+        // 1) Buscar por cada ángulo, juntar URLs únicas (orden de aparición).
+        QStringList urls;
+        QHash<QString, WebHit> meta;
+        QStringList searchLog;
+        for (const QString &q : queries) {
+            const QVector<WebHit> hits = runWebSearch(q, 4);
+            searchLog << QStringLiteral("· \"%1\" → %2 resultados").arg(q).arg(hits.size());
+            for (const WebHit &h : hits) {
+                if (h.url.isEmpty() || urls.contains(h.url)) continue;
+                urls << h.url; meta.insert(h.url, h);
+                if (urls.size() >= maxPages) break;
+            }
+            if (urls.size() >= maxPages) break;
+        }
+        if (urls.isEmpty())
+            return QStringLiteral("[deep_research: sin resultados de búsqueda para: %1]").arg(query);
+
+        // 2) Descargar y limpiar cada página (excerpt acotado por fuente).
+        const int perPageCap = 3500;
+        QStringList sources, bodies;
+        for (int i = 0; i < urls.size(); ++i) {
+            const WebHit &h = meta.value(urls[i]);
+            sources << QStringLiteral("[%1] %2 — %3").arg(i + 1).arg(h.title, urls[i]);
+            const QString text = fetchUrlText(urls[i], perPageCap);
+            bodies << QStringLiteral("### [%1] %2\n%3")
+                          .arg(i + 1).arg(h.title,
+                               text.isEmpty() ? QStringLiteral("(no se pudo descargar)") : text);
+        }
+
+        // 3) Devolver dossier crudo; el MODELO sintetiza (es el LLM del loop).
+        QString out;
+        out += QStringLiteral("# Dossier de investigación: %1\n\n").arg(query);
+        out += QStringLiteral("Búsquedas:\n%1\n\n").arg(searchLog.join(QLatin1Char('\n')));
+        out += QStringLiteral("## Fuentes\n%1\n\n").arg(sources.join(QLatin1Char('\n')));
+        out += QStringLiteral("## Contenido\n%1\n\n").arg(bodies.join(QStringLiteral("\n\n")));
+        out += QStringLiteral("---\nSintetizá una respuesta a \"%1\" citando las fuentes por su número [n]. "
+                              "Si algo no está cubierto, decilo.").arg(query);
+        if (ok) *ok = true;
+        return out.left(28 * 1024);
+    }
+    if (name == QLatin1String("search_docs")) {
+        // RAG-lite: ranking por relevancia de keywords sobre chunks (sin embeddings).
+        const QString query = args.value(QStringLiteral("query")).toString().trimmed();
+        if (query.isEmpty()) return QStringLiteral("[query vacía]");
+        int k = args.value(QStringLiteral("k")).toInt();
+        if (k <= 0) k = 5;
+        k = qBound(1, k, 15);
+        const QString sub = args.value(QStringLiteral("path")).toString();
+        const QString rootAbs = resolve(sub);
+        if (!inProject(rootAbs)) return QStringLiteral("[ruta fuera del proyecto]");
+
+        // Tokens de la consulta (lowercase, >=2 chars, únicos).
+        QStringList terms;
+        for (const QString &t : query.toLower().split(QRegularExpression(QStringLiteral("[^\\p{L}\\p{N}_]+")),
+                                                       Qt::SkipEmptyParts))
+            if (t.size() >= 2 && !terms.contains(t)) terms << t;
+        if (terms.isEmpty()) return QStringLiteral("[query sin términos útiles]");
+
+        struct Chunk { QString file; int line; double score; QString text; };
+        QVector<Chunk> top;   // mantenido chico (k)
+        auto consider = [&](const Chunk &c) {
+            if (c.score <= 0) return;
+            if (top.size() < k) { top.append(c); }
+            else {
+                int wi = 0;
+                for (int i = 1; i < top.size(); ++i) if (top[i].score < top[wi].score) wi = i;
+                if (c.score > top[wi].score) top[wi] = c;
+            }
+        };
+
+        QStringList files;
+        collectFiles(rootAbs, files, 8000);
+        const int chunkLines = 40;
+        for (const QString &fp : files) {
+            // Sólo archivos de texto de tamaño razonable.
+            QFileInfo fi(fp);
+            if (fi.size() > 1024 * 1024) continue;
+            QFile f(fp);
+            if (!f.open(QIODevice::ReadOnly)) continue;
+            const QByteArray raw = f.read(1024 * 1024);
+            if (raw.contains('\0')) continue;   // binario
+            const QStringList lines = QString::fromUtf8(raw).split(QLatin1Char('\n'));
+            const QString rel = base.relativeFilePath(fp);
+            for (int start = 0; start < lines.size(); start += chunkLines) {
+                const QStringList slice = lines.mid(start, chunkLines);
+                const QString chunk = slice.join(QLatin1Char('\n'));
+                const QString low = chunk.toLower();
+                if (low.isEmpty()) continue;
+                // Score BM25-ish: por término, tf con saturación; bonus por cobertura.
+                double score = 0; int distinct = 0;
+                for (const QString &t : terms) {
+                    int tf = low.count(t);
+                    if (tf > 0) { distinct++; score += tf / (tf + 1.5); }
+                }
+                if (distinct == 0) continue;
+                score *= (1.0 + 0.5 * (distinct - 1));            // recompensa multi-término
+                score /= (1.0 + chunk.size() / 4000.0);           // normaliza por largo
+                consider({rel, start + 1, score, chunk.trimmed().left(600)});
+            }
+        }
+        if (top.isEmpty()) return QStringLiteral("[sin coincidencias para: %1]").arg(query);
+        std::sort(top.begin(), top.end(), [](const Chunk &a, const Chunk &b) { return a.score > b.score; });
+        QStringList out;
+        for (const Chunk &c : top)
+            out << QStringLiteral("%1:%2  (score %3)\n%4")
+                       .arg(c.file).arg(c.line).arg(c.score, 0, 'f', 2).arg(c.text);
+        if (ok) *ok = true;
+        return out.join(QStringLiteral("\n\n──────\n"));
+    }
+    if (name == QLatin1String("semantic_search")) {
+        // RAG semántico real: embeddings vía /v1/embeddings + cache de vectores SQLite.
+        const QString query = args.value(QStringLiteral("query")).toString().trimmed();
+        if (query.isEmpty()) return QStringLiteral("[query vacía]");
+        if (m_serverBaseUrl.isEmpty())
+            return QStringLiteral("[semantic_search: no hay server activo]");
+        int k = args.value(QStringLiteral("k")).toInt();
+        if (k <= 0) k = 5;
+        k = qBound(1, k, 15);
+        const QString rootAbs = resolve(args.value(QStringLiteral("path")).toString());
+        if (!inProject(rootAbs)) return QStringLiteral("[ruta fuera del proyecto]");
+
+        struct Ch { QString rel; int line; QString key; QString text; QVector<float> vec; };
+        QVector<Ch> chunks;
+        const int chunkLines = 40, maxChunks = 800;
+        QStringList files;
+        collectFiles(rootAbs, files, 8000);
+        bool truncated = false;
+        for (const QString &fp : files) {
+            if (chunks.size() >= maxChunks) { truncated = true; break; }
+            QFileInfo fi(fp);
+            if (fi.size() > 1024 * 1024) continue;
+            QFile f(fp);
+            if (!f.open(QIODevice::ReadOnly)) continue;
+            const QByteArray raw = f.read(1024 * 1024);
+            if (raw.contains('\0')) continue;
+            const QStringList lines = QString::fromUtf8(raw).split(QLatin1Char('\n'));
+            const QString rel = base.relativeFilePath(fp);
+            for (int start = 0; start < lines.size() && chunks.size() < maxChunks; start += chunkLines) {
+                const QString text = lines.mid(start, chunkLines).join(QLatin1Char('\n')).trimmed();
+                if (text.size() < 16) continue;   // descartar fragmentos triviales
+                const QString key = QString::fromLatin1(
+                    QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Md5).toHex());
+                chunks.append({rel, start + 1, key, text, {}});
+            }
+        }
+        if (chunks.isEmpty()) return QStringLiteral("[no hay archivos de texto para indexar]");
+
+        // 1) Cargar vectores cacheados; juntar los faltantes.
+        QSqlDatabase db = embedCacheDb();
+        QHash<QString, QVector<float>> cache;
+        if (db.isOpen()) {
+            QSqlQuery q(db);
+            q.prepare(QStringLiteral("SELECT vec FROM vecs WHERE key=?"));
+            for (const Ch &c : chunks) {
+                if (cache.contains(c.key)) continue;
+                q.addBindValue(c.key);
+                if (q.exec() && q.next()) cache.insert(c.key, blobToVec(q.value(0).toByteArray()));
+                q.finish();
+            }
+        }
+        QStringList missKeys, missTexts;
+        QSet<QString> seen;
+        for (const Ch &c : chunks) {
+            if (cache.contains(c.key) || seen.contains(c.key)) continue;
+            seen.insert(c.key); missKeys << c.key; missTexts << c.text;
+        }
+
+        // 2) Embeber faltantes en batches; guardar en cache.
+        int embedded = 0;
+        for (int i = 0; i < missTexts.size(); i += 64) {
+            const QStringList batch = missTexts.mid(i, 64);
+            const QStringList bkeys = missKeys.mid(i, 64);
+            QString err;
+            const QVector<QVector<float>> vecs = embedTexts(m_serverBaseUrl, batch, &err);
+            if (vecs.isEmpty())
+                return QStringLiteral("[semantic_search: el server no devolvió embeddings. "
+                                      "Levantá un server con --embeddings (o un modelo de embeddings). "
+                                      "Detalle: %1]").arg(err);
+            if (db.isOpen()) db.transaction();
+            for (int j = 0; j < vecs.size() && j < bkeys.size(); ++j) {
+                cache.insert(bkeys[j], vecs[j]);
+                if (db.isOpen()) {
+                    QSqlQuery iq(db);
+                    iq.prepare(QStringLiteral("INSERT OR REPLACE INTO vecs(key,dim,vec) VALUES(?,?,?)"));
+                    iq.addBindValue(bkeys[j]);
+                    iq.addBindValue(vecs[j].size());
+                    iq.addBindValue(vecToBlob(vecs[j]));
+                    iq.exec();
+                }
+                ++embedded;
+            }
+            if (db.isOpen()) db.commit();
+        }
+
+        // 3) Embeber la query y rankear por coseno.
+        QString qerr;
+        const QVector<QVector<float>> qv = embedTexts(m_serverBaseUrl, {query}, &qerr);
+        if (qv.isEmpty() || qv[0].isEmpty())
+            return QStringLiteral("[semantic_search: no se pudo embeber la query: %1]").arg(qerr);
+        const QVector<float> &qvec = qv[0];
+
+        QVector<QPair<float, int>> scored;
+        for (int i = 0; i < chunks.size(); ++i) {
+            const QVector<float> v = cache.value(chunks[i].key);
+            if (v.isEmpty()) continue;
+            scored.append({cosineSim(qvec, v), i});
+        }
+        std::sort(scored.begin(), scored.end(), [](auto &a, auto &b) { return a.first > b.first; });
+
+        QStringList out;
+        for (int i = 0; i < scored.size() && out.size() < k; ++i) {
+            const Ch &c = chunks[scored[i].second];
+            out << QStringLiteral("%1:%2  (sim %3)\n%4")
+                       .arg(c.rel).arg(c.line).arg(scored[i].first, 0, 'f', 3)
+                       .arg(c.text.left(600));
+        }
+        if (out.isEmpty()) return QStringLiteral("[sin resultados semánticos]");
+        if (ok) *ok = true;
+        QString header = QStringLiteral("[%1 chunks · %2 embebidos nuevos%3]\n\n")
+                             .arg(chunks.size()).arg(embedded)
+                             .arg(truncated ? QStringLiteral(" · TRUNCADO a 800") : QString());
+        return header + out.join(QStringLiteral("\n\n──────\n"));
     }
     if (name == QLatin1String("grep")) {
         const QString pattern = args.value(QStringLiteral("pattern")).toString();
@@ -428,6 +883,84 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
         out[QStringLiteral("diff")] = LlamaAgentBackend::makeDiff(oldText, newText);
         return QStringLiteral("[editado %1 reemplazo(s) en %2]")
                    .arg(replaceAll ? occurrences : 1).arg(rel);
+    }
+    if (name == QLatin1String("memory")) {
+        // Memoria persistente por proyecto (.llamacode/memory.md). save = anexa una
+        // línea con timestamp; recall = devuelve todo el archivo.
+        const QString action = args.value(QStringLiteral("action")).toString().trimmed().toLower();
+        const QString path = LlamaAgentBackend::memoryFilePath(cwd);
+        if (action.isEmpty() || action == QLatin1String("recall")) {
+            QFile f(path);
+            if (!f.open(QIODevice::ReadOnly)) { if (ok) *ok = true; return QStringLiteral("[memoria vacía]"); }
+            const QByteArray raw = f.read(256 * 1024);
+            if (ok) *ok = true;
+            return raw.isEmpty() ? QStringLiteral("[memoria vacía]") : QString::fromUtf8(raw);
+        }
+        if (action == QLatin1String("save")) {
+            const QString content = args.value(QStringLiteral("content")).toString().trimmed();
+            if (content.isEmpty()) return QStringLiteral("[memory save: 'content' vacío]");
+            QDir().mkpath(QFileInfo(path).absolutePath());
+            QFile f(path);
+            if (!f.open(QIODevice::Append | QIODevice::Text))
+                return QStringLiteral("[no se pudo escribir la memoria: %1]").arg(path);
+            const QString ts = QDateTime::currentDateTime().toString(Qt::ISODate);
+            f.write((QStringLiteral("- (%1) %2\n").arg(ts, content)).toUtf8());
+            f.close();
+            if (ok) *ok = true;
+            return QStringLiteral("[memoria guardada]");
+        }
+        return QStringLiteral("[memory: 'action' inválida (usá 'save' o 'recall')]");
+    }
+    if (name == QLatin1String("ask_teacher")) {
+        // Consulta puntual a un modelo MÁS capaz (endpoint OpenAI-compatible aparte).
+        // Config por env: LLAMACODE_TEACHER_URL (req), _MODEL, _KEY (opcionales).
+        const QString question = args.value(QStringLiteral("question")).toString().trimmed();
+        if (question.isEmpty()) return QStringLiteral("[ask_teacher: 'question' vacía]");
+        // Config de UI (setTeacherConfig) tiene prioridad; si está vacía, env vars.
+        const QString teacher = !m_teacherUrl.isEmpty()
+            ? m_teacherUrl : qEnvironmentVariable("LLAMACODE_TEACHER_URL").trimmed();
+        if (teacher.isEmpty())
+            return QStringLiteral("[ask_teacher: configurá el endpoint del modelo maestro en "
+                                  "Ajustes (o la env LLAMACODE_TEACHER_URL). Endpoint "
+                                  "OpenAI-compatible, ej. https://api.openai.com o http://localhost:8081]");
+        const QString model = !m_teacherModel.isEmpty() ? m_teacherModel
+            : qEnvironmentVariable("LLAMACODE_TEACHER_MODEL", QStringLiteral("default"));
+        const QString key = !m_teacherKey.isEmpty()
+            ? m_teacherKey : qEnvironmentVariable("LLAMACODE_TEACHER_KEY").trimmed();
+        const QString context = args.value(QStringLiteral("context")).toString();
+
+        QString userMsg = question;
+        if (!context.isEmpty())
+            userMsg = QStringLiteral("Contexto:\n%1\n\nPregunta:\n%2").arg(context, question);
+        const QJsonArray msgs{
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("system")},
+                        {QStringLiteral("content"), QStringLiteral(
+                             "Sos un experto sénior asistiendo a otro agente de código. "
+                             "Respondé conciso, correcto y accionable.")}},
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("user")},
+                        {QStringLiteral("content"), userMsg}}};
+        const QJsonObject payload{
+            {QStringLiteral("model"), model},
+            {QStringLiteral("messages"), msgs},
+            {QStringLiteral("stream"), false}};
+        const QUrl url(teacher.endsWith(QLatin1Char('/'))
+                           ? teacher + QStringLiteral("v1/chat/completions")
+                           : teacher + QStringLiteral("/v1/chat/completions"));
+        QString err;
+        const QByteArray resp = httpPostJson(url, QJsonDocument(payload).toJson(QJsonDocument::Compact),
+                                             &err, 120000, key);
+        if (resp.isEmpty())
+            return QStringLiteral("[ask_teacher: error consultando al maestro: %1]").arg(err);
+        const QJsonObject root = QJsonDocument::fromJson(resp).object();
+        const QString answer = root.value(QStringLiteral("choices")).toArray().isEmpty()
+            ? QString()
+            : root.value(QStringLiteral("choices")).toArray().first().toObject()
+                  .value(QStringLiteral("message")).toObject()
+                  .value(QStringLiteral("content")).toString();
+        if (answer.isEmpty())
+            return QStringLiteral("[ask_teacher: respuesta vacía del maestro]");
+        if (ok) *ok = true;
+        return QStringLiteral("[Respuesta del modelo maestro]\n") + answer;
     }
     // run_shell se maneja async en executeTool/startShell (no llega acá).
     return QStringLiteral("[tool desconocida: %1]").arg(name);

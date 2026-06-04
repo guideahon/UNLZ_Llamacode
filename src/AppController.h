@@ -51,6 +51,7 @@ class AppController : public QObject
     Q_PROPERTY(int langV READ langV NOTIFY languageChanged)
     Q_PROPERTY(bool agentRunning      READ agentRunning      NOTIFY agentRunningChanged)
     Q_PROPERTY(QString agentLog       READ agentLog          NOTIFY agentLogChanged)
+    Q_PROPERTY(bool agentStarting     READ agentStarting     NOTIFY agentStartingChanged)
     Q_PROPERTY(QVariantList agentMessages  READ agentMessages  NOTIFY agentMessagesChanged)
     // Streaming incremental: índice del mensaje en streaming (-1 = ninguno) y su
     // texto en vivo. La UI override sólo esa burbuja sin re-bindear toda la lista.
@@ -65,6 +66,9 @@ class AppController : public QObject
     Q_PROPERTY(QVariantMap agentPendingTool READ agentPendingTool NOTIFY agentPendingToolChanged)
     Q_PROPERTY(QString agentApprovalMode READ agentApprovalMode WRITE setAgentApprovalMode NOTIFY agentApprovalModeChanged)
     Q_PROPERTY(bool agentThinkingEnabled READ agentThinkingEnabled WRITE setAgentThinkingEnabled NOTIFY agentThinkingChanged)
+    Q_PROPERTY(QString agentTeacherUrl   READ agentTeacherUrl   WRITE setAgentTeacherUrl   NOTIFY agentTeacherChanged)
+    Q_PROPERTY(QString agentTeacherModel READ agentTeacherModel WRITE setAgentTeacherModel NOTIFY agentTeacherChanged)
+    Q_PROPERTY(QString agentTeacherKey   READ agentTeacherKey   WRITE setAgentTeacherKey   NOTIFY agentTeacherChanged)
     Q_PROPERTY(int agentContextUsed READ agentContextUsed NOTIFY agentContextChanged)
     Q_PROPERTY(int agentContextLimit READ agentContextLimit NOTIFY agentContextChanged)
     Q_PROPERTY(QString agentSystemPrompt READ agentSystemPrompt WRITE setAgentSystemPrompt NOTIFY agentTuningChanged)
@@ -79,6 +83,16 @@ class AppController : public QObject
     Q_PROPERTY(int benchmarkProgress READ benchmarkProgress NOTIFY benchmarkProgressChanged)
     Q_PROPERTY(QString benchmarkStatus READ benchmarkStatus NOTIFY benchmarkStatusChanged)
     Q_PROPERTY(QVariantList benchmarkResults READ benchmarkResults NOTIFY benchmarkResultsChanged)
+    Q_PROPERTY(QVariantList customBenchmarks READ customBenchmarks NOTIFY customBenchmarksChanged)
+    Q_PROPERTY(bool researchRunning READ researchRunning NOTIFY researchChanged)
+    Q_PROPERTY(int researchProgress READ researchProgress NOTIFY researchChanged)
+    Q_PROPERTY(QString researchStatus READ researchStatus NOTIFY researchChanged)
+    Q_PROPERTY(QVariantList researchReports READ researchReports NOTIFY researchReportsChanged)
+    Q_PROPERTY(QVariantMap hardwareSummary READ hardwareSummary NOTIFY hardwareSummaryChanged)
+    Q_PROPERTY(QVariantList modelRecommendations READ modelRecommendations NOTIFY modelRecommendationsChanged)
+    Q_PROPERTY(bool modelDownloadRunning READ modelDownloadRunning NOTIFY modelDownloadChanged)
+    Q_PROPERTY(int modelDownloadProgress READ modelDownloadProgress NOTIFY modelDownloadChanged)
+    Q_PROPERTY(QString modelDownloadStatus READ modelDownloadStatus NOTIFY modelDownloadChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -124,6 +138,7 @@ public:
         if (m_piActive) return true;
         return m_agentInTerminal ? (m_agentPid != 0) : (m_agentProc && m_agentProc->state() != QProcess::NotRunning);
     }
+    bool agentStarting() const { return m_agentStarting || !m_pendingAutoAgentLaunchId.isEmpty(); }
     QString agentLog() const { return m_agentLog; }
     QVariantList agentMessages()  const { return m_agentMessages; }
     int agentStreamingIndex() const { return m_agentStreamingIndex; }
@@ -146,6 +161,12 @@ public:
     void setAgentApprovalMode(const QString &mode);
     bool agentThinkingEnabled() const { return m_agentThinkingEnabled; }
     void setAgentThinkingEnabled(bool enabled);
+    QString agentTeacherUrl()   const { return m_agentTeacherUrl; }
+    QString agentTeacherModel() const { return m_agentTeacherModel; }
+    QString agentTeacherKey()   const { return m_agentTeacherKey; }
+    void setAgentTeacherUrl(const QString &url);
+    void setAgentTeacherModel(const QString &model);
+    void setAgentTeacherKey(const QString &key);
     QString activeAgentAdapter() const { return m_activeAgentAdapter; }
     bool agentInTerminal() const { return m_agentInTerminal; }
     bool installingHarness() const { return m_installingHarness; }
@@ -155,6 +176,16 @@ public:
     int benchmarkProgress() const { return m_benchmarkProgress; }
     QString benchmarkStatus() const { return m_benchmarkStatus; }
     QVariantList benchmarkResults() const { return m_benchmarkResults; }
+    QVariantList customBenchmarks() const { return m_customBenchmarks; }
+    bool researchRunning() const { return m_researchRunning; }
+    int researchProgress() const { return m_researchProgress; }
+    QString researchStatus() const { return m_researchStatus; }
+    QVariantList researchReports() const { return m_researchReports; }
+    QVariantMap hardwareSummary() const { return m_hardwareSummary; }
+    QVariantList modelRecommendations() const { return m_modelRecommendations; }
+    bool modelDownloadRunning() const { return m_modelDownloadReply != nullptr; }
+    int modelDownloadProgress() const { return m_modelDownloadProgress; }
+    QString modelDownloadStatus() const { return m_modelDownloadStatus; }
 
     Q_INVOKABLE void newChatSession();
     Q_INVOKABLE void newChatSessionInProject(const QString &projectId, const QString &projectName);
@@ -176,6 +207,7 @@ public:
     Q_INVOKABLE void stopChatGeneration();
     Q_INVOKABLE void setChatThinkingEnabled(bool enabled);
     Q_INVOKABLE void startServer(const QString &launchProfileId);
+    Q_INVOKABLE void startServerAndAgent(const QString &launchProfileId);
     Q_INVOKABLE void stopServer();
     Q_INVOKABLE void computeEffectiveProfile(const QString &launchProfileId);
     // Recalcula la vista previa desde valores en memoria del editor, sin persistir.
@@ -204,6 +236,10 @@ public:
     Q_INVOKABLE QString lf(const QString &key, const QString &arg1) const { return l(key).arg(arg1); }
     Q_INVOKABLE QVariant readSetting(const QString &key, const QVariant &defaultValue = QVariant()) const;
     Q_INVOKABLE void writeSetting(const QString &key, const QVariant &value);
+    Q_INVOKABLE QString exportUserData();
+    Q_INVOKABLE QString importUserData();
+    Q_INVOKABLE bool wipeUserData(const QString &kind, const QString &confirmation);
+    Q_INVOKABLE QVariantList wipeCategories() const;
     Q_INVOKABLE bool isHarnessInstalled(const QString &adapter) const;
     Q_INVOKABLE void installHarness(const QString &adapter);
     Q_INVOKABLE void startAgent(const QString &launchProfileId);
@@ -245,6 +281,10 @@ public:
     Q_INVOKABLE void deleteOpencodeProject(const QString &projectDir);
     Q_INVOKABLE void newOpencodeSessionInProject(const QString &projectDir);
     Q_INVOKABLE void forkOpencodeSession(const QString &sessionId);
+    // ── Tools del agente (habilitar/deshabilitar built-in) ──
+    // Catálogo con metadata + estado enabled, para la UI de toggles.
+    Q_INVOKABLE QVariantList agentToolCatalog() const;
+    Q_INVOKABLE void setAgentToolEnabled(const QString &name, bool enabled);
     Q_INVOKABLE QString pickDirectory(const QString &title = QString());
     Q_INVOKABLE void changeAgentProject(const QString &directory);
     Q_INVOKABLE QString currentAgentProjectDir() const;
@@ -262,17 +302,47 @@ public:
     Q_INVOKABLE bool toggleMcpServer(const QString &scope, const QString &projectDir,
                                      const QString &name, bool enabled);
 
+    // ── Integrations (registro unificado: MCP global + API services) ──
+    // Lista agregada de conexiones externas. Cada item: {id,type,name,enabled,
+    // summary,config{}}. type = "mcp" | "api_service".
+    Q_INVOKABLE QVariantList integrations() const;
+    // Alta/edición de un MCP Tool Server (escribe en el config opencode global).
+    Q_INVOKABLE bool saveMcpIntegration(const QString &name, const QString &type,
+                                        const QString &commandOrUrl);
+    // Alta/edición de un API Service genérico (endpoint HTTP + key). id vacío = crear.
+    Q_INVOKABLE bool saveApiService(const QString &id, const QString &name,
+                                    const QString &baseUrl, const QString &apiKey, bool enabled);
+    Q_INVOKABLE bool removeIntegration(const QString &id);
+    Q_INVOKABLE bool setIntegrationEnabled(const QString &id, bool enabled);
+    // Test asíncrono. Emite integrationTestResult(id, ok, message).
+    Q_INVOKABLE void testIntegration(const QString &id);
+
     // ── Skills / comandos (.opencode/command/*.md) ──
     Q_INVOKABLE QVariantList listOpencodeCommands(const QString &scope, const QString &projectDir) const;
     Q_INVOKABLE QString readOpencodeCommand(const QString &scope, const QString &projectDir, const QString &name) const;
     Q_INVOKABLE bool writeOpencodeCommand(const QString &scope, const QString &projectDir,
                                           const QString &name, const QString &content);
     Q_INVOKABLE bool deleteOpencodeCommand(const QString &scope, const QString &projectDir, const QString &name);
-    Q_INVOKABLE void startBenchmark(const QStringList &profileIds, const QString &mode);
+    Q_INVOKABLE void startBenchmark(const QStringList &profileIds, const QString &mode, int passes = 1);
     Q_INVOKABLE void cancelBenchmark();
+    Q_INVOKABLE void openBenchmarkFolder(const QString &path);
     Q_INVOKABLE void clearBenchmarkResults();
     Q_INVOKABLE void removeBenchmarkResult(int index);
     Q_INVOKABLE void loadBenchmarkResults();
+    // Custom benchmarks (user-defined prompt sets)
+    Q_INVOKABLE void loadCustomBenchmarks();
+    Q_INVOKABLE QString saveCustomBenchmark(const QVariantMap &def); // returns id
+    Q_INVOKABLE void deleteCustomBenchmark(const QString &id);
+    Q_INVOKABLE void startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes = 1);
+    Q_INVOKABLE void startResearch(const QString &topic, const QString &mode, int maxPages);
+    Q_INVOKABLE void cancelResearch();
+    Q_INVOKABLE void refreshResearchReports();
+    Q_INVOKABLE QString readResearchReport(const QString &id) const;
+    Q_INVOKABLE void openResearchReport(const QString &id);
+    Q_INVOKABLE void deleteResearchReport(const QString &id);
+    Q_INVOKABLE void rescanHardware();
+    Q_INVOKABLE void downloadRecommendedModel(const QString &repo, const QString &fileName);
+    Q_INVOKABLE void openModelRecommendation(const QString &repo);
 
 signals:
     void serverRunningChanged();
@@ -289,6 +359,8 @@ signals:
     void officialBinaryInstallStatusChanged();
     void officialBinaryInstallLogChanged();
     void officialBinaryInstallFinished(bool success, const QString &message, const QString &binaryPath);
+    void integrationsChanged();
+    void integrationTestResult(const QString &id, bool ok, const QString &message);
     void serverError(const QString &message);
     // Diagnóstico detectado por regex en el log del server (OOM, puerto, modelo cargado…).
     // level: "error" | "warn" | "info".
@@ -302,6 +374,7 @@ signals:
     void chatGeneratingChanged();
     void chatThinkingSupportedChanged();
     void agentRunningChanged();
+    void agentStartingChanged();
     void agentLogChanged();
     void agentMessagesChanged();
     void agentStreamingChanged();
@@ -311,12 +384,20 @@ signals:
     void agentPendingToolChanged();
     void agentApprovalModeChanged();
     void agentThinkingChanged();
+    void agentToolsChanged();
+    void agentTeacherChanged();
     void agentContextChanged();
     void agentTuningChanged();
     void benchmarkRunningChanged();
     void benchmarkProgressChanged();
     void benchmarkStatusChanged();
     void benchmarkResultsChanged();
+    void customBenchmarksChanged();
+    void researchChanged();
+    void researchReportsChanged();
+    void hardwareSummaryChanged();
+    void modelRecommendationsChanged();
+    void modelDownloadChanged();
 
 private:
     void appendLog(const QString &text);
@@ -344,6 +425,7 @@ private:
     QString   m_log;
     QString   m_serverLogFilePath;
     QString   m_activeLaunchId;
+    QString   m_pendingAutoAgentLaunchId;
     bool      m_serverStopping = false;
     bool      m_serverReady    = false;
     bool      m_serverHasVision = false;
@@ -371,6 +453,7 @@ private:
     QTimer   *m_agentPollTimer = nullptr;
     QString   m_agentLog;
     QString   m_agentLogFilePath;
+    bool      m_agentStarting = false;
     QString   m_activeAgentAdapter;
     QString   m_agentCwdOverride;   // directory for next/current agent start
     QString   m_pendingAgentLaunchId; // used when restarting for project change
@@ -399,7 +482,10 @@ private:
     int           m_chatAssistantIdx = -1;
     QString       chatStorageDir() const;
     void          loadChatSessions();
-    void          injectDraftSession();
+    // Agrega la sesión activa aún no persistida (sin mensajes) al vector ANTES de
+    // agrupar/ordenar, para que caiga dentro del grupo de su proyecto (no como
+    // sección duplicada al tope).
+    void          injectDraftSession(QVector<QVariantMap> &sessions);
     void          saveChatSession();
     void          loadChatSessionMessages(const QString &id);
 
@@ -418,6 +504,10 @@ private:
     QVariantMap m_agentPendingTool;   // tool esperando aprobación ({} si ninguna)
     QString   m_agentApprovalMode = QStringLiteral("ask");  // auto | ask | manual | super
     bool      m_agentThinkingEnabled = false;   // razonamiento del agente (default off)
+    QStringList m_agentDisabledTools;           // tools built-in apagadas por el usuario
+    QString   m_agentTeacherUrl;                // ask_teacher: endpoint OpenAI-compat
+    QString   m_agentTeacherModel;
+    QString   m_agentTeacherKey;
     int       m_agentContextUsed = 0;
     int       m_agentContextLimit = -1;
     QString   m_agentSystemPrompt;
@@ -447,6 +537,15 @@ private:
     void clearServiceState(const QString &role);
     QString serviceStatePath() const;
 
+    // Integrations: API services persistidos en JSON propio.
+    QString integrationsFilePath() const;
+    QJsonArray readApiServices() const;
+    bool writeApiServices(const QJsonArray &arr);
+    QJsonObject exportFileSet(const QString &root, const QStringList &relativePaths) const;
+    bool importFileSet(const QString &root, const QJsonObject &set, QStringList *written);
+    bool removePathForWipe(const QString &path);
+    void reloadPersistentStateAfterImportOrWipe();
+
     static const QHash<QString, QHash<QString, QString>> &translations();
 
     // Benchmark
@@ -455,8 +554,21 @@ private:
     int          m_benchmarkProgress = 0;
     QString      m_benchmarkStatus;
     QVariantList m_benchmarkResults;
+    QVariantList m_customBenchmarks;
+    QVariantMap  m_hardwareSummary;
+    QVariantList m_modelRecommendations;
+    QNetworkReply *m_modelDownloadReply = nullptr;
+    QFile *m_modelDownloadFile = nullptr;
+    QString m_modelDownloadPath;
+    int m_modelDownloadProgress = 0;
+    QString m_modelDownloadStatus;
     QString benchmarkStorageDir() const;
+    QString customBenchmarkDir() const;   // dir holding custom benchmark definitions
+    QString benchmarkRunsDir() const;     // root for isolated timestamped run folders
     void saveBenchmarkResult(const QVariantMap &result);
+    void runBenchmarkInternal(const QStringList &profileIds, const QString &mode,
+                              const QVariantList &customTasks, const QString &runLabel,
+                              int passes);
     void benchmarkWaitServerReady(int attemptsLeft, int totalAttempts, const QString &url,
                                   const QString &statusPrefix,
                                   std::function<void(bool)> onResult);
@@ -465,4 +577,17 @@ private:
                           int maxTokens, bool streaming,
                           std::function<void(QVariantMap)> onDone);
     void benchmarkMeasureResources(std::function<void(double ramMb, double vramMb)> onDone);
+    QString modelDownloadDir() const;
+    void rebuildModelRecommendations();
+
+    // Deep Research
+    bool m_researchRunning = false;
+    int m_researchProgress = 0;
+    QString m_researchStatus;
+    QVariantList m_researchReports;
+    QNetworkReply *m_researchReply = nullptr;
+    QString researchStorageDir() const;
+    void setResearchState(bool running, int progress, const QString &status);
+    void saveResearchReport(const QVariantMap &summary, const QString &markdown,
+                            const QJsonObject &full);
 };

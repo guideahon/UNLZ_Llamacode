@@ -74,6 +74,7 @@ Item {
         return false
     }
     readonly property string activityLabel: {
+        if (App.agentStarting) return "Iniciando"
         if (!App.agentRunning) return "Detenido"
         if (waitingApproval) return "Esperando aprobación"
         if (hasTypingMessage) {
@@ -83,6 +84,7 @@ Item {
         return "Listo"
     }
     readonly property color activityColor: {
+        if (App.agentStarting) return Theme.warnText
         if (!App.agentRunning) return Theme.textMuted
         if (waitingApproval) return Theme.warnText
         if (hasTypingMessage && idleSeconds >= 12) return Theme.errorText
@@ -344,23 +346,30 @@ Item {
 
                 Rectangle {
                     width: 8; height: 8; radius: 4
-                    color: App.agentRunning ? Theme.successText : Theme.errorText
+                    color: App.agentRunning ? Theme.successText
+                         : App.agentStarting ? Theme.warnText : Theme.errorText
                 }
                 Text {
                     text: {
                         const _lang = App.langV
+                        if (App.agentStarting) {
+                            return resolvedAdapter !== "none" && resolvedAdapterLabel.length > 0
+                                ? resolvedAdapterLabel + " · Iniciando agente..."
+                                : "Iniciando agente..."
+                        }
                         if (!App.agentRunning) return App.l("agent.stopped")
                         const title = App.opencodeSessionTitle ?? ""
                         const base  = App.activeAgentAdapter + " · " + App.l("agent.running")
                         return title.length > 0 ? (base + "  —  " + title) : base
                     }
-                    color: App.agentRunning ? Theme.successText : Theme.textMuted
+                    color: App.agentRunning ? Theme.successText
+                         : App.agentStarting ? Theme.warnText : Theme.textMuted
                     font.pixelSize: 12
                     Layout.fillWidth: true
                     elide: Text.ElideRight
                 }
                 Rectangle {
-                    visible: App.agentRunning
+                    visible: App.agentRunning || App.agentStarting
                     implicitWidth: activityText.implicitWidth + 16
                     height: 24
                     radius: 6
@@ -521,11 +530,12 @@ Item {
                 LcButton {
                     text: {
                         const _lang = App.langV
+                        if (App.agentStarting) return "Iniciando agente..."
                         return App.agentRunning ? App.l("agent.stop") : App.l("agent.start")
                     }
-                    danger: App.agentRunning
+                    danger: App.agentRunning || App.agentStarting
                     enabled: selectedLaunchId.length > 0
-                    onClicked: App.agentRunning ? App.stopAgent() : App.startAgent(selectedLaunchId)
+                    onClicked: (App.agentRunning || App.agentStarting) ? App.stopAgent() : App.startAgent(selectedLaunchId)
                 }
             }
         }
@@ -536,7 +546,7 @@ Item {
             Layout.fillWidth: true; height: 32
             visible: selectedLaunchId.length > 0
                      && (resolvedAdapter === "none" || resolvedAdapterLabel.length === 0)
-                     && !App.agentRunning
+                     && !App.agentRunning && !App.agentStarting
             color: Theme.surfaceBg
             Text {
                 anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 16 }
@@ -549,7 +559,7 @@ Item {
             Layout.fillWidth: true; height: 32
             visible: resolvedAdapter !== "none" && resolvedAdapterLabel.length > 0
                      && !(App.harnessCheckV, App.isHarnessInstalled(resolvedAdapter))
-                     && !App.agentRunning
+                     && !App.agentRunning && !App.agentStarting
             color: Theme.errorBg
             Text {
                 anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 16 }
@@ -840,7 +850,7 @@ Item {
                 Rectangle {
                     anchors.centerIn: parent
                     z: 5
-                    visible: App.agentRunning && (!App.serverRunning || !App.serverReady)
+                    visible: App.agentStarting || (App.agentRunning && (!App.serverRunning || !App.serverReady))
                     radius: 10
                     color: Theme.surfaceBg
                     border.color: Theme.borderColor
@@ -863,7 +873,9 @@ Item {
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: !App.serverRunning
+                            text: App.agentStarting
+                                ? "Iniciando agente..."
+                                : !App.serverRunning
                                 ? "Servidor no disponible. Iniciá el modelo en Lanzar."
                                 : "Cargando modelo..."
                             color: Theme.textSecondary; font.pixelSize: 14
@@ -875,7 +887,7 @@ Item {
                 ColumnLayout {
                     anchors.centerIn: parent
                     spacing: 16
-                    visible: !App.agentRunning && App.agentMessages.length === 0
+                    visible: !App.agentRunning && !App.agentStarting && App.agentMessages.length === 0
                     Text { Layout.alignment: Qt.AlignHCenter; text: "🤖"; font.pixelSize: 48 }
                     Text {
                         Layout.alignment: Qt.AlignHCenter
@@ -891,6 +903,7 @@ Item {
                     id: msgList
                     anchors.fill: parent
                     clip: true
+                    boundsBehavior: Flickable.StopAtBounds
                     spacing: 4
                     topMargin: 12
                     bottomMargin: 12
@@ -1239,10 +1252,41 @@ Item {
 
                     // Auto-scroll "pegado al fondo": seguir solo si el usuario ya
                     // está abajo. Si scrollea hacia arriba, no lo arrastramos.
+                    // Usamos contentY directo (no positionViewAtEnd) porque con
+                    // delegates de altura variable que cambian por token, la
+                    // estimación de positionViewAtEnd oscila (salta arriba/abajo).
                     property bool followBottom: true
+
+                    function scrollToBottom() {
+                        var maxY = Math.max(0, contentHeight - height)
+                        if (contentY !== maxY)
+                            contentY = maxY
+                    }
+
                     onMovementEnded: followBottom = atYEnd
-                    onContentHeightChanged: if (followBottom) Qt.callLater(positionViewAtEnd)
-                    onCountChanged: { followBottom = true; Qt.callLater(positionViewAtEnd) }
+                    // Throttle: durante streaming el contentHeight cambia por token.
+                    // Un solo callLater coalescido evita reflows en cascada.
+                    onContentHeightChanged: if (followBottom) bottomTimer.restart()
+                    onCountChanged: { followBottom = true; bottomTimer.restart() }
+
+                    Timer {
+                        id: bottomTimer
+                        interval: 16
+                        onTriggered: if (msgList.followBottom) msgList.scrollToBottom()
+                    }
+
+                    // Rueda del mouse: paso fijo grande. Por defecto el step de
+                    // ListView es minúsculo frente a un contentHeight enorme.
+                    WheelHandler {
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: function(ev) {
+                            var step = ev.angleDelta.y / 120 * 90
+                            var maxY = Math.max(0, msgList.contentHeight - msgList.height)
+                            msgList.contentY = Math.max(0, Math.min(maxY, msgList.contentY - step))
+                            msgList.followBottom = (msgList.contentY >= maxY - 2)
+                            ev.accepted = true
+                        }
+                    }
                 }
 
                 // ── Tarjeta de aprobación de herramienta (human-in-the-loop) ──
@@ -1375,7 +1419,7 @@ Item {
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 0
-                    visible: !App.agentRunning && App.agentLog.length === 0
+                    visible: !App.agentRunning && !App.agentStarting && App.agentLog.length === 0
 
                     Item { Layout.fillWidth: true; Layout.fillHeight: true }
                     ColumnLayout {

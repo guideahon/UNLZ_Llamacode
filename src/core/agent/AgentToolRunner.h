@@ -32,6 +32,10 @@ public slots:
                      const QString &argsJson, const QString &cwd);
     // Confinamiento al cwd. false = "Super Agente" (acceso a todo el disco).
     void setConfined(bool confined);
+    // URL base del llama-server (para /v1/embeddings en semantic_search).
+    void setServerBaseUrl(const QString &url);
+    // Config del modelo maestro (tool ask_teacher). Vacío = usar env vars.
+    void setTeacherConfig(const QString &url, const QString &model, const QString &key);
     // Mata el run_shell en curso (cancelación real desde PARAR/steer).
     void cancelShell();
     void shutdown();
@@ -58,6 +62,8 @@ private:
 
     QList<McpClient *> m_mcp;
     bool m_confined = true;
+    QString m_serverBaseUrl;
+    QString m_teacherUrl, m_teacherModel, m_teacherKey;   // ask_teacher (override de env)
 
     // Estado del run_shell async en curso (uno a la vez; el loop es secuencial).
     QProcess   *m_shellProc = nullptr;

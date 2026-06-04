@@ -157,6 +157,18 @@ Target de tests: `cmake -B build_tests -DBUILD_TESTS=ON` → `LlamaCodeTests` (Q
 - [x] Tests `GGUFScanner` (inferencia familia/quant/vision/draft)
 - [ ] Tests `AppController` chat session CRUD
 
+## Pendientes deferidos (jun-2026) — backend/infra listo, falta lo anotado
+
+- [ ] **LlamaProcessManager dedicado** — extraer ciclo de vida de proceso de `AppController` a clase propia. Refactor arquitectónico grande, alto riesgo, bajo ROI ahora. No empezado.
+- [ ] **Sampling por sesión (chat)** — temp/top-p/top-k por sesión. Plumbing: persistir en session JSON + pasar al payload de `RawChatBackend::runCompletion`. UI: panel en ChatPage.
+- [ ] **Panel UI de búsqueda en historial** — invokable `searchChatHistory(query)` ya existe; falta campo de búsqueda + lista de resultados (snippet→switchChatSession) en ChatPage.
+- [ ] **Combo UI de filtro de log por nivel** — invokable `serverLogByLevel(level)` ya existe; falta selector (all/error/warn/stderr/stdout/lifecycle/health/diag) en la vista de log del server.
+- [ ] **Banner UI de `serverDiagnostic`** — señal emitida (OOM/port-busy/load-fail/…); falta mostrarla como aviso no-bloqueante en la UI.
+- [ ] **Verificación GUI e2e de subagents con LLM vivo** — requiere server+modelo corriendo. Plumbing git/worktree/merge/abort ya validado; falta corrida real con el modelo manejando `task`.
+- [ ] **Tests `BinaryRegistry`** — infra Qt Test ya montada (`BUILD_TESTS=ON`); agregar casos.
+- [ ] **Tests `ModelRootRegistry`** — idem.
+- [ ] **Tests `AppController` chat session CRUD** — idem (new/switch/delete/move/rename + persistencia index.json).
+
 ## Definition of Done MVP real
 
 - [ ] 3+ binarios registrados y seleccionables

@@ -161,6 +161,11 @@ void LlamaAgentBackend::start(const AgentContext &ctx)
     // (Re)configurar el worker en cada start (async, no bloquea UI).
     QMetaObject::invokeMethod(m_worker, "setConfined", Qt::QueuedConnection,
                               Q_ARG(bool, m_approvalMode != QLatin1String("super")));
+    QMetaObject::invokeMethod(m_worker, "setServerBaseUrl", Qt::QueuedConnection,
+                              Q_ARG(QString, m_ctx.serverBaseUrl));
+    QMetaObject::invokeMethod(m_worker, "setTeacherConfig", Qt::QueuedConnection,
+                              Q_ARG(QString, m_teacherUrl), Q_ARG(QString, m_teacherModel),
+                              Q_ARG(QString, m_teacherKey));
     QMetaObject::invokeMethod(m_worker, "initServers", Qt::QueuedConnection,
                               Q_ARG(QVariantList, m_mcpConfig), Q_ARG(QString, m_cwd));
     emit runningChanged();
@@ -1206,7 +1211,7 @@ void LlamaAgentBackend::processPendingCalls()
     const QJsonObject call = m_pendingCalls.first().toObject();
     const QJsonObject fn   = call.value(QStringLiteral("function")).toObject();
     const QString name     = fn.value(QStringLiteral("name")).toString();
-    const QString kind     = toolKind(name);
+    QString kind           = toolKind(name);
     const QString id       = call.value(QStringLiteral("id")).toString();
     const QString argStr   = toolArgumentsToString(fn.value(QStringLiteral("arguments")));
 
@@ -1223,6 +1228,9 @@ void LlamaAgentBackend::processPendingCalls()
         QStringLiteral("read_file"), QStringLiteral("list_dir"), QStringLiteral("grep"),
         QStringLiteral("write_file"), QStringLiteral("edit_file"),
         QStringLiteral("glob"), QStringLiteral("run_shell"), QStringLiteral("web_fetch"),
+        QStringLiteral("web_search"), QStringLiteral("deep_research"),
+        QStringLiteral("search_docs"), QStringLiteral("semantic_search"),
+        QStringLiteral("memory"), QStringLiteral("ask_teacher"),
         QStringLiteral("task")};
     if (!known.contains(name) && !name.startsWith(kMcpPrefix)) {
         ++m_toolFail;
@@ -1259,6 +1267,12 @@ void LlamaAgentBackend::processPendingCalls()
         processPendingCalls();
         return;
     }
+
+    // memory: 'save' muta el archivo de memoria → tratar como write (requiere
+    // aprobación). 'recall' (o sin action) es lectura pura → auto.
+    if (name == QLatin1String("memory")
+        && args.value(QStringLiteral("action")).toString().toLower() == QLatin1String("save"))
+        kind = QStringLiteral("write");
 
     // PLAN MODE: bloquear cualquier tool que mute (write/shell/mcp). Las read
     // ya están filtradas del schema, pero defendemos por si el modelo igual la pide.
@@ -1775,8 +1789,13 @@ QStringList LlamaAgentBackend::requiredArgs(const QString &name)
     if (name == QLatin1String("edit_file")) return {QStringLiteral("path"), QStringLiteral("old_string")};
     if (name == QLatin1String("run_shell"))  return {QStringLiteral("command")};
     if (name == QLatin1String("web_fetch"))  return {QStringLiteral("url")};
+    if (name == QLatin1String("web_search")) return {QStringLiteral("query")};
+    if (name == QLatin1String("deep_research")) return {QStringLiteral("query")};
+    if (name == QLatin1String("search_docs")) return {QStringLiteral("query")};
+    if (name == QLatin1String("semantic_search")) return {QStringLiteral("query")};
     if (name == QLatin1String("task"))       return {QStringLiteral("prompt")};
-    return {};   // list_dir: path opcional
+    if (name == QLatin1String("ask_teacher")) return {QStringLiteral("question")};
+    return {};   // list_dir, memory: args opcionales
 }
 
 void LlamaAgentBackend::approveTool(const QString &id, bool always)
@@ -2032,6 +2051,67 @@ QJsonArray LlamaAgentBackend::toolSchemas()
            QJsonObject{
                {QStringLiteral("url"), strProp(QStringLiteral("URL completa (http:// o https://)."))}},
            QJsonArray{QStringLiteral("url")}),
+        fn(QStringLiteral("web_search"),
+           QStringLiteral("Busca en la web y devuelve los mejores resultados (título, URL, snippet). "
+                          "Usalo para encontrar páginas/docs relevantes; después usá web_fetch sobre "
+                          "las URLs que sirvan. Proveedor: DuckDuckGo (sin key) o SearXNG si está "
+                          "configurado el env LLAMACODE_SEARXNG_URL."),
+           QJsonObject{
+               {QStringLiteral("query"), strProp(QStringLiteral("Términos de búsqueda."))},
+               {QStringLiteral("count"), intProp(QStringLiteral("Cantidad de resultados (default 5, máx 10)."))}},
+           QJsonArray{QStringLiteral("query")}),
+        fn(QStringLiteral("deep_research"),
+           QStringLiteral("Investigación web profunda: busca por varios ángulos, descarga las mejores "
+                          "páginas y devuelve un DOSSIER (fuentes numeradas + contenido limpio) para que "
+                          "VOS lo sintetices citando [n]. Usalo para preguntas que requieren cruzar varias "
+                          "fuentes. Pasá 'angles' con sub-consultas distintas para mejor cobertura."),
+           QJsonObject{
+               {QStringLiteral("query"), strProp(QStringLiteral("Pregunta/tema a investigar."))},
+               {QStringLiteral("angles"), QJsonObject{
+                   {QStringLiteral("type"), QStringLiteral("array")},
+                   {QStringLiteral("items"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+                   {QStringLiteral("description"), QStringLiteral("Sub-consultas/ángulos distintos (opcional, máx 4).")}}},
+               {QStringLiteral("max_pages"), intProp(QStringLiteral("Páginas a descargar (default 5, máx 10)."))}},
+           QJsonArray{QStringLiteral("query")}),
+        fn(QStringLiteral("search_docs"),
+           QStringLiteral("Búsqueda semántica-lite en los archivos del proyecto: rankea fragmentos por "
+                          "relevancia a la consulta (keywords) y devuelve los top-k con archivo:línea. "
+                          "Mejor que grep para 'dónde se maneja X' cuando no sabés el término exacto. "
+                          "Para recuperar contexto del repo."),
+           QJsonObject{
+               {QStringLiteral("query"), strProp(QStringLiteral("Qué buscás (lenguaje natural o keywords)."))},
+               {QStringLiteral("k"), intProp(QStringLiteral("Cantidad de fragmentos (default 5, máx 15)."))},
+               {QStringLiteral("path"), strProp(QStringLiteral("Subdirectorio a acotar (opcional)."))}},
+           QJsonArray{QStringLiteral("query")}),
+        fn(QStringLiteral("semantic_search"),
+           QStringLiteral("Búsqueda SEMÁNTICA en los archivos del proyecto usando embeddings del propio "
+                          "server (cosine similarity, cache de vectores en SQLite). Encuentra código por "
+                          "SIGNIFICADO, no por palabras exactas. Requiere un server con embeddings "
+                          "(--embeddings). Si no, usá search_docs. args: query/k/path."),
+           QJsonObject{
+               {QStringLiteral("query"), strProp(QStringLiteral("Qué buscás (lenguaje natural)."))},
+               {QStringLiteral("k"), intProp(QStringLiteral("Cantidad de fragmentos (default 5, máx 15)."))},
+               {QStringLiteral("path"), strProp(QStringLiteral("Subdirectorio a acotar (opcional)."))}},
+           QJsonArray{QStringLiteral("query")}),
+        fn(QStringLiteral("memory"),
+           QStringLiteral("Memoria PERSISTENTE del proyecto (sobrevive entre sesiones). "
+                          "action='save' anexa un hecho/decisión que querés recordar; "
+                          "action='recall' devuelve todo lo guardado. Usala para preferencias del "
+                          "usuario, decisiones de diseño y datos no obvios del repo. Recordá al inicio "
+                          "de tareas largas."),
+           QJsonObject{
+               {QStringLiteral("action"), strProp(QStringLiteral("'save' o 'recall' (default 'recall')."))},
+               {QStringLiteral("content"), strProp(QStringLiteral("Texto a guardar (sólo para action='save')."))}},
+           QJsonArray{}),
+        fn(QStringLiteral("ask_teacher"),
+           QStringLiteral("Consultá a un modelo MÁS capaz (endpoint aparte) una sub-pregunta difícil: "
+                          "diseño, algoritmo tricky, bug que no resolvés. Devuelve su respuesta. "
+                          "Requiere la env LLAMACODE_TEACHER_URL configurada. Usalo con criterio "
+                          "(es más lento/caro): pasá 'context' con lo mínimo necesario."),
+           QJsonObject{
+               {QStringLiteral("question"), strProp(QStringLiteral("La pregunta concreta para el modelo maestro."))},
+               {QStringLiteral("context"), strProp(QStringLiteral("Contexto relevante (código, error). Opcional."))}},
+           QJsonArray{QStringLiteral("question")}),
         fn(QStringLiteral("task"),
            QStringLiteral("Delega una SUBTAREA independiente a un sub-agente autónomo que trabaja en "
                           "una copia aislada del proyecto (git worktree). Devuelve un resumen de lo que "
@@ -2044,6 +2124,49 @@ QJsonArray LlamaAgentBackend::toolSchemas()
                {QStringLiteral("prompt"), strProp(QStringLiteral("Instrucción completa y autocontenida para el sub-agente."))}},
            QJsonArray{QStringLiteral("prompt")})
     };
+}
+
+// Metadata de las tools built-in para la UI de habilitar/deshabilitar. approxTokens
+// = costo aproximado del schema en el prompt (para estimar ahorro de contexto).
+QVariantList LlamaAgentBackend::toolCatalog()
+{
+    auto mk = [](const char *name, const char *group, const char *desc, int tok) {
+        return QVariantMap{
+            {QStringLiteral("name"), QString::fromLatin1(name)},
+            {QStringLiteral("group"), QString::fromLatin1(group)},
+            {QStringLiteral("description"), QString::fromLatin1(desc)},
+            {QStringLiteral("approxTokens"), tok}};
+    };
+    return QVariantList{
+        mk("read_file", "Archivos", "Lee un archivo de texto (offset/limit).", 90),
+        mk("list_dir",  "Archivos", "Lista archivos y carpetas.", 80),
+        mk("glob",      "Archivos", "Lista archivos por patrón glob.", 110),
+        mk("grep",      "Búsqueda", "Busca una regex en el proyecto.", 100),
+        mk("search_docs", "Búsqueda", "Ranking de fragmentos por keywords (semántica-lite).", 120),
+        mk("semantic_search", "Búsqueda", "Búsqueda por significado vía embeddings del server.", 130),
+        mk("web_search","Web", "Busca en la web (DuckDuckGo/SearXNG).", 140),
+        mk("web_fetch", "Web", "Descarga una URL y devuelve su texto.", 90),
+        mk("deep_research", "Web", "Investigación web multi-ángulo (dossier de fuentes).", 200),
+        mk("write_file","Código",   "Crea o sobrescribe un archivo.", 90),
+        mk("edit_file", "Código",   "Reemplazo exacto en un archivo existente.", 160),
+        mk("run_shell", "Código",   "Ejecuta un comando de shell.", 110),
+        mk("memory",    "Conocimiento", "Memoria persistente del proyecto (save/recall).", 110),
+        mk("ask_teacher", "Multi-Agente", "Consulta a un modelo más capaz (endpoint aparte).", 130),
+        mk("task",      "Multi-Agente", "Delega una subtarea a un sub-agente en worktree.", 180),
+    };
+}
+
+void LlamaAgentBackend::setDisabledTools(const QStringList &names)
+{
+    m_disabledTools = QSet<QString>(names.cbegin(), names.cend());
+}
+
+void LlamaAgentBackend::setTeacherConfig(const QString &url, const QString &model, const QString &key)
+{
+    m_teacherUrl = url; m_teacherModel = model; m_teacherKey = key;
+    if (m_running && m_worker)
+        QMetaObject::invokeMethod(m_worker, "setTeacherConfig", Qt::QueuedConnection,
+                                  Q_ARG(QString, url), Q_ARG(QString, model), Q_ARG(QString, key));
 }
 
 // ───────────────────────────── MCP / Worker ──────────────────────────────
@@ -2099,20 +2222,34 @@ void LlamaAgentBackend::onServersReady(const QVariantList &toolDefs)
 // Built-in + tools MCP (cache de m_mcpTools, prefijo mcp__<server>__<tool>).
 QJsonArray LlamaAgentBackend::buildToolSchemas() const
 {
+    // Filtra del array las tools deshabilitadas por el usuario (built-in y MCP).
+    auto dropDisabled = [this](QJsonArray in) {
+        if (m_disabledTools.isEmpty()) return in;
+        QJsonArray out;
+        for (const QJsonValue &v : in) {
+            const QString n = v.toObject().value(QStringLiteral("function"))
+                                  .toObject().value(QStringLiteral("name")).toString();
+            if (!m_disabledTools.contains(n)) out.append(v);
+        }
+        return out;
+    };
+
     // PLAN MODE: solo lectura. Excluir write_file/edit_file/run_shell y MCP
     // (no podemos saber si una tool MCP muta), dejar read_file/list_dir/grep/
     // glob/web_fetch.
     if (m_approvalMode == QLatin1String("plan")) {
         static const QSet<QString> planAllowed{
             QStringLiteral("read_file"), QStringLiteral("list_dir"),
-            QStringLiteral("grep"), QStringLiteral("glob"), QStringLiteral("web_fetch")};
+            QStringLiteral("grep"), QStringLiteral("glob"), QStringLiteral("web_fetch"),
+            QStringLiteral("web_search"), QStringLiteral("deep_research"),
+            QStringLiteral("search_docs"), QStringLiteral("semantic_search")};
         QJsonArray ro;
         for (const QJsonValue &v : toolSchemas()) {
             const QString n = v.toObject().value(QStringLiteral("function"))
                                   .toObject().value(QStringLiteral("name")).toString();
             if (planAllowed.contains(n)) ro.append(v);
         }
-        return ro;
+        return dropDisabled(ro);
     }
 
     QJsonArray all = toolSchemas();
@@ -2133,7 +2270,7 @@ QJsonArray LlamaAgentBackend::buildToolSchemas() const
             }}
         });
     }
-    return all;
+    return dropDisabled(all);
 }
 
 // Diff unificado simple: recorta prefijo/sufijo de líneas comunes y marca el

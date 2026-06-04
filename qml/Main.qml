@@ -163,6 +163,7 @@ ApplicationWindow {
                     ChatPage        {}
                     AgentPage       {}
                     BenchmarkPage   {}
+                    ResearchPage    {}
                     SettingsPage    {}
                 }
             }
@@ -277,8 +278,8 @@ ApplicationWindow {
         modal: true
         clip: true
         closePolicy: Popup.NoAutoClose
-        width: 620
-        height: 380
+        width: 760
+        height: 560
         padding: 18
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
@@ -398,6 +399,116 @@ ApplicationWindow {
                     text: (App.langV, App.l("setup.goToModels"))
                     secondary: true
                     onClicked: stack.currentIndex = 2
+                }
+            }
+
+            Rectangle {
+                id: setupReco
+                Layout.fillWidth: true
+                Layout.preferredHeight: 154
+                visible: !App.hasAnyModel && App.modelRecommendations.length > 0
+                radius: 8
+                color: Theme.surfaceBg
+                border.color: Theme.borderColor
+
+                readonly property var pick: App.modelRecommendations[0] ?? ({})
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "Recomendado para esta computadora"
+                                color: Theme.textPrimary
+                                font { pixelSize: 13; bold: true }
+                            }
+                            Text {
+                                text: App.hardwareSummary.summary ?? ""
+                                color: Theme.textMuted
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+                        LcButton {
+                            text: "Rescan"
+                            secondary: true
+                            onClicked: App.rescanHardware()
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: 6
+                        spacing: 10
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 3
+                            Text {
+                                Layout.fillWidth: true
+                                text: setupReco.pick.name ?? ""
+                                color: Theme.textPrimary
+                                font { pixelSize: 14; bold: true }
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: (setupReco.pick.fit ?? "") + " · " +
+                                      (setupReco.pick.params ?? "") + " · " +
+                                      (setupReco.pick.quant ?? "") + " · " +
+                                      ((setupReco.pick.sizeGb ?? 0).toFixed(1)) + " GB"
+                                color: Theme.textSecondary
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: setupReco.pick.notes ?? ""
+                                color: Theme.textMuted
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+                        }
+                        LcButton {
+                            text: App.modelDownloadRunning ? "Descargando..." : "Descargar"
+                            Layout.preferredHeight: 34
+                            enabled: !App.modelDownloadRunning && (setupReco.pick.downloadable ?? true)
+                            onClicked: App.downloadRecommendedModel(setupReco.pick.repo ?? "",
+                                                                    setupReco.pick.fileName ?? "")
+                        }
+                        LcButton {
+                            text: "HF"
+                            Layout.preferredHeight: 34
+                            secondary: true
+                            onClicked: App.openModelRecommendation(setupReco.pick.repo ?? "")
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: App.modelDownloadRunning || App.modelDownloadStatus.length > 0
+                        spacing: 8
+                        ProgressBar {
+                            Layout.preferredWidth: 150
+                            from: 0
+                            to: 100
+                            value: App.modelDownloadProgress
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: App.modelDownloadStatus
+                            color: App.modelDownloadRunning ? Theme.accent : Theme.textMuted
+                            font.pixelSize: 11
+                            elide: Text.ElideMiddle
+                        }
+                    }
                 }
             }
 

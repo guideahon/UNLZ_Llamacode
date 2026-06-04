@@ -126,6 +126,7 @@ public:
     Q_INVOKABLE bool updateLaunchProfile(const QVariantMap &data);
     Q_INVOKABLE QVariantMap getLaunchProfile(const QString &id) const;
     Q_INVOKABLE void saveProfiles() { save(); }
+    void reloadFromDisk();
 
     // Resolve for builder
     BackendProfile resolveBackend(const QString &id) const;

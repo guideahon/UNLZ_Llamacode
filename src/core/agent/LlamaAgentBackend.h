@@ -71,6 +71,17 @@ public:
     // Schemas de las tools built-in (sin MCP). Público para reusar en sub-agentes.
     static QJsonArray toolSchemas();
 
+    // Catálogo de tools built-in con metadata para la UI de habilitar/deshabilitar:
+    // lista de {name, group, description, approxTokens}. El orden define el de la UI.
+    static QVariantList toolCatalog();
+
+    // Tools deshabilitadas por el usuario (nombres built-in y/o mcp__server__tool).
+    // Se excluyen de buildToolSchemas() → no se ofrecen al modelo (ahorra contexto).
+    void setDisabledTools(const QStringList &names);
+
+    // Config del modelo maestro (tool ask_teacher). Se reenvía al worker.
+    void setTeacherConfig(const QString &url, const QString &model, const QString &key);
+
     // Memoria por proyecto: ruta del archivo de memoria dentro de un cwd.
     static QString memoryFilePath(const QString &cwd);
 
@@ -177,6 +188,9 @@ private:
     enum PermAction { PermDeny, PermAllow, PermAsk };
     struct PermRule { PermAction action; QString kind; QRegularExpression rx; QString glob; };
     QList<PermRule> m_permRules;
+
+    QSet<QString> m_disabledTools;   // tools off por el usuario (built-in y MCP)
+    QString m_teacherUrl, m_teacherModel, m_teacherKey;  // ask_teacher (config UI)
 
     QVariantList m_mcpConfig;        // config de servers MCP (de AppController)
     QVariantList m_mcpTools;         // cache de tool-defs MCP del worker {server,name,description,schema}

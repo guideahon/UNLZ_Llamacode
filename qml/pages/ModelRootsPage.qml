@@ -7,7 +7,42 @@ import LlamaCode 1.0
 Item {
     id: root
 
+    property string modelsMode: "installed"
+    property string downloadSearch: ""
+    property string downloadSize: "Todos"
+    property string downloadFamily: "Todas"
+    property string downloadCapability: "Todas"
+
     function openAddDialog() { addDlg.open() }
+
+    function filteredRecommendations() {
+        const q = downloadSearch.trim().toLowerCase()
+        let out = []
+        for (let i = 0; i < App.modelRecommendations.length; ++i) {
+            const m = App.modelRecommendations[i]
+            const name = String(m.name ?? "").toLowerCase()
+            const repo = String(m.repo ?? "").toLowerCase()
+            const family = String(m.family ?? "")
+            const caps = String(m.capabilities ?? "")
+            const size = Number(m.sizeGb ?? 0)
+            if (q.length > 0 && name.indexOf(q) < 0 && repo.indexOf(q) < 0)
+                continue
+            if (downloadFamily !== "Todas" && family !== downloadFamily)
+                continue
+            if (downloadCapability !== "Todas" && caps.indexOf(downloadCapability.toLowerCase()) < 0)
+                continue
+            if (downloadSize === "< 8 GB" && !(size < 8))
+                continue
+            if (downloadSize === "8-16 GB" && !(size >= 8 && size <= 16))
+                continue
+            if (downloadSize === "16-24 GB" && !(size > 16 && size <= 24))
+                continue
+            if (downloadSize === "> 24 GB" && !(size > 24))
+                continue
+            out.push(m)
+        }
+        return out
+    }
 
     LcDialog {
         id: addDlg
@@ -70,6 +105,150 @@ Item {
             onActionClicked: if (!App.rootRegistry.scanning) addDlg.open()
         }
 
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 210
+            color: Theme.baseBg
+            border.color: Theme.borderColor
+            border.width: 0
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 10
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            text: "Cookbook local"
+                            color: Theme.textPrimary
+                            font { pixelSize: 15; bold: true }
+                        }
+                        Text {
+                            text: App.hardwareSummary.summary ?? "Detectando hardware..."
+                            color: Theme.textSecondary
+                            font.pixelSize: 12
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+                    LcButton {
+                        text: "Rescan"
+                        secondary: true
+                        onClicked: App.rescanHardware()
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 10
+
+                    Repeater {
+                        model: Math.min(3, App.modelRecommendations.length)
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 7
+                            color: Theme.surfaceBg
+                            border.color: Theme.borderColor
+
+                            readonly property var item: App.modelRecommendations[index] ?? ({})
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 7
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: item.fit ?? ""
+                                        color: (item.fit ?? "") === "No entra" ? Theme.errorText
+                                             : ((item.fit ?? "") === "Marginal" ? Theme.warnText : Theme.successText)
+                                        font { pixelSize: 10; bold: true }
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Text {
+                                        text: (item.score ?? 0) + "/100"
+                                        color: Theme.accent
+                                        font { pixelSize: 11; bold: true }
+                                    }
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: item.name ?? ""
+                                    color: Theme.textPrimary
+                                    font { pixelSize: 13; bold: true }
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: (item.params ?? "") + " · " + (item.quant ?? "") + " · " + (item.sizeGb ?? 0).toFixed(1) + " GB · ctx " + (item.ctxK ?? 0) + "k"
+                                    color: Theme.textSecondary
+                                    font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    text: item.notes ?? ""
+                                    color: Theme.textMuted
+                                    font.pixelSize: 11
+                                    wrapMode: Text.WordWrap
+                                    maximumLineCount: 2
+                                    elide: Text.ElideRight
+                                }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.bottomMargin: 6
+                                    spacing: 6
+                                    LcButton {
+                                        text: "Download"
+                                        Layout.preferredHeight: 34
+                                        enabled: !App.modelDownloadRunning && (item.downloadable ?? true)
+                                        onClicked: App.downloadRecommendedModel(item.repo ?? "", item.fileName ?? "")
+                                    }
+                                    LcButton {
+                                        text: "HF"
+                                        Layout.preferredHeight: 34
+                                        secondary: true
+                                        onClicked: App.openModelRecommendation(item.repo ?? "")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: App.modelDownloadRunning || App.modelDownloadStatus.length > 0
+                    spacing: 8
+                    ProgressBar {
+                        Layout.preferredWidth: 140
+                        from: 0
+                        to: 100
+                        value: App.modelDownloadProgress
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: App.modelDownloadStatus
+                        color: App.modelDownloadRunning ? Theme.accent : Theme.textMuted
+                        font.pixelSize: 11
+                        elide: Text.ElideMiddle
+                    }
+                }
+            }
+
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.borderColor }
+        }
+
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -116,7 +295,7 @@ Item {
                     Layout.fillWidth: true
                     height: 44
                     color: Theme.surfaceBg
-                    visible: rootList.currentIndex >= 0
+                    visible: root.modelsMode === "installed" && rootList.currentIndex >= 0
 
                     Row {
                         anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
@@ -147,21 +326,99 @@ Item {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 40
+                    height: 48
                     color: Theme.baseBg
-                    Row {
-                        anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                    RowLayout {
+                        anchors { fill: parent; leftMargin: 12; rightMargin: 12; topMargin: 7; bottomMargin: 7 }
                         spacing: 8
+
+                        Rectangle {
+                            Layout.preferredWidth: 92
+                            Layout.fillHeight: true
+                            radius: 6
+                            color: root.modelsMode === "installed" ? Theme.highlight : Theme.inputBg
+                            border.color: root.modelsMode === "installed" ? Theme.accent : Theme.borderColor
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Instalados"
+                                color: root.modelsMode === "installed" ? Theme.accent : Theme.textSecondary
+                                font { pixelSize: 12; bold: root.modelsMode === "installed" }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.modelsMode = "installed"
+                            }
+                        }
+                        Rectangle {
+                            Layout.preferredWidth: 92
+                            Layout.fillHeight: true
+                            radius: 6
+                            color: root.modelsMode === "download" ? Theme.highlight : Theme.inputBg
+                            border.color: root.modelsMode === "download" ? Theme.accent : Theme.borderColor
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Descargar"
+                                color: root.modelsMode === "download" ? Theme.accent : Theme.textSecondary
+                                font { pixelSize: 12; bold: root.modelsMode === "download" }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.modelsMode = "download"
+                            }
+                        }
+
                         LcTextField {
-                            width: 180; height: 28
+                            Layout.preferredWidth: root.modelsMode === "installed" ? 180 : 210
+                            Layout.fillHeight: true
+                            visible: root.modelsMode === "installed"
                             placeholderText: (App.langV, App.l("models.filterFamily"))
                             onTextChanged: App.modelCatalog.filterFamily = text
                         }
                         CheckBox {
+                            visible: root.modelsMode === "installed"
                             text: (App.langV, App.l("models.visionOnly"))
                             contentItem: Text { text: parent.text; color: Theme.textSecondary; font.pixelSize: 12; leftPadding: parent.indicator.width + 6 }
                             onCheckedChanged: App.modelCatalog.filterVisionOnly = checked
                         }
+
+                        LcTextField {
+                            Layout.preferredWidth: 210
+                            Layout.fillHeight: true
+                            visible: root.modelsMode === "download"
+                            placeholderText: "Buscar modelo..."
+                            onTextChanged: root.downloadSearch = text
+                        }
+                        ComboBox {
+                            Layout.preferredWidth: 112
+                            Layout.fillHeight: true
+                            visible: root.modelsMode === "download"
+                            model: ["Todos", "< 8 GB", "8-16 GB", "16-24 GB", "> 24 GB"]
+                            onCurrentTextChanged: root.downloadSize = currentText
+                            background: Rectangle { color: Theme.inputBg; radius: 6; border.color: Theme.borderColor }
+                            contentItem: Text { text: parent.displayText; color: Theme.textPrimary; font.pixelSize: 11; leftPadding: 8; verticalAlignment: Text.AlignVCenter }
+                        }
+                        ComboBox {
+                            Layout.preferredWidth: 110
+                            Layout.fillHeight: true
+                            visible: root.modelsMode === "download"
+                            model: ["Todas", "Qwen", "Mistral", "DeepSeek", "GPT OSS", "Gemma", "Phi"]
+                            onCurrentTextChanged: root.downloadFamily = currentText
+                            background: Rectangle { color: Theme.inputBg; radius: 6; border.color: Theme.borderColor }
+                            contentItem: Text { text: parent.displayText; color: Theme.textPrimary; font.pixelSize: 11; leftPadding: 8; verticalAlignment: Text.AlignVCenter }
+                        }
+                        ComboBox {
+                            Layout.preferredWidth: 116
+                            Layout.fillHeight: true
+                            visible: root.modelsMode === "download"
+                            model: ["Todas", "Code", "Chat", "Reasoning", "MoE", "Edge"]
+                            onCurrentTextChanged: root.downloadCapability = currentText
+                            background: Rectangle { color: Theme.inputBg; radius: 6; border.color: Theme.borderColor }
+                            contentItem: Text { text: parent.displayText; color: Theme.textPrimary; font.pixelSize: 11; leftPadding: 8; verticalAlignment: Text.AlignVCenter }
+                        }
+
+                        Item { Layout.fillWidth: true }
                     }
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.borderColor }
                 }
@@ -171,6 +428,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
+                    visible: root.modelsMode === "installed"
                     model: App.modelCatalog
                     ScrollBar.vertical: LcScrollBar {}
 
@@ -211,6 +469,100 @@ Item {
                             const _lang = App.langV
                             return rootList.currentIndex < 0 ? App.l("models.selectRoot") : App.l("models.noModels")
                         }
+                        color: Theme.textMuted
+                        font.pixelSize: 14
+                    }
+                }
+
+                ListView {
+                    id: downloadList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    visible: root.modelsMode === "download"
+                    model: root.filteredRecommendations()
+                    ScrollBar.vertical: LcScrollBar {}
+
+                    delegate: Rectangle {
+                        width: downloadList.width
+                        height: 78
+                        color: hovered ? Theme.hoverBg : "transparent"
+                        property bool hovered: false
+                        HoverHandler { onHoveredChanged: parent.hovered = hovered }
+
+                        readonly property var item: modelData ?? ({})
+
+                        RowLayout {
+                            anchors { fill: parent; leftMargin: 16; rightMargin: 16; topMargin: 9; bottomMargin: 9 }
+                            spacing: 12
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: item.fit ?? ""
+                                        color: (item.fit ?? "") === "No entra" ? Theme.errorText
+                                             : ((item.fit ?? "") === "Marginal" ? Theme.warnText : Theme.successText)
+                                        font { pixelSize: 10; bold: true }
+                                    }
+                                    Text {
+                                        text: "· " + (item.family ?? "")
+                                        color: Theme.accent
+                                        font.pixelSize: 10
+                                    }
+                                    Text {
+                                        text: "· " + (item.capabilities ?? "")
+                                        color: Theme.textMuted
+                                        font.pixelSize: 10
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Text {
+                                        text: (item.score ?? 0) + "/100"
+                                        color: Theme.accent
+                                        font { pixelSize: 11; bold: true }
+                                    }
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: item.name ?? ""
+                                    color: Theme.textPrimary
+                                    font { pixelSize: 13; bold: true }
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                text: (item.params ?? "") + " · " + (item.quant ?? "") + " · " +
+                                          (item.requiredGb ?? item.sizeGb ?? 0).toFixed(1) + " GB · ctx " + (item.ctxK ?? 0) + "k · " +
+                                          (item.notes ?? "")
+                                    color: Theme.textMuted
+                                    font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            LcButton {
+                                text: "Download"
+                                Layout.preferredHeight: 34
+                                enabled: !App.modelDownloadRunning && (item.downloadable ?? true)
+                                onClicked: App.downloadRecommendedModel(item.repo ?? "", item.fileName ?? "")
+                            }
+                            LcButton {
+                                text: "HF"
+                                Layout.preferredHeight: 34
+                                secondary: true
+                                onClicked: App.openModelRecommendation(item.repo ?? "")
+                            }
+                        }
+
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.surfaceBg }
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        visible: parent.count === 0
+                        text: "Sin resultados para esos filtros"
                         color: Theme.textMuted
                         font.pixelSize: 14
                     }

@@ -84,15 +84,18 @@ Item {
     }
 
     function selectProfile(id) {
-        if (!id || id.length === 0) return
+        if (!id || id.length === 0) return false
         const count = App.profileManager.launchProfiles.rowCount()
+        let found = false
         for (let i = 0; i < count; ++i) {
             const idx = App.profileManager.launchProfiles.index(i, 0)
             const pid = App.profileManager.launchProfiles.data(idx, 257) ?? ""
-            if (pid === id) { launchCombo.currentIndex = i; break }
+            if (pid === id) { launchCombo.currentIndex = i; found = true; break }
         }
+        if (!found) return false
         selectedLaunchId = id
         loadLaunch()
+        return true
     }
 
     function newProfile() {

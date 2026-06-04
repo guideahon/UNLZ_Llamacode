@@ -90,6 +90,7 @@ qt_add_qml_module(LlamaCode
         qml/components/OpencodeConfigDialog.qml
         qml/pages/AgentPage.qml
         qml/pages/BenchmarkPage.qml
+        qml/pages/ResearchPage.qml
         qml/pages/SettingsPage.qml
 )
 
@@ -101,6 +102,7 @@ qt_add_resources(LlamaCode "llamacode_assets"
     PREFIX "/assets"
     FILES
         assets/app_icon.png
+        assets/hwfit/hf_models.json
 )
 
 target_include_directories(LlamaCode PRIVATE src)
