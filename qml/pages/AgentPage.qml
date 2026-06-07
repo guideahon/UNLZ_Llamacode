@@ -472,14 +472,12 @@ Item {
                         leftPadding: 10; verticalAlignment: Text.AlignVCenter
                     }
                 }
-                // Razonamiento del agente (default OFF para respetar perfiles con
-                // --reasoning off y reducir carga del server).
                 CheckBox {
                     id: agentThinkingCheck
                     visible: resolvedAdapter === "llamaagent"
                     text: "Pensar"
-                    checked: App.agentThinkingEnabled
-                    onToggled: App.agentThinkingEnabled = checked
+                    checked: App.thinkingEnabled
+                    onToggled: App.thinkingEnabled = checked
                     contentItem: Text {
                         text: agentThinkingCheck.text
                         color: Theme.textPrimary; font.pixelSize: 12

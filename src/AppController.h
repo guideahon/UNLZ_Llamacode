@@ -30,6 +30,7 @@ class AppController : public QObject
     Q_PROPERTY(QString      chatSessionTitle READ chatSessionTitle NOTIFY chatSessionsChanged)
     Q_PROPERTY(bool         chatGenerating  READ chatGenerating  NOTIFY chatGeneratingChanged)
     Q_PROPERTY(bool         chatThinkingSupported READ chatThinkingSupported NOTIFY chatThinkingSupportedChanged)
+    Q_PROPERTY(bool thinkingEnabled READ thinkingEnabled WRITE setThinkingEnabled NOTIFY thinkingChanged)
     Q_PROPERTY(bool   serverRunning   READ serverRunning   NOTIFY serverRunningChanged)
     Q_PROPERTY(bool   serverStopping  READ serverStopping  NOTIFY serverRunningChanged)
     Q_PROPERTY(bool   serverReady     READ serverReady     NOTIFY serverReadyChanged)
@@ -162,6 +163,8 @@ public:
     void setAgentApprovalMode(const QString &mode);
     bool agentThinkingEnabled() const { return m_agentThinkingEnabled; }
     void setAgentThinkingEnabled(bool enabled);
+    bool thinkingEnabled() const { return m_agentThinkingEnabled; }
+    void setThinkingEnabled(bool enabled);
     QString agentTeacherUrl()   const { return m_agentTeacherUrl; }
     QString agentTeacherModel() const { return m_agentTeacherModel; }
     QString agentTeacherKey()   const { return m_agentTeacherKey; }
@@ -324,17 +327,20 @@ public:
     Q_INVOKABLE bool writeOpencodeCommand(const QString &scope, const QString &projectDir,
                                           const QString &name, const QString &content);
     Q_INVOKABLE bool deleteOpencodeCommand(const QString &scope, const QString &projectDir, const QString &name);
-    Q_INVOKABLE void startBenchmark(const QStringList &profileIds, const QString &mode, int passes = 1);
+    Q_INVOKABLE void startBenchmark(const QStringList &profileIds, const QString &mode, int passes = 1,
+                                    const QString &target = QStringLiteral("model"));
     Q_INVOKABLE void cancelBenchmark();
     Q_INVOKABLE void openBenchmarkFolder(const QString &path);
     Q_INVOKABLE void clearBenchmarkResults();
     Q_INVOKABLE void removeBenchmarkResult(int index);
+    Q_INVOKABLE void removeBenchmarkResultById(const QString &id);
     Q_INVOKABLE void loadBenchmarkResults();
     // Custom benchmarks (user-defined prompt sets)
     Q_INVOKABLE void loadCustomBenchmarks();
     Q_INVOKABLE QString saveCustomBenchmark(const QVariantMap &def); // returns id
     Q_INVOKABLE void deleteCustomBenchmark(const QString &id);
-    Q_INVOKABLE void startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes = 1);
+    Q_INVOKABLE void startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes = 1,
+                                          const QString &target = QStringLiteral("model"));
     Q_INVOKABLE void startResearch(const QString &topic, const QString &mode, int maxPages);
     Q_INVOKABLE void cancelResearch();
     Q_INVOKABLE void refreshResearchReports();
@@ -374,6 +380,7 @@ signals:
     void chatMessagesChanged();
     void chatGeneratingChanged();
     void chatThinkingSupportedChanged();
+    void thinkingChanged();
     void agentRunningChanged();
     void agentStartingChanged();
     void agentLogChanged();
@@ -504,7 +511,7 @@ private:
     QVariantList m_agentSessions;
     QVariantMap m_agentPendingTool;   // tool esperando aprobación ({} si ninguna)
     QString   m_agentApprovalMode = QStringLiteral("ask");  // auto | ask | manual | super
-    bool      m_agentThinkingEnabled = false;   // razonamiento del agente (default off)
+    bool      m_agentThinkingEnabled = false;   // razonamiento global (chat/agente/benchmark/research)
     QStringList m_agentDisabledTools;           // tools built-in apagadas por el usuario
     QString   m_agentTeacherUrl;                // ask_teacher: endpoint OpenAI-compat
     QString   m_agentTeacherModel;
@@ -553,6 +560,7 @@ private:
     bool         m_benchmarkRunning  = false;
     bool         m_benchmarkCanceled = false;
     QPointer<QNetworkReply> m_benchmarkActiveReply; // in-flight req, aborted on cancel
+    QPointer<IAgentBackend> m_benchmarkAgent;       // dedicated headless agent (agent target)
     int          m_benchmarkProgress = 0;
     QString      m_benchmarkStatus;
     QVariantList m_benchmarkResults;
@@ -568,16 +576,34 @@ private:
     QString customBenchmarkDir() const;   // dir holding custom benchmark definitions
     QString benchmarkRunsDir() const;     // root for isolated timestamped run folders
     void saveBenchmarkResult(const QVariantMap &result);
+    QString benchmarkServerLogTail(int maxBytes = 24000) const;
+    void saveBenchmarkFailureResult(const QString &profileId, const QString &profileName,
+                                    int pass, int passes, const QString &mode,
+                                    const QString &target, const QString &benchmarkName,
+                                    const QString &runLabel, const QString &runDir,
+                                    const QString &stage, const QString &message,
+                                    const QString &detail, double elapsedSec = 0.0);
     void runBenchmarkInternal(const QStringList &profileIds, const QString &mode,
                               const QVariantList &customTasks, const QString &runLabel,
-                              int passes);
+                              int passes, const QString &target = QStringLiteral("model"));
+    // Agent-target benchmark: drives a dedicated headless LlamaAgentBackend so the
+    // model uses tools and writes real files into an isolated per-profile workspace.
+    void runAgentBenchmark(const QString &profileId, const QString &profName, int idx, int total,
+                           const QVariantList &tasks, int passes, const QString &mode,
+                           const QString &runLabel, const QString &runDir,
+                           std::function<void()> onProfileDone);
     void benchmarkWaitServerReady(int attemptsLeft, int totalAttempts, const QString &url,
                                   const QString &statusPrefix,
-                                  std::function<void(bool)> onResult);
+                                  std::function<void(bool)> onResult,
+                                  qint64 waitStartMs = 0,
+                                  qint64 lastActivityMs = 0,
+                                  qint64 lastLogSize = -1);
     void benchmarkWaitServerStopped(int remainingMs, std::function<void()> onStopped);
     void benchmarkRequest(const QString &url, const QString &prompt,
                           int maxTokens, bool streaming,
-                          std::function<void(QVariantMap)> onDone);
+                          std::function<void(QVariantMap)> onDone,
+                          const QString &resultType = QString());
+    QPair<double, double> benchmarkMeasureResourcesNow() const;
     void benchmarkMeasureResources(std::function<void(double ramMb, double vramMb)> onDone);
     QString modelDownloadDir() const;
     void rebuildModelRecommendations();

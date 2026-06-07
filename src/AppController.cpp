@@ -187,7 +187,9 @@ AppController::AppController(QObject *parent) : QObject(parent)
     QSettings s;
     m_language = s.value(QStringLiteral("language"), QStringLiteral("es")).toString();
     m_agentApprovalMode = s.value(QStringLiteral("agent/approvalMode"), QStringLiteral("ask")).toString();
-    m_agentThinkingEnabled = s.value(QStringLiteral("agent/thinkingEnabled"), false).toBool();
+    m_agentThinkingEnabled = s.value(QStringLiteral("thinking/enabled"),
+                                     s.value(QStringLiteral("agent/thinkingEnabled"),
+                                             s.value(QStringLiteral("chat/thinkingEnabled"), false))).toBool();
     m_agentSystemPrompt = s.value(QStringLiteral("agent/systemPrompt")).toString();
     m_agentPermRules    = s.value(QStringLiteral("agent/permRules")).toString();
     m_agentTemperature  = s.value(QStringLiteral("agent/temperature"), -1.0).toDouble();
@@ -1361,12 +1363,22 @@ void AppController::setAgentApprovalMode(const QString &mode)
 
 void AppController::setAgentThinkingEnabled(bool enabled)
 {
+    setThinkingEnabled(enabled);
+}
+
+void AppController::setThinkingEnabled(bool enabled)
+{
     if (enabled == m_agentThinkingEnabled) return;
     m_agentThinkingEnabled = enabled;
+    writeSetting(QStringLiteral("thinking/enabled"), enabled);
     writeSetting(QStringLiteral("agent/thinkingEnabled"), enabled);
+    writeSetting(QStringLiteral("chat/thinkingEnabled"), enabled);
     if (auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
         cb->setThinkingEnabled(enabled);
+    if (auto *raw = qobject_cast<RawChatBackend *>(m_chatBackend))
+        raw->setThinkingEnabled(enabled);
     emit agentThinkingChanged();
+    emit thinkingChanged();
 }
 
 void AppController::setAgentTeacherUrl(const QString &url)
@@ -1475,8 +1487,7 @@ IAgentBackend *AppController::ensureChatBackend()
     if (m_chatBackend) return m_chatBackend;
     auto *b = new RawChatBackend(this);
     if (auto *raw = qobject_cast<RawChatBackend *>(b)) {
-        const bool thinkingEnabled = readSetting(QStringLiteral("chat/thinkingEnabled"), true).toBool();
-        raw->setThinkingEnabled(thinkingEnabled);
+        raw->setThinkingEnabled(m_agentThinkingEnabled);
     }
     connect(b, &IAgentBackend::messagesChanged, this, [this, b]() {
         m_chatMessages = b->messages();
@@ -2910,6 +2921,7 @@ bool AppController::wipeUserData(const QString &kind, const QString &confirmatio
         emit languageChanged();
         emit agentApprovalModeChanged();
         emit agentThinkingChanged();
+        emit thinkingChanged();
         emit agentTuningChanged();
     } else {
         emit serverError(QStringLiteral("Categoría desconocida: %1").arg(kind));
@@ -3367,11 +3379,7 @@ void AppController::stopChatGeneration()
 
 void AppController::setChatThinkingEnabled(bool enabled)
 {
-    writeSetting(QStringLiteral("chat/thinkingEnabled"), enabled);
-    if (IAgentBackend *b = ensureChatBackend()) {
-        if (auto *raw = qobject_cast<RawChatBackend *>(b))
-            raw->setThinkingEnabled(enabled);
-    }
+    setThinkingEnabled(enabled);
 }
 
 // ── Managed-process lifecycle ─────────────────────────────────────────────────
@@ -3681,6 +3689,7 @@ struct BenchTaskDef {
     int maxTokens;
     bool isSpeed;
     std::function<bool(const QString &)> eval;
+    QVariantMap acceptance;
 };
 
 static bool benchEvalJson(const QString &r)
@@ -4538,6 +4547,17 @@ void AppController::removeBenchmarkResult(int index)
     QFile::remove(dir + "/" + id + ".json");
 }
 
+void AppController::removeBenchmarkResultById(const QString &id)
+{
+    if (id.isEmpty()) return;
+    for (int i = 0; i < m_benchmarkResults.size(); ++i) {
+        if (m_benchmarkResults.at(i).toMap().value(QStringLiteral("id")).toString() == id) {
+            removeBenchmarkResult(i);
+            return;
+        }
+    }
+}
+
 void AppController::cancelBenchmark()
 {
     if (!m_benchmarkRunning) return;
@@ -4548,6 +4568,9 @@ void AppController::cancelBenchmark()
     // current callback fires immediately instead of waiting for it to finish.
     if (m_benchmarkActiveReply)
         m_benchmarkActiveReply->abort();
+    // Stop the headless agent (agent target) so its turn ends promptly.
+    if (m_benchmarkAgent)
+        m_benchmarkAgent->cancelGeneration();
     // Tear down the server now; the chain finalizes at the next checkpoint.
     stopServer();
 }
@@ -4640,17 +4663,20 @@ static QVector<BenchTaskDef> buildCustomBenchTasks(const QVariantList &custom)
         d.prompt    = prompt;
         d.maxTokens = m.value("maxTokens", 8192).toInt();
         d.eval      = nullptr;
+        d.acceptance = m.value("acceptance").toMap();
         t.append(d);
     }
     return t;
 }
 
-void AppController::startBenchmark(const QStringList &profileIds, const QString &mode, int passes)
+void AppController::startBenchmark(const QStringList &profileIds, const QString &mode, int passes,
+                                   const QString &target)
 {
-    runBenchmarkInternal(profileIds, mode, {}, QStringLiteral("standard"), qMax(1, passes));
+    runBenchmarkInternal(profileIds, mode, {}, QStringLiteral("standard"), qMax(1, passes), target);
 }
 
-void AppController::startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes)
+void AppController::startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes,
+                                         const QString &target)
 {
     QVariantMap def;
     for (const QVariant &v : std::as_const(m_customBenchmarks)) {
@@ -4661,7 +4687,7 @@ void AppController::startCustomBenchmark(const QStringList &profileIds, const QS
     const QString label = def.value("name").toString().isEmpty()
                               ? QStringLiteral("custom") : def.value("name").toString();
     runBenchmarkInternal(profileIds, QStringLiteral("custom"),
-                         def.value("prompts").toList(), label, qMax(1, passes));
+                         def.value("prompts").toList(), label, qMax(1, passes), target);
 }
 
 void AppController::openBenchmarkFolder(const QString &path)
@@ -4672,14 +4698,23 @@ void AppController::openBenchmarkFolder(const QString &path)
         emit serverError(QStringLiteral("La carpeta del benchmark ya no existe:\n%1").arg(path));
         return;
     }
+    const QString native = QDir::toNativeSeparators(fi.absoluteFilePath());
+#ifdef Q_OS_WIN
+    // QDesktopServices::openUrl can hand Explorer a forward-slash file:// URL it
+    // refuses ("Ubicación no disponible"); launch Explorer directly with a
+    // native path instead.
+    if (QProcess::startDetached(QStringLiteral("explorer.exe"), {native}))
+        return;
+#endif
     QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absoluteFilePath()));
 }
 
 void AppController::runBenchmarkInternal(const QStringList &profileIds, const QString &mode,
                                          const QVariantList &customTasks, const QString &runLabel,
-                                         int passes)
+                                         int passes, const QString &target)
 {
     if (m_benchmarkRunning || profileIds.isEmpty()) return;
+    const bool agentTarget = (target == QLatin1String("agent"));
 
     m_benchmarkRunning  = true;
     m_benchmarkCanceled = false;
@@ -4692,6 +4727,10 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
     loadBenchmarkResults();
 
     const bool isCustom = !customTasks.isEmpty();
+    const QString benchmarkName = isCustom
+        ? runLabel
+        : (mode == QLatin1String("short") ? QStringLiteral("Corta")
+                                          : QStringLiteral("Completa"));
     const QVector<BenchTaskDef> tasks = isCustom
                                             ? buildCustomBenchTasks(customTasks)
                                             : buildBenchTasks(mode);
@@ -4731,6 +4770,8 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
             to["isSpeed"]   = t.isSpeed;
             to["maxTokens"] = t.maxTokens;
             to["prompt"]    = t.prompt;
+            if (!t.acceptance.isEmpty())
+                to["acceptance"] = QJsonObject::fromVariantMap(t.acceptance);
             taskArr.append(to);
         }
         meta["tasks"] = taskArr;
@@ -4761,11 +4802,33 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
         const QString profName    = profNameRaw.isEmpty() ? profileId : profNameRaw;
 
         auto runProfile = [=]() {
+            const qint64 loadStartMs = QDateTime::currentMSecsSinceEpoch();
             m_benchmarkStatus = QString("[%1/%2] %3 — iniciando servidor...")
                 .arg(idx + 1).arg(profileIds.size()).arg(profName);
             emit benchmarkStatusChanged();
 
             startServer(profileId);
+            if (!serverRunning()) {
+                if (!m_benchmarkCanceled) {
+                    const double elapsed =
+                        (QDateTime::currentMSecsSinceEpoch() - loadStartMs) / 1000.0;
+                    const QString detail = benchmarkServerLogTail();
+                    for (int p = 1; p <= passes; ++p) {
+                        saveBenchmarkFailureResult(
+                            profileId, profName, p, passes, mode,
+                            agentTarget ? QStringLiteral("agent") : QStringLiteral("model"),
+                            benchmarkName, runLabel, *runDirShared,
+                            QStringLiteral("server-start"),
+                            QStringLiteral("No se pudo iniciar el servidor para esta pasada."),
+                            detail, elapsed);
+                    }
+                    (*stepsDone) += tasks.size() * passes;
+                    m_benchmarkProgress = qMin(99, (*stepsDone * 100) / qMax(1, totalSteps));
+                    emit benchmarkProgressChanged();
+                }
+                (*processNext)(idx + 1);
+                return;
+            }
             const QString url = serverBaseUrl();
 
             // Large models (big ctx + mlock + no-mmap) can take minutes to load
@@ -4773,7 +4836,47 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
             const QString loadPrefix = QString("[%1/%2] %3").arg(idx+1).arg(profileIds.size()).arg(profName);
             benchmarkWaitServerReady(150, 150, url, loadPrefix, [=](bool ready) {
                 if (!ready || m_benchmarkCanceled) {
+                    if (!m_benchmarkCanceled) {
+                        const QString detail = benchmarkServerLogTail();
+                        const double elapsed =
+                            (QDateTime::currentMSecsSinceEpoch() - loadStartMs) / 1000.0;
+                        for (int p = 1; p <= passes; ++p) {
+                            saveBenchmarkFailureResult(
+                                profileId, profName, p, passes, mode,
+                                agentTarget ? QStringLiteral("agent") : QStringLiteral("model"),
+                                benchmarkName, runLabel, *runDirShared,
+                                QStringLiteral("server-load"),
+                                QStringLiteral("No se pudo cargar o iniciar el servidor para esta pasada."),
+                                detail, elapsed);
+                        }
+                        (*stepsDone) += tasks.size() * passes;
+                        m_benchmarkProgress = qMin(99, (*stepsDone * 100) / qMax(1, totalSteps));
+                        emit benchmarkProgressChanged();
+                        stopServer();
+                    }
                     (*processNext)(idx + 1);
+                    return;
+                }
+
+                // ── Agent target: drive a headless agent that uses tools to build
+                // real files, instead of capturing raw model text. ──
+                if (agentTarget) {
+                    QVariantList agentTasks;
+                    for (const BenchTaskDef &t : tasks) {
+                        QVariantMap tm;
+                        tm[QStringLiteral("id")] = t.id;
+                        tm[QStringLiteral("prompt")] = t.prompt;
+                        tm[QStringLiteral("acceptance")] = t.acceptance;
+                        agentTasks.append(tm);
+                    }
+                    runAgentBenchmark(profileId, profName, idx, profileIds.size(),
+                                      agentTasks, passes, mode, runLabel, *runDirShared,
+                                      [=]() {
+                                          stopServer();
+                                          benchmarkWaitServerStopped(10000, [=]() {
+                                              (*processNext)(idx + 1);
+                                          });
+                                      });
                     return;
                 }
 
@@ -4785,6 +4888,7 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
                     // Run all tasks sequentially, repeated `passes` times per profile.
                     auto taskResults = std::make_shared<QVariantList>();
                     auto passNo = std::make_shared<int>(1);
+                    auto passStartMs = std::make_shared<qint64>(QDateTime::currentMSecsSinceEpoch());
                     auto runTask = std::make_shared<std::function<void(int)>>();
 
                     *runTask = [=](int ti) {
@@ -4793,8 +4897,18 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
                             benchmarkMeasureResources([=](double ramMb, double vramMb) {
                                 int passed = 0, qualTotal = 0;
                                 double tpsSum = 0, ttftSum = 0; int speedCount = 0;
+                                bool failed = false;
+                                QString failureMessage;
+                                QString failureDetail;
                                 for (const QVariant &v : *taskResults) {
                                     const QVariantMap r = v.toMap();
+                                    if (r.value("failed").toBool()) {
+                                        failed = true;
+                                        if (failureMessage.isEmpty())
+                                            failureMessage = r.value("failureMessage").toString();
+                                        if (failureDetail.isEmpty())
+                                            failureDetail = r.value("failureDetail").toString();
+                                    }
                                     if (r.value("type") == "quality") {
                                         qualTotal++;
                                         if (r.value("passed").toBool()) passed++;
@@ -4817,14 +4931,36 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
                                 result["pass"]         = *passNo;
                                 result["passesTotal"]  = passes;
                                 result["mode"]         = mode;
+                                result["target"]       = QStringLiteral("model");
+                                result["benchmarkName"] = benchmarkName;
                                 result["timestamp"]    = (double)QDateTime::currentMSecsSinceEpoch();
                                 result["qualityScore"] = passed;
                                 result["qualityTotal"] = qualTotal;
+                                result["firstAttemptScore"] = passed;
+                                result["firstAttemptTotal"] = qualTotal;
+                                result["finalScore"] = passed;
+                                result["finalTotal"] = qualTotal;
+                                result["repairAttempts"] = 0;
                                 result["avgTps"]       = avgTps;
                                 result["avgTtftMs"]    = avgTtft;
                                 result["ramMb"]        = ramMb;
                                 result["vramMb"]       = vramMb;
+                                result["elapsedSec"]   =
+                                    (QDateTime::currentMSecsSinceEpoch() - *passStartMs) / 1000.0;
+                                result["timeToFirstAttempt"] = result["elapsedSec"];
+                                result["totalTime"] = result["elapsedSec"];
+                                result["passedAfterRepair"] = false;
                                 result["tasks"]        = *taskResults;
+                                result["failed"]       = failed;
+                                if (failed) {
+                                    result["failureStage"] = QStringLiteral("request");
+                                    result["failureMessage"] =
+                                        failureMessage.isEmpty()
+                                            ? QStringLiteral("Falló una request del benchmark.")
+                                            : failureMessage;
+                                    result["failureDetail"] =
+                                        failureDetail.isEmpty() ? benchmarkServerLogTail() : failureDetail;
+                                }
                                 result["id"]           = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
                                 result["runLabel"] = runLabel;
@@ -4850,6 +4986,7 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
                                 if (!m_benchmarkCanceled && *passNo < passes) {
                                     (*passNo)++;
                                     taskResults->clear();
+                                    *passStartMs = QDateTime::currentMSecsSinceEpoch();
                                     m_benchmarkStatus = QString("[%1/%2] %3 — pasada %4/%5...")
                                         .arg(idx+1).arg(profileIds.size()).arg(profName)
                                         .arg(*passNo).arg(passes);
@@ -4871,9 +5008,11 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
                             .arg(idx+1).arg(profileIds.size()).arg(profName).arg(task.id);
                         emit benchmarkStatusChanged();
 
-                        // Custom tasks always stream so we capture TTFT/tps/tokens for every prompt.
-                        const bool stream = isCustom ? true : task.isSpeed;
-                        benchmarkRequest(url, task.prompt, task.maxTokens, stream, [=](QVariantMap res) {
+                        // Stream every benchmark task so llama-server idleness is observable.
+                        const QString resultType = task.isSpeed
+                            ? QStringLiteral("speed")
+                            : QStringLiteral("quality");
+                        benchmarkRequest(url, task.prompt, task.maxTokens, true, [=](QVariantMap res) {
                             (*stepsDone)++;
                             m_benchmarkProgress = qMin(99, (*stepsDone * 100) / qMax(1, totalSteps));
                             emit benchmarkProgressChanged();
@@ -4896,7 +5035,7 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
 
                             taskResults->append(res);
                             (*runTask)(ti + 1);
-                        });
+                        }, resultType);
                     };
                     (*runTask)(0);
                 });
@@ -4913,17 +5052,571 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
     (*processNext)(0);
 }
 
+void AppController::runAgentBenchmark(const QString &profileId, const QString &profName,
+                                     int idx, int total, const QVariantList &benchTasks,
+                                     int passes, const QString &mode, const QString &runLabel,
+                                     const QString &runDir, std::function<void()> onProfileDone)
+{
+    const auto ctx = buildContext(profileId);
+
+    // Profile temperature (from --temp / -t), default if absent.
+    double temp = -1.0;
+    {
+        const QStringList &args = ctx.launch.extraArgs;
+        for (int i = 0; i + 1 < args.size(); ++i)
+            if (args[i] == QLatin1String("--temp") || args[i] == QLatin1String("-t")) {
+                bool ok = false; const double v = args[i+1].toDouble(&ok);
+                if (ok) { temp = v; break; }
+            }
+    }
+
+    auto sanitize = [](QString s) {
+        s.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]+")), QStringLiteral("_"));
+        return s.left(60);
+    };
+    auto requiredFileName = [](const QString &prompt) {
+        static const QRegularExpression rx(
+            QStringLiteral("(?:Archivo requerido|Required file)\\s*:\\s*`?([^`\\r\\n]+)`?"),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch m = rx.match(prompt);
+        if (m.hasMatch()) {
+            const QString name = QFileInfo(m.captured(1).trimmed()).fileName();
+            if (!name.isEmpty()) return name;
+        }
+        return QStringLiteral("agent_output.txt");
+    };
+    auto responseArtifact = [](QString text) {
+        static const QRegularExpression fenced(
+            QStringLiteral("```(?:[A-Za-z0-9_+.-]+)?\\s*\\n([\\s\\S]*?)\\n```"));
+        const QRegularExpressionMatch m = fenced.match(text);
+        if (m.hasMatch()) text = m.captured(1);
+        text = text.trimmed();
+        if (text.isEmpty()) return QString();
+
+        // Do not materialize natural-language summaries as source files.
+        const QString head = text.left(300).toLower();
+        const bool looksLikePython =
+            head.startsWith(QStringLiteral("#!")) ||
+            head.contains(QStringLiteral("import ")) ||
+            head.contains(QStringLiteral("from ")) ||
+            head.contains(QStringLiteral("def ")) ||
+            head.contains(QStringLiteral("class ")) ||
+            head.contains(QStringLiteral("@dataclass"));
+        const bool looksLikeSummary =
+            head.contains(QStringLiteral("archivo creado")) ||
+            head.contains(QStringLiteral("archivos creados")) ||
+            head.contains(QStringLiteral("compilación")) ||
+            head.contains(QStringLiteral("compilacion")) ||
+            head.contains(QStringLiteral("resumen"));
+        return (looksLikePython && !looksLikeSummary) ? text : QString();
+    };
+    auto agentPrompt = [](const QString &prompt) {
+        return QStringLiteral(
+            "MODO AGENTE BENCHMARK:\n"
+            "- Trabaja en el directorio actual usando herramientas de archivo.\n"
+            "- Debes crear/modificar los archivos pedidos en disco; no alcanza con responder codigo en el chat.\n"
+            "- Si el prompt pide \"responder solamente con codigo\", interpretalo como: el archivo final debe contener solamente ese codigo.\n"
+            "- Al terminar, responde breve indicando que archivos creaste y si compilaste/probaste.\n\n"
+            "TAREA ORIGINAL:\n%1").arg(prompt);
+    };
+    auto estimateTokensLocal = [](const QString &s) {
+        const int n = s.trimmed().size();
+        return n <= 0 ? 0 : (n + 3) / 4;
+    };
+    auto runAcceptanceCommand = [](const QString &workspace, const QVariantMap &cmd) {
+        QVariantMap out;
+        const QString name = cmd.value(QStringLiteral("name")).toString();
+        const QString command = cmd.value(QStringLiteral("command")).toString();
+        const int timeoutMs = qMax(1000, cmd.value(QStringLiteral("timeoutMs"), 30000).toInt());
+        const QString expectedStdout = cmd.value(QStringLiteral("expectedStdout")).toString();
+        out[QStringLiteral("name")] = name.isEmpty() ? command : name;
+        out[QStringLiteral("command")] = command;
+        out[QStringLiteral("timeoutMs")] = timeoutMs;
+
+        if (command.trimmed().isEmpty()) {
+            out[QStringLiteral("passed")] = false;
+            out[QStringLiteral("exitCode")] = -1;
+            out[QStringLiteral("output")] = QStringLiteral("Comando vacio.");
+            return out;
+        }
+
+        QProcess p;
+        p.setWorkingDirectory(workspace);
+#ifdef Q_OS_WIN
+        p.start(QStringLiteral("powershell"),
+                {QStringLiteral("-NoProfile"), QStringLiteral("-ExecutionPolicy"),
+                 QStringLiteral("Bypass"), QStringLiteral("-Command"), command});
+#else
+        p.start(QStringLiteral("sh"), {QStringLiteral("-lc"), command});
+#endif
+        const bool finished = p.waitForFinished(timeoutMs);
+        if (!finished) {
+            p.kill();
+            p.waitForFinished(3000);
+        }
+        const QString stdoutText = QString::fromUtf8(p.readAllStandardOutput());
+        const QString stderrText = QString::fromUtf8(p.readAllStandardError());
+        const QString combined = (stdoutText + (stderrText.isEmpty() ? QString() : QStringLiteral("\n") + stderrText)).trimmed();
+        const bool exitOk = finished && p.exitStatus() == QProcess::NormalExit && p.exitCode() == 0;
+        const bool stdoutOk = expectedStdout.isEmpty() || combined.contains(expectedStdout);
+        out[QStringLiteral("passed")] = exitOk && stdoutOk;
+        out[QStringLiteral("exitCode")] = finished ? p.exitCode() : -1;
+        out[QStringLiteral("timedOut")] = !finished;
+        out[QStringLiteral("output")] = combined.left(12000);
+        if (!expectedStdout.isEmpty())
+            out[QStringLiteral("expectedStdout")] = expectedStdout;
+        return out;
+    };
+    QStringList prompts;
+    for (const QVariant &tv : benchTasks) {
+        const QString prompt = tv.toMap().value(QStringLiteral("prompt")).toString();
+        if (!prompt.trimmed().isEmpty())
+            prompts << prompt;
+    }
+
+    auto passNo = std::make_shared<int>(1);
+    auto runOnePass = std::make_shared<std::function<void()>>();
+
+    *runOnePass = [=]() {
+        if (m_benchmarkCanceled) { onProfileDone(); return; }
+
+        // Isolated workspace for this profile/pass.
+        const QString wsName = sanitize(profName) + (passes > 1 ? QString("__ws_p%1").arg(*passNo)
+                                                                : QStringLiteral("__ws"));
+        const QString workspace = runDir + "/" + wsName;
+        QDir().mkpath(workspace);
+
+        auto *agent = new LlamaAgentBackend(this);
+        m_benchmarkAgent = agent;
+        agent->setEphemeralSessions(true);
+        agent->setThinkingEnabled(m_agentThinkingEnabled);
+        agent->setApprovalPolicy(QStringLiteral("super"));   // auto-approve every tool
+        agent->setPermissionRules(m_agentPermRules);
+        agent->setAgentTuning(m_agentSystemPrompt, temp);
+        agent->setTeacherConfig(m_agentTeacherUrl, m_agentTeacherModel, m_agentTeacherKey);
+        agent->setDisabledTools({}); // benchmark agent must be able to write/test files
+
+        QMap<QString, QVariant> mergedMcp;
+        for (const QVariant &v : listMcpServers(QStringLiteral("global"), QString()))
+            mergedMcp.insert(v.toMap().value(QStringLiteral("name")).toString(), v);
+        for (const QVariant &v : listMcpServers(QStringLiteral("project"), workspace))
+            mergedMcp.insert(v.toMap().value(QStringLiteral("name")).toString(), v);
+        agent->setMcpServers(mergedMcp.values());
+
+        AgentContext c;
+        c.adapter       = QStringLiteral("llamaagent");
+        c.cwd           = workspace;
+        c.serverBaseUrl = serverBaseUrl();
+        c.modelId       = ctx.catalogModel.id;
+        agent->start(c);
+        agent->newSessionInProject(workspace);
+        agent->setMcpServers(mergedMcp.values());
+
+        const qint64 startMs = QDateTime::currentMSecsSinceEpoch();
+        auto promptIdx = std::make_shared<int>(0);
+        auto finished  = std::make_shared<bool>(false);
+        auto timedOut  = std::make_shared<bool>(false);
+        auto passFailed = std::make_shared<bool>(false);
+        auto failureMessage = std::make_shared<QString>();
+        auto failureDetail = std::make_shared<QString>();
+        auto toolsReady = std::make_shared<bool>(mergedMcp.isEmpty());
+        auto turnStartMs = std::make_shared<qint64>(0);
+        auto turnFirstMs = std::make_shared<qint64>(-1);
+        auto turnMetrics = std::make_shared<QVariantList>();
+        const int idleTimeoutMs = 3 * 60 * 1000;
+        auto lastActivityMs = std::make_shared<qint64>(QDateTime::currentMSecsSinceEpoch());
+        auto peakRamMb = std::make_shared<double>(0.0);
+        auto peakVramMb = std::make_shared<double>(0.0);
+        auto sampleResources = std::make_shared<std::function<void()>>();
+        *sampleResources = [=]() {
+            if (*finished) return;
+            const QPair<double, double> resources = benchmarkMeasureResourcesNow();
+            *peakRamMb = qMax(*peakRamMb, resources.first);
+            *peakVramMb = qMax(*peakVramMb, resources.second);
+            QTimer::singleShot(5000, this, [=]() { (*sampleResources)(); });
+        };
+        QTimer::singleShot(1000, this, [=]() { (*sampleResources)(); });
+
+        // Finalize this pass: collect files, score, persist, tear down.
+        auto finalize = std::make_shared<std::function<void()>>();
+        *finalize = [=]() {
+            if (*finished) return;
+            *finished = true;
+
+            const bool canceled = m_benchmarkCanceled;
+
+            QString finalText;
+            QString fallbackArtifact;
+            const QVariantList msgs = agent->messages();
+            QVariantList assistantMetrics;
+            double tpsSum = 0.0;
+            double ttftSum = 0.0;
+            int tpsCount = 0;
+            int ttftCount = 0;
+            auto includeMetric = [&](const QVariantMap &metric) {
+                const double tps = metric.value(QStringLiteral("tps")).toDouble();
+                const double ttft = metric.contains(QStringLiteral("ttft_ms"))
+                                        ? metric.value(QStringLiteral("ttft_ms")).toDouble()
+                                        : -1.0;
+                if (tps > 0.0) {
+                    tpsSum += tps;
+                    tpsCount++;
+                }
+                if (ttft >= 0.0) {
+                    ttftSum += ttft;
+                    ttftCount++;
+                }
+                assistantMetrics.append(metric);
+            };
+            for (auto it = msgs.crbegin(); it != msgs.crend(); ++it)
+                if (it->toMap().value("role").toString() == QLatin1String("assistant")) {
+                    finalText = it->toMap().value("content").toString();
+                    const QString art = responseArtifact(finalText);
+                    if (!art.isEmpty() && fallbackArtifact.isEmpty())
+                        fallbackArtifact = art;
+                    break;
+                }
+            if (*timedOut)
+                finalText = QStringLiteral("[idle-timeout] llama-server/agente sin actividad por 3 minutos.");
+            for (const QVariant &mv : msgs) {
+                const QVariantMap mm = mv.toMap();
+                if (mm.value(QStringLiteral("role")).toString() != QLatin1String("assistant"))
+                    continue;
+                const QString art = responseArtifact(mm.value(QStringLiteral("content")).toString());
+                if (!art.isEmpty()) fallbackArtifact = art;
+            }
+            for (const QVariant &mv : msgs) {
+                const QVariantMap mm = mv.toMap();
+                if (mm.value(QStringLiteral("role")).toString() != QLatin1String("assistant"))
+                    continue;
+                const double tps = mm.value(QStringLiteral("tps")).toDouble();
+                const double createdAt = mm.value(QStringLiteral("createdAt")).toDouble();
+                const double genStartMs = mm.value(QStringLiteral("genStartMs")).toDouble();
+                QVariantMap metric;
+                metric[QStringLiteral("tokens")] = mm.value(QStringLiteral("tokens"));
+                metric[QStringLiteral("elapsedMs")] = mm.value(QStringLiteral("elapsedMs"));
+                metric[QStringLiteral("tps")] = tps;
+                if (genStartMs > 0.0 && createdAt > 0.0) {
+                    const double ttft = qMax(0.0, genStartMs - createdAt);
+                    metric[QStringLiteral("ttft_ms")] = ttft;
+                }
+                includeMetric(metric);
+            }
+            // Prefer backend/server generation metrics for t/s. The turn-level
+            // fallback measures a whole agent turn and can include tool execution,
+            // file IO, tests and follow-up requests, so it is only useful when the
+            // backend did not expose generation metrics at all.
+            if (tpsCount == 0) {
+                for (const QVariant &mv : *turnMetrics)
+                    includeMetric(mv.toMap());
+            }
+
+            // Files the agent produced in the workspace.
+            QStringList files;
+            QDirIterator di(workspace, QDir::Files, QDirIterator::Subdirectories);
+            while (di.hasNext()) {
+                di.next();
+                files << QDir(workspace).relativeFilePath(di.filePath());
+            }
+            if (files.isEmpty()) {
+                const QString artifact = fallbackArtifact;
+                if (!artifact.isEmpty()) {
+                    const QString outName = requiredFileName(prompts.isEmpty() ? QString() : prompts.first());
+                    QFile out(QDir(workspace).filePath(outName));
+                    if (out.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+                        out.write(artifact.toUtf8());
+                        out.close();
+                        files << outName;
+                    }
+                }
+            }
+
+            // Acceptance criteria from custom benchmark definitions.
+            QVariantList acceptanceRows;
+            int qScore = 0, qTotal = 0;
+            for (const QVariant &tv : benchTasks) {
+                const QVariantMap task = tv.toMap();
+                const QString taskId = task.value(QStringLiteral("id")).toString();
+                const QVariantMap acceptance = task.value(QStringLiteral("acceptance")).toMap();
+                if (acceptance.isEmpty())
+                    continue;
+
+                const QVariantList expectedFiles = acceptance.value(QStringLiteral("files")).toList();
+                for (const QVariant &fv : expectedFiles) {
+                    const QString rel = fv.toString().trimmed();
+                    if (rel.isEmpty()) continue;
+                    const bool ok = QFileInfo(QDir(workspace).filePath(rel)).exists();
+                    QVariantMap row;
+                    row[QStringLiteral("taskId")] = taskId;
+                    row[QStringLiteral("type")] = QStringLiteral("file");
+                    row[QStringLiteral("name")] = rel;
+                    row[QStringLiteral("passed")] = ok;
+                    row[QStringLiteral("output")] = ok
+                        ? QStringLiteral("Archivo encontrado.")
+                        : QStringLiteral("Archivo esperado no encontrado.");
+                    acceptanceRows.append(row);
+                    qTotal++;
+                    if (ok) qScore++;
+                }
+
+                const QVariantList commands = acceptance.value(QStringLiteral("commands")).toList();
+                for (const QVariant &cv : commands) {
+                    QVariantMap row = runAcceptanceCommand(workspace, cv.toMap());
+                    row[QStringLiteral("taskId")] = taskId;
+                    row[QStringLiteral("type")] = QStringLiteral("command");
+                    acceptanceRows.append(row);
+                    qTotal++;
+                    if (row.value(QStringLiteral("passed")).toBool()) qScore++;
+                }
+            }
+
+            // Fallback auto-score: py_compile any produced .py when the benchmark
+            // did not define explicit acceptance criteria.
+            const QStringList pys = files.filter(QRegularExpression(QStringLiteral("\\.py$")));
+            if (qTotal == 0 && !pys.isEmpty()) {
+                qTotal = 1;
+                const QString py = QStandardPaths::findExecutable(QStringLiteral("python"));
+                if (!py.isEmpty()) {
+                    QProcess pc;
+                    pc.setWorkingDirectory(workspace);
+                    QStringList a; a << QStringLiteral("-m") << QStringLiteral("py_compile") << pys;
+                    pc.start(py, a);
+                    if (pc.waitForFinished(30000) && pc.exitStatus() == QProcess::NormalExit
+                        && pc.exitCode() == 0)
+                        qScore = 1;
+                }
+            }
+
+            const double elapsed = (QDateTime::currentMSecsSinceEpoch() - startMs) / 1000.0;
+            const QPair<double, double> resources = benchmarkMeasureResourcesNow();
+            const double ramMb = qMax(resources.first, *peakRamMb);
+            const double vramMb = qMax(resources.second, *peakVramMb);
+            const QString rowName = passes > 1
+                ? QString("%1 · pasada %2/%3").arg(profName).arg(*passNo).arg(passes) : profName;
+
+            QVariantMap result;
+            result["profileId"]    = profileId;
+            result["profileName"]  = rowName;
+            result["pass"]         = *passNo;
+            result["passesTotal"]  = passes;
+            result["mode"]         = mode;
+            result["target"]       = QStringLiteral("agent");
+            result["benchmarkName"] = (mode == QLatin1String("short") ? QStringLiteral("Corta")
+                                      : mode == QLatin1String("full") ? QStringLiteral("Completa")
+                                      : runLabel);
+            result["timestamp"]    = (double)QDateTime::currentMSecsSinceEpoch();
+            result["qualityScore"] = qScore;
+            result["qualityTotal"] = qTotal;
+            result["firstAttemptScore"] = qScore;
+            result["firstAttemptTotal"] = qTotal;
+            result["finalScore"] = qScore;
+            result["finalTotal"] = qTotal;
+            result["repairAttempts"] = 0;
+            result["avgTps"]       = tpsCount > 0 ? tpsSum / tpsCount : 0.0;
+            result["avgTtftMs"]    = ttftCount > 0 ? ttftSum / ttftCount : 0.0;
+            result["ramMb"]        = ramMb;
+            result["vramMb"]       = vramMb;
+            result["elapsedSec"]   = elapsed;
+            result["timeToFirstAttempt"] = elapsed;
+            result["totalTime"] = elapsed;
+            result["passedAfterRepair"] = false;
+            result["response"]     = finalText;
+            result["agentFiles"]   = files;
+            result["agentMetrics"] = assistantMetrics;
+            result["acceptance"]   = acceptanceRows;
+            result["timedOut"]     = *timedOut;
+            result["failed"]       = *passFailed || *timedOut || (qTotal > 0 && qScore < qTotal);
+            if (result.value(QStringLiteral("failed")).toBool()) {
+                result["failureStage"] = *timedOut
+                    ? QStringLiteral("agent-idle-timeout")
+                    : (*passFailed ? QStringLiteral("agent") : QStringLiteral("acceptance"));
+                result["failureMessage"] = failureMessage->isEmpty()
+                    ? (qTotal > 0 && qScore < qTotal
+                        ? QStringLiteral("Fallaron criterios de aceptacion.")
+                        : finalText)
+                    : *failureMessage;
+                result["failureDetail"] = failureDetail->isEmpty()
+                    ? (acceptanceRows.isEmpty()
+                        ? benchmarkServerLogTail()
+                        : QString::fromUtf8(QJsonDocument(QJsonArray::fromVariantList(acceptanceRows))
+                                                .toJson(QJsonDocument::Indented)))
+                    : *failureDetail;
+            }
+            result["workspace"]    = workspace;
+            result["id"]           = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            result["runLabel"]     = runLabel;
+            result["runDir"]       = runDir;
+
+            if (!canceled) {
+                m_benchmarkResults.append(result);
+                emit benchmarkResultsChanged();
+                saveBenchmarkResult(result);
+                {
+                    QFile pf(runDir + "/" + sanitize(profName) + "_"
+                             + result.value("id").toString() + ".json");
+                    if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                        pf.write(QJsonDocument(QJsonObject::fromVariantMap(result)).toJson());
+                }
+            }
+
+            if (m_benchmarkAgent == agent) m_benchmarkAgent = nullptr;
+            agent->stop();
+            agent->deleteLater();
+
+            if (!canceled && !*timedOut && *passNo < passes) {
+                (*passNo)++;
+                (*runOnePass)();
+            } else {
+                onProfileDone();
+            }
+        };
+
+        // Send prompts one after another; advance when the agent goes idle.
+        auto sendNext = std::make_shared<std::function<void()>>();
+        *sendNext = [=]() {
+            if (!*toolsReady) return;
+            if (m_benchmarkCanceled || *promptIdx >= prompts.size()) { (*finalize)(); return; }
+            m_benchmarkStatus = QString("[%1/%2] %3 — agente: prompt %4/%5...")
+                .arg(idx+1).arg(total).arg(profName).arg(*promptIdx + 1).arg(prompts.size());
+            emit benchmarkStatusChanged();
+            *turnStartMs = QDateTime::currentMSecsSinceEpoch();
+            *turnFirstMs = -1;
+            *lastActivityMs = *turnStartMs;
+            agent->sendMessage(agentPrompt(prompts.at(*promptIdx)));
+            (*promptIdx)++;
+        };
+
+        connect(agent, &IAgentBackend::streamingText, this, [=](int, const QString &content) {
+            if (!content.isEmpty())
+                *lastActivityMs = QDateTime::currentMSecsSinceEpoch();
+            if (*finished || *turnStartMs <= 0 || *turnFirstMs >= 0) return;
+            *turnFirstMs = QDateTime::currentMSecsSinceEpoch();
+        });
+        connect(agent, &IAgentBackend::messagesChanged, this, [=]() {
+            if (!*finished)
+                *lastActivityMs = QDateTime::currentMSecsSinceEpoch();
+        });
+
+        // running() is true for the whole backend lifetime (start→stop), NOT per
+        // turn. Turn completion is marked by finishTurn() logging "[turn] completed".
+        connect(agent, &IAgentBackend::logAppended, this, [=](const QString &chunk) {
+            if (*finished) return;
+            if (!chunk.trimmed().isEmpty())
+                *lastActivityMs = QDateTime::currentMSecsSinceEpoch();
+            if (!*toolsReady && chunk.contains(QLatin1String("[mcp]"))
+                    && chunk.contains(QLatin1String("descubiertas"))) {
+                *toolsReady = true;
+                (*sendNext)();
+                return;
+            }
+            if (!chunk.contains(QLatin1String("[turn] completed"))) return;
+            if (*turnStartMs > 0) {
+                const qint64 doneMs = QDateTime::currentMSecsSinceEpoch();
+                QString latestAssistant;
+                const QVariantList currentMsgs = agent->messages();
+                for (auto it = currentMsgs.crbegin(); it != currentMsgs.crend(); ++it) {
+                    const QVariantMap mm = it->toMap();
+                    if (mm.value(QStringLiteral("role")).toString() == QLatin1String("assistant")) {
+                        latestAssistant = mm.value(QStringLiteral("content")).toString();
+                        break;
+                    }
+                }
+                const int toks = estimateTokensLocal(latestAssistant);
+                const qint64 firstMs = (*turnFirstMs >= 0) ? *turnFirstMs : *turnStartMs;
+                const double ttft = qMax<qint64>(0, firstMs - *turnStartMs);
+                const double genSec = qMax(0.001, (doneMs - firstMs) / 1000.0);
+                QVariantMap metric;
+                metric[QStringLiteral("tokens")] = toks;
+                metric[QStringLiteral("elapsedMs")] = static_cast<int>(qMax<qint64>(0, doneMs - *turnStartMs));
+                metric[QStringLiteral("ttft_ms")] = ttft;
+                metric[QStringLiteral("tps")] = toks > 0 ? toks / genSec : 0.0;
+                turnMetrics->append(metric);
+                *turnStartMs = 0;
+                *turnFirstMs = -1;
+            }
+            if (m_benchmarkCanceled) { (*finalize)(); return; }
+            if (*promptIdx >= prompts.size()) (*finalize)();
+            else (*sendNext)();
+        });
+        connect(agent, &IAgentBackend::errorOccurred, this, [=](const QString &msg) {
+            *passFailed = true;
+            *failureMessage = msg;
+            *failureDetail = benchmarkServerLogTail();
+            (*finalize)();
+        });
+
+        // Idle watchdog: no hard wall-clock limit. Fail only if the agent/server
+        // stops producing stream/log/message activity for a sustained interval.
+        auto idlePoll = std::make_shared<std::function<void()>>();
+        *idlePoll = [=]() {
+            if (*finished) return;
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
+            if (now - *lastActivityMs >= idleTimeoutMs) {
+                *timedOut = true;
+                *passFailed = true;
+                *failureMessage = QStringLiteral("llama-server/agente sin actividad por 3 minutos.");
+                *failureDetail = benchmarkServerLogTail();
+                agent->cancelGeneration();
+                (*finalize)();
+                return;
+            }
+            QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
+        };
+        QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
+        auto cancelPoll = std::make_shared<std::function<void()>>();
+        *cancelPoll = [=]() {
+            if (*finished) return;
+            if (m_benchmarkCanceled) {
+                agent->cancelGeneration();
+                (*finalize)();
+                return;
+            }
+            QTimer::singleShot(200, this, [=]() { (*cancelPoll)(); });
+        };
+        QTimer::singleShot(200, this, [=]() { (*cancelPoll)(); });
+
+        // Kick off the first prompt after tools are ready. If there are no MCP
+        // servers, built-in tools are available immediately.
+        QTimer::singleShot(300, this, [=]() { (*sendNext)(); });
+        QTimer::singleShot(5000, this, [=]() {
+            if (!*finished && !*toolsReady) {
+                *toolsReady = true;
+                (*sendNext)();
+            }
+        });
+    };
+
+    (*runOnePass)();
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 void AppController::benchmarkWaitServerReady(int attemptsLeft, int totalAttempts, const QString &url,
                                               const QString &statusPrefix,
-                                              std::function<void(bool)> onResult)
+                                              std::function<void(bool)> onResult,
+                                              qint64 waitStartMs,
+                                              qint64 lastActivityMs,
+                                              qint64 lastLogSize)
 {
     if (m_benchmarkCanceled) { onResult(false); return; }   // bail fast on cancel
-    if (attemptsLeft <= 0) { onResult(false); return; }
+    if (attemptsLeft < totalAttempts && !serverRunning()) { onResult(false); return; }
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (waitStartMs <= 0) waitStartMs = now;
+    if (lastActivityMs <= 0) lastActivityMs = now;
+    QFileInfo logInfo(m_serverLogFilePath);
+    const qint64 currentLogSize = logInfo.exists() ? logInfo.size() : -1;
+    if (currentLogSize != lastLogSize) {
+        lastActivityMs = now;
+        lastLogSize = currentLogSize;
+    }
+    if (now - lastActivityMs >= 3 * 60 * 1000) {
+        onResult(false);
+        return;
+    }
 
     // Surface load progress: model load can take minutes for big-ctx profiles.
-    const int elapsedSec = (totalAttempts - attemptsLeft) * 2;
+    const int elapsedSec = static_cast<int>((now - waitStartMs) / 1000);
     m_benchmarkStatus = QString("%1 — cargando modelo (puede tardar)... %2s")
                             .arg(statusPrefix).arg(elapsedSec);
     emit benchmarkStatusChanged();
@@ -4938,8 +5631,10 @@ void AppController::benchmarkWaitServerReady(int attemptsLeft, int totalAttempts
         reply->deleteLater();
         if (m_benchmarkCanceled) { onResult(false); return; }
         if (ok) { onResult(true); return; }
+        if (!serverRunning()) { onResult(false); return; }
         QTimer::singleShot(2000, this, [=]() {
-            benchmarkWaitServerReady(attemptsLeft - 1, totalAttempts, url, statusPrefix, onResult);
+            benchmarkWaitServerReady(attemptsLeft - 1, totalAttempts, url, statusPrefix,
+                                     onResult, waitStartMs, lastActivityMs, lastLogSize);
         });
     });
 }
@@ -4954,12 +5649,13 @@ void AppController::benchmarkWaitServerStopped(int remainingMs, std::function<vo
 
 void AppController::benchmarkRequest(const QString &url, const QString &prompt,
                                       int maxTokens, bool streaming,
-                                      std::function<void(QVariantMap)> onDone)
+                                      std::function<void(QVariantMap)> onDone,
+                                      const QString &resultType)
 {
     if (!m_nam) m_nam = new QNetworkAccessManager(this);
     QNetworkRequest req(QUrl(url + "/v1/chat/completions"));
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    req.setTransferTimeout(120000);
+    req.setTransferTimeout(0);
 
     QJsonObject payload;
     payload["model"]      = "benchmark";
@@ -4974,6 +5670,23 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
     auto *reply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     m_benchmarkActiveReply = reply;   // so cancelBenchmark() can abort it
     const qint64 startMs = QDateTime::currentMSecsSinceEpoch();
+    const int idleTimeoutMs = 3 * 60 * 1000;
+    auto requestDone = std::make_shared<bool>(false);
+    auto idleTimedOut = std::make_shared<bool>(false);
+    auto lastActivityMs = std::make_shared<qint64>(startMs);
+    auto idlePoll = std::make_shared<std::function<void()>>();
+    *idlePoll = [=]() {
+        if (*requestDone) return;
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (now - *lastActivityMs >= idleTimeoutMs) {
+            *idleTimedOut = true;
+            if (reply->isRunning())
+                reply->abort();
+            return;
+        }
+        QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
+    };
+    QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
 
     if (streaming) {
         struct SpeedState { QByteArray buf; qint64 ttftMs = -1; int chunks = 0;
@@ -4981,6 +5694,7 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
         auto state = std::make_shared<SpeedState>();
 
         connect(reply, &QNetworkReply::readyRead, this, [=]() {
+            *lastActivityMs = QDateTime::currentMSecsSinceEpoch();
             state->buf.append(reply->readAll());
             int nl;
             while ((nl = state->buf.indexOf('\n')) >= 0) {
@@ -5005,39 +5719,62 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
         });
 
         connect(reply, &QNetworkReply::finished, this, [=]() {
+            *requestDone = true;
             const qint64 totalMs = QDateTime::currentMSecsSinceEpoch() - startMs;
             const int tokens = state->tokens > 0 ? state->tokens : state->chunks;
             double tps = 0;
             if (state->ttftMs >= 0 && tokens > 0)
                 tps = tokens / qMax(0.001, (totalMs - state->ttftMs) / 1000.0);
+            const bool failed = reply->error() != QNetworkReply::NoError;
             QVariantMap r;
-            r["type"]       = "speed";
+            r["type"]       = resultType.isEmpty() ? QStringLiteral("speed") : resultType;
             r["ttft_ms"]    = state->ttftMs;
             r["tps"]        = tps;
             r["chunks"]     = state->chunks;
             r["tokens"]     = tokens;
             r["elapsed_ms"] = totalMs;
             r["response"]   = state->response;
+            r["failed"]     = failed;
+            if (failed) {
+                r["failureMessage"] = *idleTimedOut
+                    ? QStringLiteral("llama-server sin actividad por 3 minutos.")
+                    : reply->errorString();
+                r["failureDetail"] = QString::fromUtf8(reply->readAll());
+            }
             if (m_benchmarkActiveReply == reply) m_benchmarkActiveReply = nullptr;
             reply->deleteLater();
             onDone(r);
         });
     } else {
+        connect(reply, &QNetworkReply::readyRead, this, [=]() {
+            *lastActivityMs = QDateTime::currentMSecsSinceEpoch();
+        });
         connect(reply, &QNetworkReply::finished, this, [=]() {
+            *requestDone = true;
             const qint64 totalMs = QDateTime::currentMSecsSinceEpoch() - startMs;
             QString response;
             int tokens = 0;
+            QString failureDetail;
             if (reply->error() == QNetworkReply::NoError) {
                 const QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
                 response = obj.value("choices").toArray().first().toObject()
                     .value("message").toObject().value("content").toString();
                 tokens = obj.value("usage").toObject().value("completion_tokens").toInt();
+            } else {
+                failureDetail = QString::fromUtf8(reply->readAll());
             }
             QVariantMap r;
             r["type"]       = "quality";
             r["elapsed_ms"] = totalMs;
             r["tokens"]     = tokens;
             r["response"]   = response;
+            r["failed"]     = reply->error() != QNetworkReply::NoError;
+            if (r.value("failed").toBool()) {
+                r["failureMessage"] = *idleTimedOut
+                    ? QStringLiteral("llama-server sin actividad por 3 minutos.")
+                    : reply->errorString();
+                r["failureDetail"] = failureDetail;
+            }
             if (m_benchmarkActiveReply == reply) m_benchmarkActiveReply = nullptr;
             reply->deleteLater();
             onDone(r);
@@ -5045,37 +5782,130 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
     }
 }
 
-void AppController::benchmarkMeasureResources(std::function<void(double, double)> onDone)
+static QStringList parseCsvLine(const QString &line)
 {
-    // VRAM via nvidia-smi
-    auto *nsmi = new QProcess(this);
-    nsmi->start("nvidia-smi",
-                {"--query-compute-apps=used_memory", "--format=csv,noheader,nounits"});
-    connect(nsmi, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [=](int, QProcess::ExitStatus) {
-        double vramMb = 0;
-        for (const QString &line :
-             QString::fromUtf8(nsmi->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts))
-            vramMb += line.trimmed().toDouble();
-        nsmi->deleteLater();
+    QStringList out;
+    QString current;
+    bool quoted = false;
+    for (int i = 0; i < line.size(); ++i) {
+        const QChar ch = line.at(i);
+        if (ch == QLatin1Char('"')) {
+            if (quoted && i + 1 < line.size() && line.at(i + 1) == QLatin1Char('"')) {
+                current += ch;
+                ++i;
+            } else {
+                quoted = !quoted;
+            }
+        } else if (ch == QLatin1Char(',') && !quoted) {
+            out << current;
+            current.clear();
+        } else {
+            current += ch;
+        }
+    }
+    out << current;
+    return out;
+}
 
-        // RAM via tasklist
-        auto *tl = new QProcess(this);
-        tl->start("tasklist", {"/FI","IMAGENAME eq llama-server.exe","/FO","CSV","/NH"});
-        connect(tl, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
-                this, [=](int, QProcess::ExitStatus) {
-            double ramMb = 0;
-            for (const QString &line :
-                 QString::fromUtf8(tl->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts)) {
-                const QStringList parts = line.split(',');
+QPair<double, double> AppController::benchmarkMeasureResourcesNow() const
+{
+    const qint64 serverPid = m_proc ? m_proc->processId() : 0;
+    const QString processName = m_proc
+        ? QFileInfo(m_proc->program()).fileName()
+        : QStringLiteral("llama-server.exe");
+    double ramMb = 0.0;
+    double vramMb = 0.0;
+
+#ifdef Q_OS_WIN
+    auto readTasklistRam = [&](const QStringList &filters) {
+        double total = 0.0;
+        QProcess tl;
+        QStringList taskArgs;
+        for (int i = 0; i + 1 < filters.size(); i += 2)
+            taskArgs << QStringLiteral("/FI") << QStringLiteral("%1 eq %2").arg(filters.at(i), filters.at(i + 1));
+        taskArgs << QStringLiteral("/FO") << QStringLiteral("CSV") << QStringLiteral("/NH");
+        tl.start(QStringLiteral("tasklist"), taskArgs);
+        if (tl.waitForFinished(3000)) {
+            const QString text = QString::fromLocal8Bit(tl.readAllStandardOutput());
+            for (const QString &line : text.split('\n', Qt::SkipEmptyParts)) {
+                const QString trimmed = line.trimmed();
+                if (trimmed.isEmpty()
+                        || trimmed.contains(QStringLiteral("No tasks"), Qt::CaseInsensitive)
+                        || trimmed.contains(QStringLiteral("INFO:"), Qt::CaseInsensitive)
+                        || trimmed.contains(QStringLiteral("INFORMACI"), Qt::CaseInsensitive))
+                    continue;
+                const QStringList parts = parseCsvLine(trimmed);
                 if (parts.size() >= 5) {
-                    const QString mem = parts[4].trimmed().remove('"').remove(" K").remove(',');
-                    ramMb += mem.toDouble() / 1024.0;
+                    QString mem = parts.at(4);
+                    mem.remove(QStringLiteral(" K"), Qt::CaseInsensitive);
+                    mem.remove(QStringLiteral("KB"), Qt::CaseInsensitive);
+                    mem.remove(QLatin1Char(','));
+                    mem.remove(QLatin1Char('.'));
+                    mem = mem.trimmed();
+                    bool ok = false;
+                    const double kb = mem.toDouble(&ok);
+                    if (ok)
+                        total += kb / 1024.0;
                 }
             }
-            tl->deleteLater();
-            onDone(ramMb, vramMb);
-        });
+        }
+        return total;
+    };
+    if (serverPid > 0)
+        ramMb = readTasklistRam({QStringLiteral("PID"), QString::number(serverPid)});
+    if (ramMb <= 0.0 && !processName.isEmpty())
+        ramMb = readTasklistRam({QStringLiteral("IMAGENAME"), processName});
+    if (ramMb <= 0.0)
+        ramMb = readTasklistRam({QStringLiteral("IMAGENAME"), QStringLiteral("llama-server.exe")});
+#endif
+
+    const QString nvidiaSmi = QStandardPaths::findExecutable(QStringLiteral("nvidia-smi"));
+    if (!nvidiaSmi.isEmpty()) {
+        QProcess nsmi;
+        nsmi.start(nvidiaSmi,
+                   {QStringLiteral("--query-compute-apps=pid,used_memory"),
+                    QStringLiteral("--format=csv,noheader,nounits")});
+        if (nsmi.waitForFinished(3000)) {
+            const QString text = QString::fromUtf8(nsmi.readAllStandardOutput());
+            for (const QString &line : text.split('\n', Qt::SkipEmptyParts)) {
+                const QStringList parts = line.split(QLatin1Char(','));
+                if (parts.size() < 2)
+                    continue;
+                bool pidOk = false;
+                const qint64 pid = parts.at(0).trimmed().toLongLong(&pidOk);
+                if (serverPid > 0 && (!pidOk || pid != serverPid))
+                    continue;
+                bool memOk = false;
+                const double mb = parts.at(1).trimmed().toDouble(&memOk);
+                if (memOk)
+                    vramMb += mb;
+            }
+        }
+        if (vramMb <= 0.0) {
+            QProcess gpu;
+            gpu.start(nvidiaSmi,
+                      {QStringLiteral("--query-gpu=memory.used"),
+                       QStringLiteral("--format=csv,noheader,nounits")});
+            if (gpu.waitForFinished(3000)) {
+                const QString text = QString::fromUtf8(gpu.readAllStandardOutput());
+                for (const QString &line : text.split('\n', Qt::SkipEmptyParts)) {
+                    bool ok = false;
+                    const double mb = line.trimmed().toDouble(&ok);
+                    if (ok)
+                        vramMb += mb;
+                }
+            }
+        }
+    }
+
+    return {ramMb, vramMb};
+}
+
+void AppController::benchmarkMeasureResources(std::function<void(double, double)> onDone)
+{
+    const QPair<double, double> resources = benchmarkMeasureResourcesNow();
+    QTimer::singleShot(0, this, [=]() {
+        onDone(resources.first, resources.second);
     });
 }
 
@@ -5087,6 +5917,74 @@ QString AppController::benchmarkStorageDir() const
                         + "/benchmarks";
     QDir().mkpath(dir);
     return dir;
+}
+
+QString AppController::benchmarkServerLogTail(int maxBytes) const
+{
+    QFile f(m_serverLogFilePath);
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    if (maxBytes > 0 && f.size() > maxBytes)
+        f.seek(f.size() - maxBytes);
+    return QString::fromUtf8(f.readAll()).trimmed();
+}
+
+void AppController::saveBenchmarkFailureResult(const QString &profileId, const QString &profileName,
+                                               int pass, int passes, const QString &mode,
+                                               const QString &target, const QString &benchmarkName,
+                                               const QString &runLabel, const QString &runDir,
+                                               const QString &stage, const QString &message,
+                                               const QString &detail, double elapsedSec)
+{
+    const QString rowName = passes > 1
+        ? QString("%1 · pasada %2/%3").arg(profileName).arg(pass).arg(passes)
+        : profileName;
+
+    QVariantMap result;
+    result[QStringLiteral("profileId")] = profileId;
+    result[QStringLiteral("profileName")] = rowName;
+    result[QStringLiteral("pass")] = pass;
+    result[QStringLiteral("passesTotal")] = passes;
+    result[QStringLiteral("mode")] = mode;
+    result[QStringLiteral("target")] = target;
+    result[QStringLiteral("benchmarkName")] = benchmarkName;
+    result[QStringLiteral("timestamp")] = (double)QDateTime::currentMSecsSinceEpoch();
+    result[QStringLiteral("qualityScore")] = 0;
+    result[QStringLiteral("qualityTotal")] = 0;
+    result[QStringLiteral("firstAttemptScore")] = 0;
+    result[QStringLiteral("firstAttemptTotal")] = 0;
+    result[QStringLiteral("finalScore")] = 0;
+    result[QStringLiteral("finalTotal")] = 0;
+    result[QStringLiteral("repairAttempts")] = 0;
+    result[QStringLiteral("avgTps")] = 0.0;
+    result[QStringLiteral("avgTtftMs")] = 0.0;
+    result[QStringLiteral("ramMb")] = 0.0;
+    result[QStringLiteral("vramMb")] = 0.0;
+    result[QStringLiteral("elapsedSec")] = elapsedSec;
+    result[QStringLiteral("timeToFirstAttempt")] = elapsedSec;
+    result[QStringLiteral("totalTime")] = elapsedSec;
+    result[QStringLiteral("passedAfterRepair")] = false;
+    result[QStringLiteral("tasks")] = QVariantList{};
+    result[QStringLiteral("failed")] = true;
+    result[QStringLiteral("failureStage")] = stage;
+    result[QStringLiteral("failureMessage")] = message;
+    result[QStringLiteral("failureDetail")] = detail;
+    result[QStringLiteral("id")] = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    result[QStringLiteral("runLabel")] = runLabel;
+    result[QStringLiteral("runDir")] = runDir;
+
+    m_benchmarkResults.append(result);
+    emit benchmarkResultsChanged();
+    saveBenchmarkResult(result);
+
+    if (!runDir.isEmpty()) {
+        QString fname = profileName;
+        fname.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]+")), QStringLiteral("_"));
+        QFile pf(runDir + "/" + fname.left(60) + "_"
+                 + result.value(QStringLiteral("id")).toString() + "_failed.json");
+        if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            pf.write(QJsonDocument(QJsonObject::fromVariantMap(result)).toJson());
+    }
 }
 
 void AppController::saveBenchmarkResult(const QVariantMap &result)
@@ -5108,13 +6006,33 @@ void AppController::saveBenchmarkResult(const QVariantMap &result)
     summary["profileId"]    = result.value("profileId").toString();
     summary["profileName"]  = result.value("profileName").toString();
     summary["mode"]         = result.value("mode").toString();
+    summary["benchmarkName"] = result.value("benchmarkName").toString();
     summary["timestamp"]    = result.value("timestamp").toDouble();
     summary["qualityScore"] = result.value("qualityScore").toInt();
     summary["qualityTotal"] = result.value("qualityTotal").toInt();
+    summary["firstAttemptScore"] = result.value("firstAttemptScore").toInt();
+    summary["firstAttemptTotal"] = result.value("firstAttemptTotal").toInt();
+    summary["finalScore"] = result.value("finalScore").toInt();
+    summary["finalTotal"] = result.value("finalTotal").toInt();
+    summary["repairAttempts"] = result.value("repairAttempts").toInt();
+    summary["timeToFirstAttempt"] = result.value("timeToFirstAttempt").toDouble();
+    summary["totalTime"] = result.value("totalTime").toDouble();
+    summary["passedAfterRepair"] = result.value("passedAfterRepair").toBool();
     summary["avgTps"]       = result.value("avgTps").toDouble();
     summary["avgTtftMs"]    = result.value("avgTtftMs").toDouble();
+    summary["elapsedSec"]   = result.value("elapsedSec").toDouble();
     summary["ramMb"]        = result.value("ramMb").toDouble();
     summary["vramMb"]       = result.value("vramMb").toDouble();
+    summary["target"]       = result.value("target").toString();
+    summary["runLabel"]     = result.value("runLabel").toString();
+    summary["runDir"]       = result.value("runDir").toString();
+    summary["workspace"]    = result.value("workspace").toString();
+    summary["timedOut"]     = result.value("timedOut").toBool();
+    summary["acceptance"]   = QJsonArray::fromVariantList(result.value("acceptance").toList());
+    summary["failed"]       = result.value("failed").toBool();
+    summary["failureStage"] = result.value("failureStage").toString();
+    summary["failureMessage"] = result.value("failureMessage").toString();
+    summary["failureDetail"] = result.value("failureDetail").toString();
     idx.append(summary);
 
     if (fi.open(QIODevice::WriteOnly | QIODevice::Truncate))
@@ -5137,7 +6055,24 @@ void AppController::loadBenchmarkResults()
     for (const QVariant &v : std::as_const(m_benchmarkResults))
         existing.insert(v.toMap().value("id").toString());
     for (const QJsonValue &v : arr) {
-        const QVariantMap m = v.toObject().toVariantMap();
+        QVariantMap m = v.toObject().toVariantMap();
+        const QString id = m.value(QStringLiteral("id")).toString();
+        const bool needsFullResult =
+            m.value(QStringLiteral("benchmarkName")).toString().isEmpty()
+            || m.value(QStringLiteral("runLabel")).toString().isEmpty()
+            || m.value(QStringLiteral("target")).toString().isEmpty()
+            || (m.value(QStringLiteral("failed")).toBool()
+                && m.value(QStringLiteral("failureDetail")).toString().isEmpty());
+        if (!id.isEmpty() && needsFullResult) {
+            QFile rf(benchmarkStorageDir() + "/" + id + ".json");
+            if (rf.open(QIODevice::ReadOnly)) {
+                const QVariantMap full =
+                    QJsonDocument::fromJson(rf.readAll()).object().toVariantMap();
+                for (auto it = full.cbegin(); it != full.cend(); ++it)
+                    if (!m.contains(it.key()) || m.value(it.key()).toString().isEmpty())
+                        m.insert(it.key(), it.value());
+            }
+        }
         if (!existing.contains(m.value("id").toString()))
             m_benchmarkResults.append(m);
     }
@@ -5373,6 +6308,9 @@ void AppController::startResearch(const QString &topic, const QString &mode, int
             {QStringLiteral("max_tokens"), 2200},
             {QStringLiteral("cache_prompt"), true}
         };
+        payload.insert(QStringLiteral("reasoning_budget"), m_agentThinkingEnabled ? -1 : 0);
+        payload.insert(QStringLiteral("chat_template_kwargs"),
+                       QJsonObject{{QStringLiteral("enable_thinking"), m_agentThinkingEnabled}});
 
         QNetworkRequest req(QUrl(serverBaseUrl() + QStringLiteral("/v1/chat/completions")));
         req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));

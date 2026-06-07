@@ -8,7 +8,6 @@ Item {
 
     property bool newProjectDialogOpen: false
     property var thinkExpanded: ({})
-    property bool thinkingEnabled: (App.readSetting("chat/thinkingEnabled", true) ?? true)
     property var chatAttachments: []
 
     function fileName(p) { return p.split(/[\\/]/).pop() }
@@ -973,12 +972,9 @@ Item {
                             id: thinkingToggle
                             text: "Thinking"
                             visible: App.chatThinkingSupported
-                            checked: root.thinkingEnabled
+                            checked: App.thinkingEnabled
                             enabled: !App.chatGenerating && App.chatThinkingSupported
-                            onToggled: {
-                                root.thinkingEnabled = checked
-                                App.setChatThinkingEnabled(checked)
-                            }
+                            onToggled: App.thinkingEnabled = checked
                             contentItem: Text {
                                 text: parent.text
                                 color: Theme.textSecondary

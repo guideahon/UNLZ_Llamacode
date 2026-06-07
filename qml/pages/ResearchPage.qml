@@ -144,6 +144,21 @@ Item {
                         }
                     }
 
+                    CheckBox {
+                        id: researchThinkingCheck
+                        text: "Thinking"
+                        checked: App.thinkingEnabled
+                        enabled: !App.researchRunning
+                        onToggled: App.thinkingEnabled = checked
+                        contentItem: Text {
+                            text: researchThinkingCheck.text
+                            color: Theme.textPrimary
+                            font.pixelSize: 12
+                            leftPadding: researchThinkingCheck.indicator.width + 6
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10

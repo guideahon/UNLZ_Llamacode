@@ -7,6 +7,146 @@ Item {
     id: root
 
     property var selectedIds: []
+    property string sortColumn: ""
+    property int sortDirection: 0
+    property var failureRow: ({})
+    property string modeFilter: ""
+    property string benchmarkFilter: ""
+    property int leftPanelWidth: 280
+    property int leftPanelMinWidth: 240
+    property int leftPanelMaxWidth: Math.max(leftPanelMinWidth, Math.min(560, Math.max(leftPanelMinWidth, width - 520)))
+
+    onLeftPanelMaxWidthChanged: leftPanelWidth = clampLeftPanelWidth(leftPanelWidth)
+
+    function cycleSort(column) {
+        if (sortColumn !== column) {
+            sortColumn = column
+            sortDirection = 1
+        } else if (sortDirection === 1) {
+            sortDirection = -1
+        } else {
+            sortColumn = ""
+            sortDirection = 0
+        }
+    }
+    function sortIndicator(column) {
+        if (sortColumn !== column || sortDirection === 0) return "↕"
+        return sortDirection > 0 ? "▲" : "▼"
+    }
+    function benchmarkTargetLabel(row) {
+        const target = (row.target ?? "").toString().toLowerCase()
+        return target === "agent" ? "Agente" : "Chat"
+    }
+    function benchmarkNameLabel(row) {
+        const explicitName = (row.benchmarkName ?? "").toString()
+        if (explicitName.length > 0) return explicitName
+        const mode = (row.mode ?? "").toString().toLowerCase()
+        if (mode === "short") return "Corta"
+        if (mode === "full") return "Completa"
+        const label = (row.runLabel ?? "").toString()
+        return label.length > 0 && label !== "standard" ? label : mode.toUpperCase()
+    }
+    function sortValue(row, column) {
+        if (column === "profile") return (row.profileName ?? "").toString().toLowerCase()
+        if (column === "target") return benchmarkTargetLabel(row).toLowerCase()
+        if (column === "benchmark") return benchmarkNameLabel(row).toLowerCase()
+        if (column === "score") {
+            const total = row.qualityTotal ?? 0
+            return total > 0 ? (row.qualityScore ?? 0) / total : -1
+        }
+        if (column === "firstAttemptScore") {
+            const total = row.firstAttemptTotal ?? row.qualityTotal ?? 0
+            return total > 0 ? (row.firstAttemptScore ?? row.qualityScore ?? 0) / total : -1
+        }
+        if (column === "finalScore") {
+            const total = row.finalTotal ?? row.qualityTotal ?? 0
+            return total > 0 ? (row.finalScore ?? row.qualityScore ?? 0) / total : -1
+        }
+        if (column === "repairAttempts") return row.repairAttempts ?? 0
+        if (column === "timeToFirstAttempt") return row.timeToFirstAttempt ?? row.elapsedSec ?? 0
+        if (column === "totalTime") return row.totalTime ?? row.elapsedSec ?? 0
+        if (column === "passedAfterRepair") return (row.passedAfterRepair ?? false) ? 1 : 0
+        if (column === "tps") return row.avgTps ?? 0
+        if (column === "ttft") return row.avgTtftMs ?? 0
+        if (column === "seconds") return row.elapsedSec ?? 0
+        if (column === "ram") return row.ramMb ?? 0
+        if (column === "vram") return row.vramMb ?? 0
+        if (column === "date") return row.timestamp ?? 0
+        return ""
+    }
+    function sortedBenchmarkResults(rows, column, direction) {
+        const copy = []
+        for (let i = 0; i < rows.length; i++)
+            copy.push({ row: rows[i], originalIndex: i })
+        if (direction === 0 || column === "")
+            return copy.map(x => x.row)
+        copy.sort((a, b) => {
+            const av = sortValue(a.row, column)
+            const bv = sortValue(b.row, column)
+            let cmp = 0
+            if (typeof av === "number" && typeof bv === "number")
+                cmp = av === bv ? 0 : (av < bv ? -1 : 1)
+            else
+                cmp = av.toString().localeCompare(bv.toString())
+            if (cmp === 0) cmp = a.originalIndex - b.originalIndex
+            return direction > 0 ? cmp : -cmp
+        })
+        return copy.map(x => x.row)
+    }
+    function uniqueColumnValues(rows, getter) {
+        const seen = {}
+        const out = []
+        for (let i = 0; i < rows.length; i++) {
+            const value = getter(rows[i])
+            if (value.length === 0 || seen[value]) continue
+            seen[value] = true
+            out.push(value)
+        }
+        out.sort((a, b) => a.localeCompare(b))
+        return out
+    }
+    function modeFilterValues() {
+        return ["Todos"].concat(uniqueColumnValues(App.benchmarkResults, row => benchmarkTargetLabel(row)))
+    }
+    function benchmarkFilterValues() {
+        return ["Todos"].concat(uniqueColumnValues(App.benchmarkResults, row => benchmarkNameLabel(row)))
+    }
+    function indexOfValue(values, value) {
+        for (let i = 0; i < values.length; i++)
+            if (values[i] === value) return i
+        return 0
+    }
+    function filteredBenchmarkResults(rows) {
+        const out = []
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i]
+            if (modeFilter !== "" && benchmarkTargetLabel(row) !== modeFilter) continue
+            if (benchmarkFilter !== "" && benchmarkNameLabel(row) !== benchmarkFilter) continue
+            out.push(row)
+        }
+        return out
+    }
+    function visibleBenchmarkResults() {
+        return sortedBenchmarkResults(filteredBenchmarkResults(App.benchmarkResults), sortColumn, sortDirection)
+    }
+    function scoreLabel(row, scoreKey, totalKey) {
+        const s = row[scoreKey] ?? row.qualityScore ?? 0
+        const t = row[totalKey] ?? row.qualityTotal ?? 0
+        return t > 0 ? s + "/" + t : "—"
+    }
+    function scoreColor(row, scoreKey, totalKey) {
+        const s = row[scoreKey] ?? row.qualityScore ?? 0
+        const t = row[totalKey] ?? row.qualityTotal ?? 1
+        const r = s / t
+        return r >= 0.8 ? Theme.successText : r >= 0.5 ? Theme.warnText : Theme.errorText
+    }
+    function secondsLabel(value) {
+        const sec = value ?? 0
+        return sec > 0 ? sec.toFixed(1) + " s" : "—"
+    }
+    function clampLeftPanelWidth(value) {
+        return Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, Math.round(value)))
+    }
 
     function toggleProfile(profileId) {
         const idx = selectedIds.indexOf(profileId)
@@ -19,6 +159,31 @@ Item {
 
     // Custom benchmark selection: "" = standard tasks, else a custom benchmark id
     property string customId: ""
+
+    Component {
+        id: sortableHeader
+        Item {
+            property string title: ""
+            property string column: ""
+            property int columnWidth: 60
+            property bool fill: false
+            Layout.fillWidth: fill
+            Layout.preferredWidth: fill ? 1 : columnWidth
+            height: 30
+
+            Text {
+                anchors.fill: parent
+                text: title + " " + root.sortIndicator(column)
+                color: headerHover.hovered || root.sortColumn === column ? Theme.textPrimary : Theme.textSecondary
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: fill ? Text.AlignLeft : Text.AlignRight
+            }
+            HoverHandler { id: headerHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: root.cycleSort(column) }
+        }
+    }
 
     Component.onCompleted: {
         if (App.loadBenchmarkResults) App.loadBenchmarkResults()
@@ -44,7 +209,9 @@ Item {
 
             // ── Panel izquierdo ────────────────────────────────────────────
             Rectangle {
-                Layout.preferredWidth: 260
+                Layout.preferredWidth: root.leftPanelWidth
+                Layout.minimumWidth: root.leftPanelMinWidth
+                Layout.maximumWidth: root.leftPanelMaxWidth
                 Layout.fillHeight: true
                 color: Theme.surfaceBg
 
@@ -53,21 +220,159 @@ Item {
                     spacing: 14
 
                     Text {
+                        text: "OBJETIVO"
+                        color: Theme.textSecondary
+                        font.pixelSize: 10; font.bold: true
+                    }
+                    ColumnLayout {
+                        ButtonGroup { id: targetGroup }
+                        spacing: 4
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 5
+                            TapHandler { onTapped: modelTarget.checked = true }
+                            RadioButton {
+                                id: modelTarget
+                                text: ""
+                                checked: true
+                                ButtonGroup.group: targetGroup
+                                padding: 0
+                                leftPadding: 0
+                                rightPadding: 0
+                                Layout.minimumWidth: implicitIndicatorWidth
+                                Layout.preferredWidth: implicitIndicatorWidth
+                                Layout.maximumWidth: implicitIndicatorWidth
+                            }
+                            Text {
+                                text: "Modo Chat"
+                                color: Theme.theme === "oled" ? "white" : Theme.textPrimary
+                                font.pixelSize: 12
+                            }
+                        }
+                        Item { height: 2 }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 5
+                            TapHandler { onTapped: agentTarget.checked = true }
+                            RadioButton {
+                                id: agentTarget
+                                text: ""
+                                ButtonGroup.group: targetGroup
+                                padding: 0
+                                leftPadding: 0
+                                rightPadding: 0
+                                Layout.minimumWidth: implicitIndicatorWidth
+                                Layout.preferredWidth: implicitIndicatorWidth
+                                Layout.maximumWidth: implicitIndicatorWidth
+                            }
+                            Text {
+                                text: "Modo Agente"
+                                color: Theme.theme === "oled" ? "white" : Theme.textPrimary
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+
+                    CheckBox {
+                        id: benchmarkThinkingCheck
+                        text: "Thinking"
+                        checked: App.thinkingEnabled
+                        onToggled: App.thinkingEnabled = checked
+                        contentItem: Text {
+                            text: benchmarkThinkingCheck.text
+                            color: Theme.theme === "oled" ? "white" : Theme.textPrimary
+                            font.pixelSize: 12
+                            leftPadding: benchmarkThinkingCheck.indicator.width + 6
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    Text {
                         text: "MODO DE PRUEBA"
                         color: Theme.textSecondary
                         font.pixelSize: 10; font.bold: true
                     }
 
                     ColumnLayout {
+                        ButtonGroup { id: modeGroup }
                         spacing: 4
-                        RadioButton { id: shortMode; text: "Corta (~2 min)"; checked: true }
-                        Text { text: "2 speed + 5 quality tasks"; color: Theme.textMuted; font.pixelSize: 11; leftPadding: 24 }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 5
+                            TapHandler { onTapped: shortMode.checked = true }
+                            RadioButton {
+                                id: shortMode
+                                text: ""
+                                checked: true
+                                ButtonGroup.group: modeGroup
+                                padding: 0
+                                leftPadding: 0
+                                rightPadding: 0
+                                Layout.minimumWidth: implicitIndicatorWidth
+                                Layout.preferredWidth: implicitIndicatorWidth
+                                Layout.maximumWidth: implicitIndicatorWidth
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Corta (~2 min) 2 speed + 5 quality tasks"
+                                color: Theme.textSecondary
+                                font.pixelSize: 12
+                                wrapMode: Text.Wrap
+                            }
+                        }
                         Item { height: 2 }
-                        RadioButton { id: fullMode; text: "Completa (~5 min)" }
-                        Text { text: "5 speed + 7 quality tasks"; color: Theme.textMuted; font.pixelSize: 11; leftPadding: 24 }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 5
+                            TapHandler { onTapped: fullMode.checked = true }
+                            RadioButton {
+                                id: fullMode
+                                text: ""
+                                ButtonGroup.group: modeGroup
+                                padding: 0
+                                leftPadding: 0
+                                rightPadding: 0
+                                Layout.minimumWidth: implicitIndicatorWidth
+                                Layout.preferredWidth: implicitIndicatorWidth
+                                Layout.maximumWidth: implicitIndicatorWidth
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Completa (~5 min) 5 speed + 7 quality tasks"
+                                color: Theme.textSecondary
+                                font.pixelSize: 12
+                                wrapMode: Text.Wrap
+                            }
+                        }
                         Item { height: 2 }
-                        RadioButton { id: customMode; text: "Custom benchmark" }
-                        Text { text: "Tus prompts personalizados"; color: Theme.textMuted; font.pixelSize: 11; leftPadding: 24 }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 5
+                            TapHandler { onTapped: customMode.checked = true }
+                            RadioButton {
+                                id: customMode
+                                text: ""
+                                ButtonGroup.group: modeGroup
+                                padding: 0
+                                leftPadding: 0
+                                rightPadding: 0
+                                Layout.minimumWidth: implicitIndicatorWidth
+                                Layout.preferredWidth: implicitIndicatorWidth
+                                Layout.maximumWidth: implicitIndicatorWidth
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Custom benchmark Tus prompts personalizados"
+                                color: Theme.textSecondary
+                                font.pixelSize: 12
+                                wrapMode: Text.Wrap
+                            }
+                        }
                     }
 
                     // ── Selector de benchmark personalizado (solo en modo custom) ──
@@ -172,10 +477,15 @@ Item {
                                         onToggled: root.toggleProfile(pd.profileId)
                                     }
                                     Text {
+                                        id: profileNameText
                                         text: model.name || "(sin nombre)"
                                         color: Theme.textPrimary; font.pixelSize: 12
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: profileList.width - 60; elide: Text.ElideRight
+                                        ToolTip.visible: pdHover.hovered
+                                        ToolTip.delay: 350
+                                        ToolTip.timeout: 5000
+                                        ToolTip.text: text
                                     }
                                 }
                                 TapHandler { onTapped: root.toggleProfile(pd.profileId) }
@@ -244,9 +554,11 @@ Item {
                                     App.cancelBenchmark()
                                 } else if (customMode.checked) {
                                     if (root.customId !== "")
-                                        App.startCustomBenchmark(root.selectedIds, root.customId, passesSpin.value)
+                                        App.startCustomBenchmark(root.selectedIds, root.customId, passesSpin.value,
+                                                                 agentTarget.checked ? "agent" : "model")
                                 } else {
-                                    App.startBenchmark(root.selectedIds, shortMode.checked ? "short" : "full", passesSpin.value)
+                                    App.startBenchmark(root.selectedIds, shortMode.checked ? "short" : "full", passesSpin.value,
+                                                       agentTarget.checked ? "agent" : "model")
                                 }
                             }
                         }
@@ -255,7 +567,41 @@ Item {
                 }
             }
 
-            Rectangle { width: 1; Layout.fillHeight: true; color: Theme.divider }
+            Item {
+                id: leftPanelResizeHandle
+                Layout.preferredWidth: 10
+                Layout.fillHeight: true
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: resizeMouse.pressed || resizeHover.hovered ? 3 : 1
+                    height: parent.height
+                    color: resizeMouse.pressed || resizeHover.hovered ? Theme.accent : Theme.divider
+                }
+
+                HoverHandler {
+                    id: resizeHover
+                    cursorShape: Qt.SplitHCursor
+                }
+
+                MouseArea {
+                    id: resizeMouse
+                    anchors.fill: parent
+                    cursorShape: Qt.SplitHCursor
+                    property real pressRootX: 0
+                    property int pressWidth: root.leftPanelWidth
+
+                    onPressed: function(mouse) {
+                        pressRootX = mapToItem(root, mouse.x, mouse.y).x
+                        pressWidth = root.leftPanelWidth
+                    }
+                    onPositionChanged: function(mouse) {
+                        if (!pressed) return
+                        const currentRootX = mapToItem(root, mouse.x, mouse.y).x
+                        root.leftPanelWidth = root.clampLeftPanelWidth(pressWidth + currentRootX - pressRootX)
+                    }
+                }
+            }
 
             // ── Panel derecho: resultados ──────────────────────────────────
             Rectangle {
@@ -268,6 +614,47 @@ Item {
                     anchors { fill: parent; margins: 20 }
                     spacing: 12
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            text: "Filtros"
+                            color: Theme.textSecondary
+                            font.pixelSize: 11
+                            font.bold: true
+                        }
+                        ComboBox {
+                            id: modeFilterCombo
+                            Layout.preferredWidth: 150
+                            model: root.modeFilterValues()
+                            currentIndex: root.indexOfValue(model, root.modeFilter.length > 0 ? root.modeFilter : "Todos")
+                            onActivated: root.modeFilter = currentText === "Todos" ? "" : currentText
+                        }
+                        ComboBox {
+                            id: benchmarkFilterCombo
+                            Layout.preferredWidth: 230
+                            model: root.benchmarkFilterValues()
+                            currentIndex: root.indexOfValue(model, root.benchmarkFilter.length > 0 ? root.benchmarkFilter : "Todos")
+                            onActivated: root.benchmarkFilter = currentText === "Todos" ? "" : currentText
+                        }
+                        LcButton {
+                            text: "Limpiar"
+                            secondary: true
+                            enabled: root.modeFilter.length > 0 || root.benchmarkFilter.length > 0
+                            onClicked: {
+                                root.modeFilter = ""
+                                root.benchmarkFilter = ""
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: resultsList.count + " resultados"
+                            color: Theme.textMuted
+                            font.pixelSize: 11
+                        }
+                    }
+
                     // Cabecera tabla
                     Rectangle {
                         Layout.fillWidth: true
@@ -277,14 +664,23 @@ Item {
                         RowLayout {
                             anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                             spacing: 0
-                            Text { text: "Perfil"; color: Theme.textSecondary; font.pixelSize: 11; Layout.fillWidth: true }
-                            Text { text: "Modo"; color: Theme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 54; horizontalAlignment: Text.AlignRight }
-                            Text { text: "Score"; color: Theme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight }
-                            Text { text: "t/s"; color: Theme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight }
-                            Text { text: "TTFT"; color: Theme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight }
-                            Text { text: "RAM"; color: Theme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight }
-                            Text { text: "VRAM"; color: Theme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight }
-                            Text { text: "Fecha"; color: Theme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight }
+                            Loader { sourceComponent: sortableHeader; Layout.fillWidth: true; onLoaded: { item.title = "Perfil"; item.column = "profile"; item.fill = true } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 58; onLoaded: { item.title = "Modo"; item.column = "target"; item.columnWidth = 58 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 100; onLoaded: { item.title = "Benchmark"; item.column = "benchmark"; item.columnWidth = 100 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 60; onLoaded: { item.title = "Score"; item.column = "score"; item.columnWidth = 60 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 58; onLoaded: { item.title = "First"; item.column = "firstAttemptScore"; item.columnWidth = 58 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 58; onLoaded: { item.title = "Final"; item.column = "finalScore"; item.columnWidth = 58 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 52; onLoaded: { item.title = "Fixes"; item.column = "repairAttempts"; item.columnWidth = 52 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 62; onLoaded: { item.title = "T First"; item.column = "timeToFirstAttempt"; item.columnWidth = 62 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 62; onLoaded: { item.title = "T Total"; item.column = "totalTime"; item.columnWidth = 62 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 68; onLoaded: { item.title = "Repaired"; item.column = "passedAfterRepair"; item.columnWidth = 68 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 60; onLoaded: { item.title = "TPS"; item.column = "tps"; item.columnWidth = 60 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 60; onLoaded: { item.title = "TTFT"; item.column = "ttft"; item.columnWidth = 60 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 70; onLoaded: { item.title = "Segundos"; item.column = "seconds"; item.columnWidth = 70 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 60; onLoaded: { item.title = "RAM"; item.column = "ram"; item.columnWidth = 60 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 60; onLoaded: { item.title = "VRAM"; item.column = "vram"; item.columnWidth = 60 } }
+                            Loader { sourceComponent: sortableHeader; Layout.preferredWidth: 118; onLoaded: { item.title = "Fecha"; item.column = "date"; item.columnWidth = 118 } }
+                            Item { Layout.preferredWidth: 34; height: 30 }
                         }
                     }
 
@@ -296,7 +692,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
-                        model: App.benchmarkResults
+                        model: root.visibleBenchmarkResults()
                         spacing: 2
                         ScrollBar.vertical: LcScrollBar {}
 
@@ -332,6 +728,7 @@ Item {
                             clip: true
 
                             property bool expanded: false
+                            property bool failed: modelData.failed ?? false
                             property int expandedHeight: taskList.implicitHeight + 8
 
                             Behavior on height { NumberAnimation { duration: 150 } }
@@ -364,24 +761,84 @@ Item {
                                     elide: Text.ElideRight; Layout.fillWidth: true
                                 }
                                 Text {
-                                    text: (modelData.mode ?? "").toUpperCase()
+                                    text: root.benchmarkTargetLabel(modelData)
                                     color: Theme.textMuted; font.pixelSize: 11
-                                    Layout.preferredWidth: 54; horizontalAlignment: Text.AlignRight
+                                    Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight
                                 }
                                 Text {
-                                    text: {
-                                        const s = modelData.qualityScore ?? 0
-                                        const t = modelData.qualityTotal ?? 0
-                                        return t > 0 ? s + "/" + t : "—"
+                                    text: root.benchmarkNameLabel(modelData)
+                                    color: Theme.textSecondary; font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                    Layout.preferredWidth: 100; horizontalAlignment: Text.AlignRight
+                                }
+                                Item {
+                                    Layout.preferredWidth: 60
+                                    height: 36
+                                    Text {
+                                        anchors.fill: parent
+                                        visible: !resultRow.failed
+                                        text: {
+                                            const s = modelData.qualityScore ?? 0
+                                            const t = modelData.qualityTotal ?? 0
+                                            return t > 0 ? s + "/" + t : "—"
+                                        }
+                                        color: {
+                                            const s = modelData.qualityScore ?? 0
+                                            const t = modelData.qualityTotal ?? 1
+                                            const r = s / t
+                                            return r >= 0.8 ? Theme.successText : r >= 0.5 ? Theme.warnText : Theme.errorText
+                                        }
+                                        font.pixelSize: 12; font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        verticalAlignment: Text.AlignVCenter
                                     }
-                                    color: {
-                                        const s = modelData.qualityScore ?? 0
-                                        const t = modelData.qualityTotal ?? 1
-                                        const r = s / t
-                                        return r >= 0.8 ? Theme.successText : r >= 0.5 ? Theme.warnText : Theme.errorText
+                                    LcButton {
+                                        anchors { verticalCenter: parent.verticalCenter; right: parent.right }
+                                        width: 52; height: 24
+                                        text: "Fallo"
+                                        danger: true
+                                        visible: resultRow.failed
+                                        onClicked: {
+                                            root.failureRow = modelData
+                                            failureDialog.open()
+                                        }
                                     }
-                                    font.pixelSize: 12; font.bold: true
-                                    Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    text: root.scoreLabel(modelData, "firstAttemptScore", "firstAttemptTotal")
+                                    color: root.scoreColor(modelData, "firstAttemptScore", "firstAttemptTotal")
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    text: root.scoreLabel(modelData, "finalScore", "finalTotal")
+                                    color: root.scoreColor(modelData, "finalScore", "finalTotal")
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    text: (modelData.repairAttempts ?? 0).toString()
+                                    color: (modelData.repairAttempts ?? 0) > 0 ? Theme.warnText : Theme.textMuted
+                                    font.pixelSize: 11
+                                    Layout.preferredWidth: 52; horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    text: root.secondsLabel(modelData.timeToFirstAttempt ?? modelData.elapsedSec)
+                                    color: Theme.textSecondary; font.pixelSize: 10
+                                    Layout.preferredWidth: 62; horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    text: root.secondsLabel(modelData.totalTime ?? modelData.elapsedSec)
+                                    color: Theme.textSecondary; font.pixelSize: 10
+                                    Layout.preferredWidth: 62; horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    text: (modelData.passedAfterRepair ?? false) ? "Sí" : "No"
+                                    color: (modelData.passedAfterRepair ?? false) ? Theme.successText : Theme.textMuted
+                                    font.pixelSize: 11
+                                    Layout.preferredWidth: 68; horizontalAlignment: Text.AlignRight
                                 }
                                 Text {
                                     text: {
@@ -398,6 +855,14 @@ Item {
                                     }
                                     color: Theme.textSecondary; font.pixelSize: 11
                                     Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    text: {
+                                        const sec = modelData.elapsedSec ?? 0
+                                        return sec > 0 ? sec.toFixed(1) + " s" : "—"
+                                    }
+                                    color: Theme.textSecondary; font.pixelSize: 11
+                                    Layout.preferredWidth: 70; horizontalAlignment: Text.AlignRight
                                 }
                                 Text {
                                     text: {
@@ -418,29 +883,34 @@ Item {
                                 Text {
                                     text: {
                                         const ts = modelData.timestamp ?? 0
-                                        return ts > 0 ? new Date(ts).toLocaleDateString(Qt.locale(), "d MMM HH:mm") : ""
+                                        return ts > 0 ? Qt.formatDateTime(new Date(ts), "d MMM HH:mm") : ""
                                     }
                                     color: Theme.textMuted; font.pixelSize: 10
-                                    Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight
+                                    Layout.preferredWidth: 118; horizontalAlignment: Text.AlignRight
+                                }
+                                Item {
+                                    Layout.preferredWidth: 34
+                                    height: 36
+                                    Rectangle {
+                                        id: delBox
+                                        width: 24; height: 24; radius: 4
+                                        anchors { verticalCenter: parent.verticalCenter; right: parent.right }
+                                        color: delHover.containsMouse ? Theme.errorText : "transparent"
+                                        border.color: delHover.containsMouse ? Theme.errorText : Theme.divider
+                                        border.width: 1
+                                        visible: rowHover.containsMouse || delHover.containsMouse
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "✕"; font.pixelSize: 12
+                                            color: delHover.containsMouse ? "white" : Theme.textMuted
+                                        }
+                                        HoverHandler { id: delHover }
+                                        TapHandler { onTapped: App.removeBenchmarkResultById(modelData.id ?? "") }
+                                    }
                                 }
                             }
 
                             TapHandler { onTapped: resultRow.expanded = !resultRow.expanded }
-
-                            // ── Botón borrar (al pasar el mouse) ───────────
-                            Rectangle {
-                                width: 22; height: 22; radius: 4
-                                anchors { right: parent.right; rightMargin: 6; top: parent.top; topMargin: 7 }
-                                color: delHover.containsMouse ? Theme.errorText : Theme.surfaceBg
-                                visible: rowHover.containsMouse || delHover.containsMouse
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "✕"; font.pixelSize: 12
-                                    color: delHover.containsMouse ? "white" : Theme.textMuted
-                                }
-                                HoverHandler { id: delHover }
-                                TapHandler { onTapped: App.removeBenchmarkResult(index) }
-                            }
 
                             // ── Task breakdown (expanded) ──────────────────
                             Column {
@@ -448,6 +918,38 @@ Item {
                                 anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 36; leftMargin: 24; rightMargin: 12 }
                                 spacing: 3
                                 visible: resultRow.expanded
+
+                                Rectangle {
+                                    visible: resultRow.failed
+                                    width: taskList.width
+                                    height: failureSummary.implicitHeight + 14
+                                    radius: 6
+                                    color: Theme.errorBg
+                                    border.color: Theme.errorText
+                                    border.width: 1
+
+                                    RowLayout {
+                                        anchors { fill: parent; margins: 8 }
+                                        spacing: 8
+                                        Text {
+                                            id: failureSummary
+                                            text: modelData.failureMessage ?? "Falló la pasada."
+                                            color: Theme.errorText
+                                            font.pixelSize: 11
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        LcButton {
+                                            text: "Ver fallo"
+                                            danger: true
+                                            Layout.preferredHeight: 26
+                                            onClicked: {
+                                                root.failureRow = modelData
+                                                failureDialog.open()
+                                            }
+                                        }
+                                    }
+                                }
 
                                 Repeater {
                                     model: modelData.tasks ?? []
@@ -508,10 +1010,143 @@ Item {
                                     }
                                 }
 
+                                Column {
+                                    width: taskList.width
+                                    spacing: 3
+                                    visible: (modelData.acceptance ?? []).length > 0
+
+                                    Text {
+                                        text: "Criterios de aceptación"
+                                        color: Theme.textSecondary
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                    }
+                                    Repeater {
+                                        model: modelData.acceptance ?? []
+                                        delegate: Column {
+                                            width: taskList.width
+                                            spacing: 1
+                                            RowLayout {
+                                                width: parent.width
+                                                spacing: 8
+                                                Text {
+                                                    text: modelData.passed ? "✓" : "✗"
+                                                    color: modelData.passed ? Theme.successText : Theme.errorText
+                                                    font.pixelSize: 11
+                                                    Layout.preferredWidth: 16
+                                                }
+                                                Text {
+                                                    text: (modelData.type ?? "") + " · " + (modelData.name ?? modelData.command ?? "")
+                                                    color: Theme.textSecondary
+                                                    font.pixelSize: 11
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                                Text {
+                                                    text: modelData.exitCode !== undefined ? ("exit " + modelData.exitCode) : ""
+                                                    color: Theme.textMuted
+                                                    font.pixelSize: 10
+                                                    Layout.preferredWidth: 54
+                                                    horizontalAlignment: Text.AlignRight
+                                                }
+                                            }
+                                            Text {
+                                                visible: (modelData.output ?? "").length > 0
+                                                width: parent.width
+                                                leftPadding: 24
+                                                text: modelData.output ?? ""
+                                                color: modelData.passed ? Theme.textMuted : Theme.errorText
+                                                font.family: "Consolas"
+                                                font.pixelSize: 10
+                                                wrapMode: Text.Wrap
+                                                maximumLineCount: 4
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+                                    }
+                                }
+
                                 Item { height: 4 }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: failureDialog
+        modal: true
+        parent: Overlay.overlay
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        width: Math.min(parent ? parent.width - 80 : 900, 900)
+        height: Math.min(parent ? parent.height - 80 : 680, 680)
+        title: "Fallo de benchmark"
+
+        background: Rectangle {
+            color: Theme.cardBg
+            radius: 8
+            border.color: Theme.borderColor
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Text {
+                Layout.fillWidth: true
+                text: root.failureRow.profileName ?? ""
+                color: Theme.textPrimary
+                font.pixelSize: 14
+                font.bold: true
+                elide: Text.ElideRight
+            }
+            Text {
+                Layout.fillWidth: true
+                text: {
+                    const stage = root.failureRow.failureStage ?? ""
+                    const msg = root.failureRow.failureMessage ?? "Falló la pasada."
+                    return stage.length > 0 ? stage + ": " + msg : msg
+                }
+                color: Theme.errorText
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: Theme.inputBg
+                radius: 6
+                border.color: Theme.borderColor
+                clip: true
+
+                ScrollView {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    TextArea {
+                        readOnly: true
+                        wrapMode: TextArea.Wrap
+                        text: root.failureRow.failureDetail ?? ""
+                        color: Theme.textSecondary
+                        font.family: "Consolas"
+                        font.pixelSize: 11
+                        background: null
+                        selectByMouse: true
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                LcButton {
+                    text: "Copiar"
+                    secondary: true
+                    onClicked: App.copyToClipboard((root.failureRow.failureDetail ?? "").toString())
+                }
+                LcButton {
+                    text: "Cerrar"
+                    onClicked: failureDialog.close()
                 }
             }
         }
@@ -546,14 +1181,25 @@ Item {
                 editId = def.id || ""
                 nameField.text = def.name || ""
                 const ps = def.prompts || []
-                for (let i = 0; i < ps.length; i++)
-                    taskModel.append({ prompt: ps[i].prompt || "" })
+                for (let i = 0; i < ps.length; i++) {
+                    const acc = ps[i].acceptance || {}
+                    const files = acc.files || []
+                    const commands = acc.commands || []
+                    const cmdLines = []
+                    for (let c = 0; c < commands.length; c++)
+                        cmdLines.push(commands[c].command || "")
+                    taskModel.append({
+                        prompt: ps[i].prompt || "",
+                        acceptanceFiles: files.join("\n"),
+                        acceptanceCommands: cmdLines.join("\n")
+                    })
+                }
             } else {
                 editId = ""
                 nameField.text = ""
             }
             if (taskModel.count === 0)
-                taskModel.append({ prompt: "" })
+                taskModel.append({ prompt: "", acceptanceFiles: "", acceptanceCommands: "" })
         }
 
         function save() {
@@ -561,7 +1207,23 @@ Item {
             for (let i = 0; i < taskModel.count; i++) {
                 const it = taskModel.get(i)
                 if ((it.prompt || "").trim() === "") continue
-                prompts.push({ id: "task_" + (i + 1), prompt: it.prompt, isSpeed: true, maxTokens: 8192 })
+                const files = []
+                const rawFiles = (it.acceptanceFiles || "").split(/\r?\n/)
+                for (let f = 0; f < rawFiles.length; f++) {
+                    const line = rawFiles[f].trim()
+                    if (line.length > 0) files.push(line)
+                }
+                const commands = []
+                const rawCommands = (it.acceptanceCommands || "").split(/\r?\n/)
+                for (let c = 0; c < rawCommands.length; c++) {
+                    const cmd = rawCommands[c].trim()
+                    if (cmd.length > 0)
+                        commands.push({ name: "cmd_" + (c + 1), command: cmd, timeoutMs: 30000 })
+                }
+                const promptDef = { id: "task_" + (i + 1), prompt: it.prompt, isSpeed: true, maxTokens: 8192 }
+                if (files.length > 0 || commands.length > 0)
+                    promptDef.acceptance = { files: files, commands: commands }
+                prompts.push(promptDef)
             }
             if (nameField.text.trim() === "" || prompts.length === 0) return
             const def = { name: nameField.text.trim(), prompts: prompts }
@@ -628,18 +1290,51 @@ Item {
                             anchors { fill: parent; margins: 8 }
                             spacing: 8
 
-                            TextArea {
-                                id: promptArea
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: Math.max(100, contentHeight + topPadding + bottomPadding)
-                                wrapMode: TextArea.Wrap
-                                placeholderText: "Prompt..."
-                                color: Theme.textPrimary
-                                placeholderTextColor: Theme.textMuted
-                                font.pixelSize: 13
-                                text: model.prompt
-                                onTextChanged: taskModel.setProperty(index, "prompt", text)
-                                background: null
+                                spacing: 6
+
+                                TextArea {
+                                    id: promptArea
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Math.max(100, contentHeight + topPadding + bottomPadding)
+                                    wrapMode: TextArea.Wrap
+                                    placeholderText: "Prompt..."
+                                    color: Theme.textPrimary
+                                    placeholderTextColor: Theme.textMuted
+                                    font.pixelSize: 13
+                                    text: model.prompt
+                                    onTextChanged: taskModel.setProperty(index, "prompt", text)
+                                    background: null
+                                }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    TextArea {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 56
+                                        wrapMode: TextArea.Wrap
+                                        placeholderText: "Archivos esperados, uno por línea"
+                                        color: Theme.textSecondary
+                                        placeholderTextColor: Theme.textMuted
+                                        font.pixelSize: 11
+                                        text: model.acceptanceFiles || ""
+                                        onTextChanged: taskModel.setProperty(index, "acceptanceFiles", text)
+                                        background: Rectangle { color: "transparent"; border.color: Theme.divider; radius: 4 }
+                                    }
+                                    TextArea {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 56
+                                        wrapMode: TextArea.Wrap
+                                        placeholderText: "Comandos de aceptación, uno por línea"
+                                        color: Theme.textSecondary
+                                        placeholderTextColor: Theme.textMuted
+                                        font.pixelSize: 11
+                                        text: model.acceptanceCommands || ""
+                                        onTextChanged: taskModel.setProperty(index, "acceptanceCommands", text)
+                                        background: Rectangle { color: "transparent"; border.color: Theme.divider; radius: 4 }
+                                    }
+                                }
                             }
                             Rectangle {
                                 Layout.alignment: Qt.AlignTop
@@ -663,7 +1358,7 @@ Item {
                     LcButton {
                         text: "+ Prompt"
                         secondary: true
-                        onClicked: taskModel.append({ prompt: "" })
+                        onClicked: taskModel.append({ prompt: "", acceptanceFiles: "", acceptanceCommands: "" })
                     }
                     Item { Layout.fillWidth: true }
                     LcButton { text: "Cancelar"; secondary: true; onClicked: editor.close() }

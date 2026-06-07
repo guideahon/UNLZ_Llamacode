@@ -154,7 +154,8 @@ void LlamaAgentBackend::start(const AgentContext &ctx)
     m_cwd = (!ctx.cwd.isEmpty() && QFileInfo(ctx.cwd).isDir())
                 ? ctx.cwd : QDir::homePath();
     m_running = true;
-    loadFromDisk();         // recupera sesiones previas; activa la primera
+    if (!m_ephemeralSessions)
+        loadFromDisk();     // recupera sesiones previas; activa la primera
     ensureSession();        // si no había ninguna, crea una
     fetchContextLimit();
     ensureWorker();         // hilo worker (persiste toda la vida del backend)
@@ -357,7 +358,13 @@ void LlamaAgentBackend::stop()
         cr->disconnect(this); cr->abort(); cr->deleteLater();
     }
     m_compacting = false;
-    if (m_reply) { m_reply->abort(); m_reply->deleteLater(); m_reply = nullptr; }
+    if (m_reply) {
+        QNetworkReply *r = m_reply;
+        m_reply = nullptr;
+        r->disconnect(this);
+        r->abort();
+        r->deleteLater();
+    }
     m_pendingCalls = {};
     m_awaitId.clear();
     cancelAllSubs();
@@ -422,9 +429,11 @@ void LlamaAgentBackend::ensureSession()
     m_readFingerprints.clear();
     m_checkpoints.clear();
     if (!m_msgQueue.isEmpty()) { m_msgQueue.clear(); emit queueChanged(); }
-    persistIndex();
-    persistSession(m_sessionId);
-    emit sessionsChanged();
+    if (!m_ephemeralSessions) {
+        persistIndex();
+        persistSession(m_sessionId);
+        emit sessionsChanged();
+    }
     emit messagesChanged();
 }
 
@@ -936,15 +945,10 @@ void LlamaAgentBackend::runCompletion()
         {QStringLiteral("stream_options"), QJsonObject{{QStringLiteral("include_usage"), true}}}
     };
     if (m_temperature >= 0.0) payload.insert(QStringLiteral("temperature"), m_temperature);
-    // Razonamiento: SOLO mandar params si está activado. Si está off, no enviar
-    // nada → el server respeta su propio --reasoning (igual que opencode, que con
-    // estas settings es estable). Forzar reasoning_budget acá disparaba el path de
-    // razonamiento del fork y desestabilizaba al server.
-    if (m_thinkingEnabled) {
-        payload.insert(QStringLiteral("reasoning_budget"), -1);
-        payload.insert(QStringLiteral("chat_template_kwargs"),
-                       QJsonObject{{QStringLiteral("enable_thinking"), true}});
-    }
+    // Razonamiento controlado por el toggle global de la app, no por el perfil.
+    payload.insert(QStringLiteral("reasoning_budget"), m_thinkingEnabled ? -1 : 0);
+    payload.insert(QStringLiteral("chat_template_kwargs"),
+                   QJsonObject{{QStringLiteral("enable_thinking"), m_thinkingEnabled}});
 
     emit logAppended(QStringLiteral("[turn] requesting completion (iter=%1, msgs=%2, stream)\n")
                          .arg(m_turnIters).arg(m_apiMessages.size()));
@@ -2492,6 +2496,7 @@ QString LlamaAgentBackend::sessionFilePath(const QString &sessionId) const
 
 void LlamaAgentBackend::loadFromDisk()
 {
+    if (m_ephemeralSessions) return;
     if (!m_sessions.isEmpty()) return;
     QFile f(storageDir() + QStringLiteral("/index.json"));
     if (!f.open(QIODevice::ReadOnly)) return;
@@ -2510,6 +2515,7 @@ void LlamaAgentBackend::loadFromDisk()
 
 void LlamaAgentBackend::persistIndex() const
 {
+    if (m_ephemeralSessions) return;
     QJsonArray arr;
     for (const QVariant &v : m_sessions)
         arr.append(QJsonObject::fromVariantMap(v.toMap()));
@@ -2522,6 +2528,7 @@ void LlamaAgentBackend::persistIndex() const
 
 void LlamaAgentBackend::persistSession(const QString &sessionId) const
 {
+    if (m_ephemeralSessions) return;
     if (sessionId.isEmpty() || sessionId != m_sessionId) return;  // solo la activa tiene datos en RAM
     QString title;
     for (const QVariant &v : m_sessions) {
@@ -2552,12 +2559,14 @@ void LlamaAgentBackend::persistSession(const QString &sessionId) const
 
 void LlamaAgentBackend::saveCurrentSession()
 {
+    if (m_ephemeralSessions) return;
     if (m_sessionId.isEmpty()) return;
     persistSession(m_sessionId);
 }
 
 void LlamaAgentBackend::persistAll() const
 {
+    if (m_ephemeralSessions) return;
     persistIndex();
     persistSession(m_sessionId);
 }

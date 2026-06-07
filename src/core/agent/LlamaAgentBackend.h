@@ -57,6 +57,7 @@ public:
 
     // Razonamiento (Qwen3): on por defecto para que el agente piense las tools.
     void setThinkingEnabled(bool enabled);
+    void setEphemeralSessions(bool enabled) { m_ephemeralSessions = enabled; }
 
     // Adjuntos (imágenes/docs) a incluir en el PRÓXIMO sendMessage (modelo VL).
     void setPendingAttachments(const QStringList &paths) { m_pendingAttachments = paths; }
@@ -215,6 +216,7 @@ private:
     QString m_sessionId;
     QString m_sessionTitle;
     QVariantList m_sessions;
+    bool m_ephemeralSessions = false;
     QVariantList m_messages;        // para UI: {role, content, typing}
     int m_curAsstIdx = -1;
 
