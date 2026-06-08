@@ -31,11 +31,23 @@ Item {
     property int leftPanelWidth: 280
     property int leftPanelMinWidth: 240
     property int leftPanelMaxWidth: Math.max(leftPanelMinWidth, Math.min(560, Math.max(leftPanelMinWidth, width - 520)))
-    property bool _lpRestored: false   // no persistir durante la restauración inicial
+    property int _savedLeftPanelWidth: parseInt(App.readSetting("benchLeftPanelWidth", "0")) || 0
+    property bool _lpRestored: false   // ya se aplicó el ancho guardado
     property bool _optsRestored: false // idem para opciones (target/modo/thinking)
 
-    onLeftPanelMaxWidthChanged: leftPanelWidth = clampLeftPanelWidth(leftPanelWidth)
-    onLeftPanelWidthChanged: if (_lpRestored) App.writeSetting("benchLeftPanelWidth", leftPanelWidth)
+    // Aplica el ancho guardado recién cuando el layout tiene tamaño real
+    // (leftPanelMaxWidth > min). Si no, el clamp de arranque lo achicaría.
+    function tryRestoreLeftPanel() {
+        if (_lpRestored) return
+        if (_savedLeftPanelWidth > 0 && leftPanelMaxWidth > leftPanelMinWidth) {
+            leftPanelWidth = clampLeftPanelWidth(_savedLeftPanelWidth)
+            _lpRestored = true
+        }
+    }
+    onLeftPanelMaxWidthChanged: {
+        if (!_lpRestored) tryRestoreLeftPanel()
+        else leftPanelWidth = clampLeftPanelWidth(leftPanelWidth)
+    }
 
     function cycleSort(column) {
         if (sortColumn !== column) {
@@ -379,10 +391,9 @@ Item {
     Component.onCompleted: {
         if (App.loadBenchmarkResults) App.loadBenchmarkResults()
         if (App.loadCustomBenchmarks) App.loadCustomBenchmarks()
-        // Restaurar ancho del panel izquierdo guardado por el usuario.
-        const savedW = parseInt(App.readSetting("benchLeftPanelWidth", leftPanelWidth))
-        if (!isNaN(savedW) && savedW > 0) leftPanelWidth = clampLeftPanelWidth(savedW)
-        _lpRestored = true
+        // Restaurar ancho del panel izquierdo (si el layout ya tiene tamaño).
+        tryRestoreLeftPanel()
+        Qt.callLater(tryRestoreLeftPanel)
 
         // Restaurar opciones de la sesión anterior.
         if (String(App.readSetting("benchTarget", "model")) === "agent") agentTarget.checked = true
@@ -852,6 +863,11 @@ Item {
                         if (!pressed) return
                         const currentRootX = mapToItem(root, mouse.x, mouse.y).x
                         root.leftPanelWidth = root.clampLeftPanelWidth(pressWidth + currentRootX - pressRootX)
+                    }
+                    onReleased: {
+                        root._lpRestored = true   // ya no re-aplicar el guardado viejo
+                        root._savedLeftPanelWidth = root.leftPanelWidth
+                        App.writeSetting("benchLeftPanelWidth", root.leftPanelWidth)
                     }
                 }
             }
