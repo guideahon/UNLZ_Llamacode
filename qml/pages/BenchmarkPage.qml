@@ -6,7 +6,10 @@ import LlamaCode 1.0
 Item {
     id: root
 
-    property var selectedIds: []
+    property var selectedIds: {
+        try { return JSON.parse(App.readSetting("benchSelectedIds", "[]")) } catch (e) { return [] }
+    }
+    onSelectedIdsChanged: App.writeSetting("benchSelectedIds", JSON.stringify(selectedIds))
     property string sortColumn: ""
     property int sortDirection: 0
     property var failureRow: ({})
@@ -29,6 +32,7 @@ Item {
     property int leftPanelMinWidth: 240
     property int leftPanelMaxWidth: Math.max(leftPanelMinWidth, Math.min(560, Math.max(leftPanelMinWidth, width - 520)))
     property bool _lpRestored: false   // no persistir durante la restauración inicial
+    property bool _optsRestored: false // idem para opciones (target/modo/thinking)
 
     onLeftPanelMaxWidthChanged: leftPanelWidth = clampLeftPanelWidth(leftPanelWidth)
     onLeftPanelWidthChanged: if (_lpRestored) App.writeSetting("benchLeftPanelWidth", leftPanelWidth)
@@ -219,7 +223,8 @@ Item {
     }
 
     // Custom benchmark selection: "" = standard tasks, else a custom benchmark id
-    property string customId: ""
+    property string customId: App.readSetting("benchCustomId", "")
+    onCustomIdChanged: App.writeSetting("benchCustomId", customId)
 
     Component {
         id: sortableHeader
@@ -378,6 +383,17 @@ Item {
         const savedW = parseInt(App.readSetting("benchLeftPanelWidth", leftPanelWidth))
         if (!isNaN(savedW) && savedW > 0) leftPanelWidth = clampLeftPanelWidth(savedW)
         _lpRestored = true
+
+        // Restaurar opciones de la sesión anterior.
+        if (String(App.readSetting("benchTarget", "model")) === "agent") agentTarget.checked = true
+        else modelTarget.checked = true
+        const m = String(App.readSetting("benchMode", "short"))
+        if (m === "custom") customMode.checked = true
+        else if (m === "full") fullMode.checked = true
+        else shortMode.checked = true
+        App.thinkingEnabled = (App.readSetting("benchThinking", App.thinkingEnabled) === true
+                               || String(App.readSetting("benchThinking", "")) === "true")
+        _optsRestored = true
     }
 
     ColumnLayout {
@@ -426,6 +442,7 @@ Item {
                                 id: modelTarget
                                 text: ""
                                 checked: true
+                                onToggled: if (root._optsRestored && checked) App.writeSetting("benchTarget", "model")
                                 ButtonGroup.group: targetGroup
                                 padding: 0
                                 leftPadding: 0
@@ -449,6 +466,7 @@ Item {
                             RadioButton {
                                 id: agentTarget
                                 text: ""
+                                onToggled: if (root._optsRestored && checked) App.writeSetting("benchTarget", "agent")
                                 ButtonGroup.group: targetGroup
                                 padding: 0
                                 leftPadding: 0
@@ -469,7 +487,7 @@ Item {
                         id: benchmarkThinkingCheck
                         text: "Thinking"
                         checked: App.thinkingEnabled
-                        onToggled: App.thinkingEnabled = checked
+                        onToggled: { App.thinkingEnabled = checked; App.writeSetting("benchThinking", checked) }
                         contentItem: Text {
                             text: benchmarkThinkingCheck.text
                             color: Theme.theme === "oled" ? "white" : Theme.textPrimary
@@ -497,6 +515,7 @@ Item {
                                 id: shortMode
                                 text: ""
                                 checked: true
+                                onToggled: if (root._optsRestored && checked) App.writeSetting("benchMode", "short")
                                 ButtonGroup.group: modeGroup
                                 padding: 0
                                 leftPadding: 0
@@ -522,6 +541,7 @@ Item {
                             RadioButton {
                                 id: fullMode
                                 text: ""
+                                onToggled: if (root._optsRestored && checked) App.writeSetting("benchMode", "full")
                                 ButtonGroup.group: modeGroup
                                 padding: 0
                                 leftPadding: 0
@@ -547,6 +567,7 @@ Item {
                             RadioButton {
                                 id: customMode
                                 text: ""
+                                onToggled: if (root._optsRestored && checked) App.writeSetting("benchMode", "custom")
                                 ButtonGroup.group: modeGroup
                                 padding: 0
                                 leftPadding: 0
@@ -624,10 +645,22 @@ Item {
 
                     Rectangle { height: 1; Layout.fillWidth: true; color: Theme.divider }
 
-                    Text {
-                        text: "PERFILES A COMPARAR"
-                        color: Theme.textSecondary
-                        font.pixelSize: 10; font.bold: true
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "PERFILES A COMPARAR"
+                            color: Theme.textSecondary
+                            font.pixelSize: 10; font.bold: true
+                            Layout.fillWidth: true
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        LcButton {
+                            text: "Desmarcar todos"
+                            secondary: true
+                            enabled: root.selectedIds.length > 0 && !App.benchmarkRunning
+                            onClicked: root.selectedIds = []
+                        }
                     }
 
                     Rectangle {
@@ -725,8 +758,36 @@ Item {
                         }
                         SpinBox {
                             id: passesSpin
-                            from: 1; to: 20; value: 1; editable: true
+                            from: 1; to: 20; editable: true
+                            value: Math.min(20, Math.max(1, parseInt(App.readSetting("benchPasses", "1")) || 1))
                             implicitWidth: 96
+                            onValueModified: App.writeSetting("benchPasses", value)
+                        }
+                    }
+
+                    // Timeout duro opcional por corrida (wall-clock, segundos). 0 = sin límite.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        enabled: !App.benchmarkRunning
+                        Text {
+                            text: "Timeout (opcional)"
+                            color: Theme.textSecondary; font.pixelSize: 12
+                            Layout.fillWidth: true
+                            verticalAlignment: Text.AlignVCenter
+                            ToolTip.visible: timeoutHover.hovered
+                            ToolTip.delay: 400
+                            ToolTip.text: "Tiempo máximo por corrida (segundos). Si una corrida lo supera, se corta SOLO esa con 'Error de timeout' y sigue con las demás. 0 = sin límite."
+                            HoverHandler { id: timeoutHover }
+                        }
+                        SpinBox {
+                            id: timeoutSpin
+                            from: 0; to: 7200; stepSize: 30; editable: true
+                            value: Math.min(7200, Math.max(0, parseInt(App.readSetting("benchTimeout", "0")) || 0))
+                            implicitWidth: 96
+                            textFromValue: function(v) { return v === 0 ? "—" : v + " s" }
+                            valueFromText: function(t) { const n = parseInt(t); return isNaN(n) ? 0 : n }
+                            onValueModified: App.writeSetting("benchTimeout", value)
                         }
                     }
 
@@ -747,10 +808,10 @@ Item {
                                 } else if (customMode.checked) {
                                     if (root.customId !== "")
                                         App.startCustomBenchmark(root.selectedIds, root.customId, passesSpin.value,
-                                                                 agentTarget.checked ? "agent" : "model")
+                                                                 agentTarget.checked ? "agent" : "model", timeoutSpin.value)
                                 } else {
                                     App.startBenchmark(root.selectedIds, shortMode.checked ? "short" : "full", passesSpin.value,
-                                                       agentTarget.checked ? "agent" : "model")
+                                                       agentTarget.checked ? "agent" : "model", timeoutSpin.value)
                                 }
                             }
                         }

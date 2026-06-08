@@ -341,7 +341,7 @@ public:
                                           const QString &name, const QString &content);
     Q_INVOKABLE bool deleteOpencodeCommand(const QString &scope, const QString &projectDir, const QString &name);
     Q_INVOKABLE void startBenchmark(const QStringList &profileIds, const QString &mode, int passes = 1,
-                                    const QString &target = QStringLiteral("model"));
+                                    const QString &target = QStringLiteral("model"), int timeoutSec = 0);
     Q_INVOKABLE void cancelBenchmark();
     Q_INVOKABLE void openBenchmarkFolder(const QString &path);
     Q_INVOKABLE void clearBenchmarkResults();
@@ -353,7 +353,7 @@ public:
     Q_INVOKABLE QString saveCustomBenchmark(const QVariantMap &def); // returns id
     Q_INVOKABLE void deleteCustomBenchmark(const QString &id);
     Q_INVOKABLE void startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes = 1,
-                                          const QString &target = QStringLiteral("model"));
+                                          const QString &target = QStringLiteral("model"), int timeoutSec = 0);
     Q_INVOKABLE void startResearch(const QString &topic, const QString &mode, int maxPages);
     Q_INVOKABLE void cancelResearch();
     Q_INVOKABLE void refreshResearchReports();
@@ -460,6 +460,7 @@ private:
     QVariantMap m_effectiveProfile;
     QStringList m_routerModelNames;   // secciones cargadas en el router activo
     QString m_routerActiveModel;      // sección activa (campo "model" de los requests)
+    int m_benchHardTimeoutSec = 0;    // 0 = sin límite; timeout duro (wall-clock) por corrida
     bool m_serverIsRouter = false;    // el m_proc actual es un router
     // Devuelve la sección activa del router si corresponde, sino el fallback.
     QString routedModelId(const QString &fallback) const {

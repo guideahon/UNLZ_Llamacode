@@ -4868,14 +4868,16 @@ static QVector<BenchTaskDef> buildCustomBenchTasks(const QVariantList &custom)
 }
 
 void AppController::startBenchmark(const QStringList &profileIds, const QString &mode, int passes,
-                                   const QString &target)
+                                   const QString &target, int timeoutSec)
 {
+    m_benchHardTimeoutSec = qMax(0, timeoutSec);
     runBenchmarkInternal(profileIds, mode, {}, QStringLiteral("standard"), qMax(1, passes), target);
 }
 
 void AppController::startCustomBenchmark(const QStringList &profileIds, const QString &customId, int passes,
-                                         const QString &target)
+                                         const QString &target, int timeoutSec)
 {
+    m_benchHardTimeoutSec = qMax(0, timeoutSec);
     QVariantMap def;
     for (const QVariant &v : std::as_const(m_customBenchmarks)) {
         const QVariantMap m = v.toMap();
@@ -5426,7 +5428,9 @@ void AppController::runAgentBenchmark(const QString &profileId, const QString &p
         auto firstAttemptTotal = std::make_shared<int>(0);
         auto timeToFirstAttempt = std::make_shared<double>(0.0);
         const int maxRepairAttempts = 2;
-        const int idleTimeoutMs = 3 * 60 * 1000;
+        // Sin idle-timeout por defecto: solo corta el timeout duro configurable
+        // por el usuario (0 = sin límite). 0 aquí deshabilita el idle-watchdog.
+        const int idleTimeoutMs = 0;
         auto lastActivityMs = std::make_shared<qint64>(QDateTime::currentMSecsSinceEpoch());
         auto peakRamMb = std::make_shared<double>(0.0);
         auto peakVramMb = std::make_shared<double>(0.0);
@@ -5480,7 +5484,7 @@ void AppController::runAgentBenchmark(const QString &profileId, const QString &p
                     break;
                 }
             if (*timedOut)
-                finalText = QStringLiteral("[idle-timeout] llama-server/agente sin actividad por 3 minutos.");
+                finalText = QStringLiteral("[timeout] corrida cortada por exceder el tiempo máximo.");
             for (const QVariant &mv : msgs) {
                 const QVariantMap mm = mv.toMap();
                 if (mm.value(QStringLiteral("role")).toString() != QLatin1String("assistant"))
@@ -5804,10 +5808,10 @@ void AppController::runAgentBenchmark(const QString &profileId, const QString &p
         *idlePoll = [=]() {
             if (*finished) return;
             const qint64 now = QDateTime::currentMSecsSinceEpoch();
-            if (now - *lastActivityMs >= idleTimeoutMs) {
+            if (idleTimeoutMs > 0 && now - *lastActivityMs >= idleTimeoutMs) {
                 *timedOut = true;
                 *passFailed = true;
-                *failureMessage = QStringLiteral("llama-server/agente sin actividad por 3 minutos.");
+                *failureMessage = QStringLiteral("llama-server/agente sin actividad (idle-timeout).");
                 *failureDetail = benchmarkServerLogTail();
                 agent->cancelGeneration();
                 (*finalize)();
@@ -5815,7 +5819,23 @@ void AppController::runAgentBenchmark(const QString &profileId, const QString &p
             }
             QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
         };
-        QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
+        if (idleTimeoutMs > 0)
+            QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
+
+        // Timeout duro (wall-clock) por corrida: si esta corrida supera el límite
+        // configurado, se corta SOLO esta (finalize avanza a la siguiente).
+        if (m_benchHardTimeoutSec > 0) {
+            QTimer::singleShot(m_benchHardTimeoutSec * 1000, this, [=]() {
+                if (*finished) return;
+                *timedOut = true;
+                *passFailed = true;
+                *failureMessage = QStringLiteral("Error de timeout");
+                *failureDetail = benchmarkServerLogTail();
+                agent->cancelGeneration();
+                (*finalize)();
+            });
+        }
+
         auto cancelPoll = std::make_shared<std::function<void()>>();
         *cancelPoll = [=]() {
             if (*finished) return;
@@ -5923,7 +5943,9 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
     auto *reply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     m_benchmarkActiveReply = reply;   // so cancelBenchmark() can abort it
     const qint64 startMs = QDateTime::currentMSecsSinceEpoch();
-    const int idleTimeoutMs = 3 * 60 * 1000;
+    // Sin idle-timeout por defecto (0 = deshabilitado). Solo corta el timeout
+    // duro configurable por el usuario.
+    const int idleTimeoutMs = 0;
     auto requestDone = std::make_shared<bool>(false);
     auto idleTimedOut = std::make_shared<bool>(false);
     auto lastActivityMs = std::make_shared<qint64>(startMs);
@@ -5931,7 +5953,7 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
     *idlePoll = [=]() {
         if (*requestDone) return;
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
-        if (now - *lastActivityMs >= idleTimeoutMs) {
+        if (idleTimeoutMs > 0 && now - *lastActivityMs >= idleTimeoutMs) {
             *idleTimedOut = true;
             if (reply->isRunning())
                 reply->abort();
@@ -5939,7 +5961,18 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
         }
         QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
     };
-    QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
+    if (idleTimeoutMs > 0)
+        QTimer::singleShot(5000, this, [=]() { (*idlePoll)(); });
+
+    // Timeout duro (wall-clock) por corrida.
+    auto hardTimedOut = std::make_shared<bool>(false);
+    if (m_benchHardTimeoutSec > 0) {
+        QTimer::singleShot(m_benchHardTimeoutSec * 1000, this, [=]() {
+            if (*requestDone) return;
+            *hardTimedOut = true;
+            if (reply->isRunning()) reply->abort();
+        });
+    }
 
     if (streaming) {
         struct SpeedState { QByteArray buf; qint64 ttftMs = -1; int chunks = 0;
@@ -5989,9 +6022,11 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
             r["response"]   = state->response;
             r["failed"]     = failed;
             if (failed) {
-                r["failureMessage"] = *idleTimedOut
-                    ? QStringLiteral("llama-server sin actividad por 3 minutos.")
-                    : reply->errorString();
+                r["failureMessage"] = *hardTimedOut
+                    ? QStringLiteral("Error de timeout")
+                    : (*idleTimedOut
+                        ? QStringLiteral("llama-server sin actividad (idle-timeout).")
+                        : reply->errorString());
                 r["failureDetail"] = QString::fromUtf8(reply->readAll());
             }
             if (m_benchmarkActiveReply == reply) m_benchmarkActiveReply = nullptr;
@@ -6023,9 +6058,11 @@ void AppController::benchmarkRequest(const QString &url, const QString &prompt,
             r["response"]   = response;
             r["failed"]     = reply->error() != QNetworkReply::NoError;
             if (r.value("failed").toBool()) {
-                r["failureMessage"] = *idleTimedOut
-                    ? QStringLiteral("llama-server sin actividad por 3 minutos.")
-                    : reply->errorString();
+                r["failureMessage"] = *hardTimedOut
+                    ? QStringLiteral("Error de timeout")
+                    : (*idleTimedOut
+                        ? QStringLiteral("llama-server sin actividad (idle-timeout).")
+                        : reply->errorString());
                 r["failureDetail"] = failureDetail;
             }
             if (m_benchmarkActiveReply == reply) m_benchmarkActiveReply = nullptr;
