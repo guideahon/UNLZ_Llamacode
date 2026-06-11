@@ -1,0 +1,35 @@
+Microsoft (R) Build Engine versión 16.11.6+a918ceb31 para .NET Framework
+Copyright (C) Microsoft Corporation. Todos los derechos reservados.
+
+C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC\v160\Microsoft.CppBuild.targets(513,5): warning MSB8028: The intermediate directory (x64\Debug\LlamaCode_copy_qml\) contains files shared from another project (LlamaCode_copy_qml.vcxproj).  This can lead to incorrect clean and rebuild behavior. [C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_copy_qml.vcxproj]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC\v160\Microsoft.CppBuild.targets(513,5): warning MSB8028: The intermediate directory (x64\Debug\LlamaCode_copy_res\) contains files shared from another project (LlamaCode_copy_res.vcxproj).  This can lead to incorrect clean and rebuild behavior. [C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_copy_res.vcxproj]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC\v160\Microsoft.CppBuild.targets(513,5): warning MSB8028: The intermediate directory (x64\Debug\LlamaCode_qmlimportscan\) contains files shared from another project (LlamaCode_qmlimportscan.vcxproj).  This can lead to incorrect clean and rebuild behavior. [C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_qmlimportscan.vcxproj]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC\v160\Microsoft.CppBuild.targets(513,5): warning MSB8028: The intermediate directory (x64\Debug\LlamaCode_autogen\) contains files shared from another project (LlamaCode_autogen.vcxproj).  This can lead to incorrect clean and rebuild behavior. [C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_autogen.vcxproj]
+  1>Automatic MOC and UIC for target LlamaCode
+C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC\v160\Microsoft.CppBuild.targets(513,5): warning MSB8028: The intermediate directory (x64\Debug\LlamaCode_automoc_json_extraction\) contains files shared from another project (LlamaCode_automoc_json_extraction.vcxproj).  This can lead to incorrect clean and rebuild behavior. [C:\Users\cristian\Documents\LlamaCode\build\LlamaCode_automoc_json_extraction.vcxproj]
+  Running AUTOMOC file extraction for target LlamaCode
+  Running moc --collect-json for target LlamaCode
+  mocs_compilation_Debug.cpp
+  main.cpp
+  AppController.cpp
+  ThemeProvider.cpp
+  LlamaBinary.cpp
+  BinaryRegistry.cpp
+  CapabilityDetector.cpp
+  ModelRoot.cpp
+  ModelRootRegistry.cpp
+  CatalogModel.cpp
+  ModelCatalog.cpp
+  GGUFScanner.cpp
+  ControlApi.cpp
+  ProfileTypes.cpp
+  ProfileManager.cpp
+  EffectiveProfileBuilder.cpp
+  OpencodeBackend.cpp
+  RawChatBackend.cpp
+  LlamaAgentBackend.cpp
+  McpClient.cpp
+  Generating Code...
+  Compiling...
+  AgentToolRunner.cpp
+  SubAgentRunner.cpp

@@ -1401,8 +1401,10 @@ Item {
                     property bool followBottom: true
 
                     function scrollToBottom() {
+                        // Solo BAJAR, nunca subir: durante el turno contentHeight
+                        // oscila (re-estimación de delegados altos fuera de vista).
                         var maxY = Math.max(0, contentHeight - height)
-                        if (contentY !== maxY)
+                        if (contentY < maxY)
                             contentY = maxY
                     }
 

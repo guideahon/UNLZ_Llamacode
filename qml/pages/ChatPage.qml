@@ -1042,8 +1042,11 @@ Item {
                 property bool followBottom: true
 
                 function scrollToBottom() {
+                    // Solo BAJAR, nunca subir: durante el streaming contentHeight
+                    // oscila (re-estimación de delegados altos fuera de vista). Si
+                    // siguiéramos esa oscilación hacia arriba, la vista saltaría.
                     var maxY = Math.max(0, contentHeight - height)
-                    if (contentY !== maxY)
+                    if (contentY < maxY)
                         contentY = maxY
                 }
 

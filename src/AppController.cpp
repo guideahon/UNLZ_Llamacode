@@ -2154,15 +2154,36 @@ void AppController::sendToAgentWithAttachments(const QString &text, const QStrin
     sendToAgent(text);   // backend sin soporte de adjuntos → texto solo
 }
 
+// Filtro del diálogo de adjuntos. Documentos ricos (pdf/office/html/epub) los
+// extrae DocumentExtractor (markitdown); texto/código directo; imágenes por
+// visión (solo si el server tiene mmproj).
+static QString attachmentFilter(bool withImages)
+{
+    static const QString kImages = QStringLiteral("*.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff");
+    static const QString kDocs = QStringLiteral(
+        "*.pdf *.docx *.doc *.xlsx *.xls *.pptx *.ppt *.odt *.ods *.odp *.rtf *.epub *.html *.htm");
+    static const QString kText = QStringLiteral(
+        "*.txt *.md *.json *.csv *.tsv *.log *.py *.js *.ts *.tsx *.jsx *.cpp *.h *.hpp *.c "
+        "*.cs *.java *.go *.rs *.rb *.php *.sh *.sql *.xml *.yaml *.yml *.toml *.ini *.qml");
+
+    const QString supported = withImages
+        ? QStringLiteral("%1 %2 %3").arg(kImages, kDocs, kText)
+        : QStringLiteral("%1 %2").arg(kDocs, kText);
+
+    QString f = QStringLiteral("Soportados (%1);;Documentos (%2);;").arg(supported, kDocs);
+    if (withImages)
+        f += QStringLiteral("Imágenes (%1);;").arg(kImages);
+    f += QStringLiteral("Texto/código (%1);;Todos (*.*)").arg(kText);
+    return f;
+}
+
 QStringList AppController::pickAgentAttachments()
 {
     QWidget *parent = QApplication::activeWindow();
     // Sin visión: ocultar imágenes del filtro (no las puede usar).
-    const QString filter = m_serverHasVision
-        ? QStringLiteral("Soportados (*.png *.jpg *.jpeg *.webp *.gif *.bmp *.txt *.md *.json *.csv *.log *.py *.js *.ts *.cpp *.h *.qml);;Todos (*.*)")
-        : QStringLiteral("Texto (*.txt *.md *.json *.csv *.log *.py *.js *.ts *.cpp *.h *.qml);;Todos (*.*)");
     return QFileDialog::getOpenFileNames(
-        parent, QStringLiteral("Adjuntar archivos"), QDir::homePath(), filter);
+        parent, QStringLiteral("Adjuntar archivos"), QDir::homePath(),
+        attachmentFilter(m_serverHasVision));
 }
 
 void AppController::steerAgent(const QString &text)
@@ -3659,11 +3680,9 @@ QString AppController::pasteClipboardImage()
 QStringList AppController::pickChatAttachments()
 {
     QWidget *parent = QApplication::activeWindow();
-    const QString filter = m_serverHasVision
-        ? QStringLiteral("Soportados (*.png *.jpg *.jpeg *.webp *.gif *.bmp *.txt *.md *.json *.csv *.log *.py *.js *.ts *.cpp *.h *.qml);;Todos (*.*)")
-        : QStringLiteral("Texto (*.txt *.md *.json *.csv *.log *.py *.js *.ts *.cpp *.h *.qml);;Todos (*.*)");
     return QFileDialog::getOpenFileNames(
-        parent, QStringLiteral("Adjuntar archivos"), QDir::homePath(), filter);
+        parent, QStringLiteral("Adjuntar archivos"), QDir::homePath(),
+        attachmentFilter(m_serverHasVision));
 }
 
 void AppController::stopChatGeneration()
