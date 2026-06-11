@@ -618,8 +618,15 @@ Item {
                                 return arr
                             }
                             onActivated: root.customId = currentValue ?? ""
-                            onModelChanged: { currentIndex = Math.max(0, indexOfValue(root.customId)); root.customId = currentValue ?? "" }
-                            Component.onCompleted: { currentIndex = Math.max(0, indexOfValue(root.customId)); root.customId = currentValue ?? "" }
+                            // Reconcile selection to the saved customId. Do NOT write customId
+                            // back from currentValue here: the model loads async, so an early
+                            // pass would clobber the saved id with index 0 (first benchmark).
+                            function _syncToSaved() {
+                                const idx = indexOfValue(root.customId)
+                                if (idx >= 0) currentIndex = idx
+                            }
+                            onModelChanged: _syncToSaved()
+                            Component.onCompleted: _syncToSaved()
                         }
 
                         RowLayout {
