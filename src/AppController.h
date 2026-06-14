@@ -277,6 +277,11 @@ public:
     Q_INVOKABLE void startAgent(const QString &launchProfileId);
     Q_INVOKABLE void stopAgent();
     Q_INVOKABLE void sendToAgent(const QString &text);
+    // Escalado manual al maestro del perfil activo. Devuelve false si no hay maestro
+    // configurado o el agente no está corriendo.
+    Q_INVOKABLE bool escalateToMaster(const QString &problem = QString());
+    // ¿El agente activo tiene un maestro configurado? (gate del botón en la UI).
+    Q_INVOKABLE bool agentMasterConfigured() const;
     Q_INVOKABLE void sendToAgentWithAttachments(const QString &text, const QStringList &paths);
     // Diálogo de adjuntos para el agente; filtra imágenes si el modelo no tiene visión.
     Q_INVOKABLE QStringList pickAgentAttachments();

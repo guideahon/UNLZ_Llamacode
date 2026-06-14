@@ -91,6 +91,11 @@ public:
     void setMasterCli(const QString &kind, const QString &cliName, const QString &cliPath,
                       const QString &escalation, int autoAfterFails,
                       bool applyEdits, int timeoutSec);
+    // Escalado manual: el usuario pide pasar el problema actual al maestro.
+    // Envía un turno que instruye al agente a usar ask_teacher. Devuelve false si
+    // no hay maestro configurado.
+    bool escalateToMaster(const QString &problem);
+    bool masterConfigured() const { return m_masterKind != QLatin1String("none"); }
 
     // Memoria por proyecto: ruta del archivo de memoria dentro de un cwd.
     static QString memoryFilePath(const QString &cwd);
@@ -207,6 +212,12 @@ private:
     int     m_masterAutoAfterFails = 3;
     bool    m_masterApplyEdits = true;
     int     m_masterTimeoutS = 300;
+    QSet<QString> m_escalatedSigs;   // firmas ya escaladas al maestro (anti-recursión)
+    bool masterAutoEnabled() const {
+        return m_masterKind != QLatin1String("none")
+            && (m_masterEscalation == QLatin1String("auto")
+                || m_masterEscalation == QLatin1String("both"));
+    }
 
     QVariantList m_mcpConfig;        // config de servers MCP (de AppController)
     QVariantList m_mcpTools;         // cache de tool-defs MCP del worker {server,name,description,schema}

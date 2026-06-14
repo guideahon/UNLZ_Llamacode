@@ -1816,6 +1816,16 @@ Item {
                         danger: true
                         onClicked: App.cancelAgentGeneration()
                     }
+                    // Escalar al maestro (manual): pasa el problema actual al CLI/HTTP maestro.
+                    LcButton {
+                        visible: App.agentRunning && App.agentMasterConfigured()
+                        secondary: true
+                        text: "🎓 Maestro"
+                        onClicked: {
+                            const t = agentInput.text.trim()
+                            if (App.escalateToMaster(t)) agentInput.text = ""
+                        }
+                    }
                 }
             }
         }

@@ -2274,6 +2274,19 @@ void AppController::stopAgent()
         m_agentProc->kill();
 }
 
+bool AppController::agentMasterConfigured() const
+{
+    auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend);
+    return cb && cb->masterConfigured();
+}
+
+bool AppController::escalateToMaster(const QString &problem)
+{
+    auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend);
+    if (!cb || !cb->running()) return false;
+    return cb->escalateToMaster(problem);
+}
+
 void AppController::sendToAgent(const QString &text)
 {
     if (text.trimmed().isEmpty()) return;

@@ -715,6 +715,7 @@ void LlamaAgentBackend::sendMessage(const QString &text)
 
     m_turnIters = 0;
     m_callCounts.clear();
+    m_escalatedSigs.clear();
     runCompletion();
 }
 
@@ -1265,16 +1266,42 @@ void LlamaAgentBackend::processPendingCalls()
         }
     }
 
-    const QJsonObject call = m_pendingCalls.first().toObject();
-    const QJsonObject fn   = call.value(QStringLiteral("function")).toObject();
-    const QString name     = fn.value(QStringLiteral("name")).toString();
+    QJsonObject call       = m_pendingCalls.first().toObject();
+    QJsonObject fn         = call.value(QStringLiteral("function")).toObject();
+    QString name           = fn.value(QStringLiteral("name")).toString();
     QString kind           = toolKind(name);
     const QString id       = call.value(QStringLiteral("id")).toString();
-    const QString argStr   = toolArgumentsToString(fn.value(QStringLiteral("arguments")));
+    QString argStr         = toolArgumentsToString(fn.value(QStringLiteral("arguments")));
 
     // ── Robustez: anti-loop ──────────────────────────────────────────────
     const QString sig = name + QLatin1Char('|') + argStr;
-    if (++m_callCounts[sig] > kMaxSameCall) {
+    const int sigCnt = ++m_callCounts[sig];
+
+    // ── Escalado automático al maestro ───────────────────────────────────
+    // Si el agente repite la misma tool sin progreso y el perfil habilitó escalado
+    // auto/both, transformamos ESTE tool_call en un ask_teacher (mismo id → el
+    // tool_result queda consistente con el assistant message) y dejamos que el
+    // maestro resuelva. Una sola vez por firma (anti-recursión).
+    if (name != QLatin1String("ask_teacher") && masterAutoEnabled()
+        && sigCnt >= m_masterAutoAfterFails && !m_escalatedSigs.contains(sig)) {
+        m_escalatedSigs.insert(sig);
+        const QString question = QStringLiteral(
+            "El agente local se atascó: repitió la tool '%1' sin progreso. "
+            "Resolvé el problema subyacente.").arg(name);
+        const QString context = QStringLiteral("Tool repetida: %1\nArgs: %2").arg(name, argStr);
+        QJsonObject newArgs{{QStringLiteral("question"), question},
+                            {QStringLiteral("context"), context}};
+        fn[QStringLiteral("name")] = QStringLiteral("ask_teacher");
+        fn[QStringLiteral("arguments")] =
+            QString::fromUtf8(QJsonDocument(newArgs).toJson(QJsonDocument::Compact));
+        call[QStringLiteral("function")] = fn;
+        m_pendingCalls[0] = call;
+        emit logAppended(QStringLiteral("[escalando al maestro: tool '%1' atascada]\n").arg(name));
+        // Reasignar locales y continuar con la ejecución normal (ask_teacher).
+        name = QStringLiteral("ask_teacher");
+        kind = toolKind(name);
+        argStr = toolArgumentsToString(fn.value(QStringLiteral("arguments")));
+    } else if (sigCnt > kMaxSameCall) {
         // No matar el turno: inyectar el aviso como tool_result y continuar.
         // El modelo recibe el feedback y corrige solo, sin pedir "continuá".
         ++m_toolFail;
@@ -2285,6 +2312,20 @@ void LlamaAgentBackend::setMasterCli(const QString &kind, const QString &cliName
                                   Q_ARG(QString, m_masterKind), Q_ARG(QString, m_masterCliName),
                                   Q_ARG(QString, m_masterCliPath), Q_ARG(bool, m_masterApplyEdits),
                                   Q_ARG(int, m_masterTimeoutS));
+}
+
+bool LlamaAgentBackend::escalateToMaster(const QString &problem)
+{
+    if (!masterConfigured()) return false;
+    const QString p = problem.trimmed();
+    QString msg = QStringLiteral(
+        "Usá la tool ask_teacher para que el maestro resuelva el problema en el que "
+        "estás trabado. Pasale en 'context' el código/errores mínimos necesarios.");
+    if (!p.isEmpty())
+        msg += QStringLiteral("\n\nProblema concreto:\n%1").arg(p);
+    if (isBusy()) steerMessage(msg);
+    else sendMessage(msg);
+    return true;
 }
 
 // ───────────────────────────── MCP / Worker ──────────────────────────────
