@@ -226,6 +226,32 @@ Item {
                                         Behavior on width { NumberAnimation { duration: 300 } }
                                     }
                                 }
+                                // Power draw / limit (sólo si nvidia-smi reporta telemetría)
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    visible: (modelData.limitW ?? 0) > 0
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: "potencia"
+                                        color: Theme.textMuted; font.pixelSize: 11
+                                    }
+                                    Text {
+                                        text: Math.round(modelData.drawW) + " / " + Math.round(modelData.limitW) + " W"
+                                        color: Theme.textSecondary; font.pixelSize: 11
+                                    }
+                                }
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    visible: (modelData.limitW ?? 0) > 0
+                                    height: 8; radius: 4
+                                    color: Theme.borderColor
+                                    Rectangle {
+                                        height: parent.height; radius: 4
+                                        width: parent.width * Math.min(1, (modelData.powerPct ?? 0) / 100)
+                                        color: "#5a8ad0"
+                                        Behavior on width { NumberAnimation { duration: 300 } }
+                                    }
+                                }
                             }
                         }
                     }

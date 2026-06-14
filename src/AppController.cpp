@@ -852,7 +852,7 @@ void AppController::pollServerStats()
         m_vramProc = nullptr;
 
         QVariantList gpus;
-        double sumTotal = 0, sumUsed = 0;
+        double sumTotal = 0, sumUsed = 0, sumDraw = 0, sumLimit = 0;
         const QStringList lines = text.split('\n', Qt::SkipEmptyParts);
         for (const QString &line : lines) {
             const QStringList p = line.split(QLatin1Char(','));
@@ -863,26 +863,38 @@ void AppController::pollServerStats()
             const double totalMb = p.at(2).trimmed().toDouble(&tOk);
             const double usedMb  = p.at(3).trimmed().toDouble(&uOk);
             if (!iOk || !tOk || !uOk) continue;
+            // power.draw / power.limit pueden venir "[N/A]" en GPUs sin telemetría.
+            const double drawW  = p.size() > 4 ? p.at(4).trimmed().toDouble() : 0.0;
+            const double limitW = p.size() > 5 ? p.at(5).trimmed().toDouble() : 0.0;
             QVariantMap g;
             g[QStringLiteral("index")]   = idx;
             g[QStringLiteral("name")]    = name;
             g[QStringLiteral("totalMb")] = totalMb;
             g[QStringLiteral("usedMb")]  = usedMb;
             g[QStringLiteral("pct")]     = totalMb > 0 ? (usedMb / totalMb * 100.0) : 0.0;
+            g[QStringLiteral("drawW")]   = drawW;
+            g[QStringLiteral("limitW")]  = limitW;
+            g[QStringLiteral("powerPct")] = limitW > 0 ? (drawW / limitW * 100.0) : 0.0;
             gpus.append(g);
             sumTotal += totalMb;
             sumUsed  += usedMb;
+            sumDraw  += drawW;
+            sumLimit += limitW;
         }
         QVariantMap stats;
         stats[QStringLiteral("gpus")]    = gpus;
         stats[QStringLiteral("totalMb")] = sumTotal;
         stats[QStringLiteral("usedMb")]  = sumUsed;
         stats[QStringLiteral("pct")]     = sumTotal > 0 ? (sumUsed / sumTotal * 100.0) : 0.0;
+        stats[QStringLiteral("drawW")]   = sumDraw;
+        stats[QStringLiteral("limitW")]  = sumLimit;
+        stats[QStringLiteral("powerPct")] = sumLimit > 0 ? (sumDraw / sumLimit * 100.0) : 0.0;
         m_serverStats = stats;
         emit serverStatsChanged();
     });
     m_vramProc->start(nvidiaSmi,
-                      {QStringLiteral("--query-gpu=index,name,memory.total,memory.used"),
+                      {QStringLiteral("--query-gpu=index,name,memory.total,memory.used,"
+                                      "power.draw,power.limit"),
                        QStringLiteral("--format=csv,noheader,nounits")});
 }
 
