@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS catalog_models (
     mtime TEXT NOT NULL,
     family_hint TEXT,
     quant_hint TEXT,
+    quant_real TEXT,
+    tensor_breakdown TEXT,
+    bpw REAL NOT NULL DEFAULT 0,
+    quant_mismatch INTEGER NOT NULL DEFAULT 0,
     is_vision_candidate INTEGER NOT NULL DEFAULT 0,
     is_draft_candidate INTEGER NOT NULL DEFAULT 0,
     sha256 TEXT,
@@ -82,6 +86,10 @@ QVariant ModelCatalog::data(const QModelIndex &index, int role) const
     case MtimeRole:            return m->mtime.toString(Qt::ISODate);
     case FamilyHintRole:       return m->familyHint;
     case QuantHintRole:        return m->quantHint;
+    case QuantRealRole:        return m->quantReal;
+    case TensorBreakdownRole:  return m->tensorBreakdown;
+    case BpwRole:              return m->bpw;
+    case QuantMismatchRole:    return m->quantMismatch;
     case IsVisionCandidateRole: return m->isVisionCandidate;
     case IsDraftCandidateRole:  return m->isDraftCandidate;
     case IsAvailableRole:      return m->isAvailable;
@@ -101,6 +109,10 @@ QHash<int, QByteArray> ModelCatalog::roleNames() const
         {MtimeRole,             "mtime"},
         {FamilyHintRole,        "family"},
         {QuantHintRole,         "quant"},
+        {QuantRealRole,         "quantReal"},
+        {TensorBreakdownRole,   "tensorBreakdown"},
+        {BpwRole,               "bpw"},
+        {QuantMismatchRole,     "quantMismatch"},
         {IsVisionCandidateRole, "isVision"},
         {IsDraftCandidateRole,  "isDraft"},
         {IsAvailableRole,       "isAvailable"},
@@ -235,7 +247,9 @@ QVariantMap ModelCatalog::get(const QString &id) const
         {"id", m.id}, {"rootId", m.rootId}, {"absolutePath", m.absolutePath},
         {"fileName", m.fileName}, {"sizeBytes", m.sizeBytes},
         {"sizeLabel", m.sizeLabel()}, {"family", m.familyHint},
-        {"quant", m.quantHint}, {"isVision", m.isVisionCandidate},
+        {"quant", m.quantHint}, {"quantReal", m.quantReal},
+        {"tensorBreakdown", m.tensorBreakdown}, {"bpw", m.bpw},
+        {"quantMismatch", m.quantMismatch}, {"isVision", m.isVisionCandidate},
         {"isDraft", m.isDraftCandidate}, {"isAvailable", m.isAvailable}
     };
 }
@@ -279,6 +293,15 @@ bool ModelCatalog::openDb()
         if (!s.trimmed().isEmpty())
             q.exec(s.trimmed());
     }
+    // Migración: DBs viejas no tienen las columnas de composición real. ALTER
+    // falla silencioso si la columna ya existe (lo ignoramos).
+    for (const char *alter : {
+             "ALTER TABLE catalog_models ADD COLUMN quant_real TEXT",
+             "ALTER TABLE catalog_models ADD COLUMN tensor_breakdown TEXT",
+             "ALTER TABLE catalog_models ADD COLUMN bpw REAL NOT NULL DEFAULT 0",
+             "ALTER TABLE catalog_models ADD COLUMN quant_mismatch INTEGER NOT NULL DEFAULT 0" }) {
+        q.exec(QString::fromUtf8(alter));
+    }
     return true;
 }
 
@@ -287,7 +310,8 @@ void ModelCatalog::loadFromDb()
     auto db = QSqlDatabase::database(m_connName);
     QSqlQuery q("SELECT id, root_id, absolute_path, file_name, size_bytes, mtime, "
                 "family_hint, quant_hint, is_vision_candidate, is_draft_candidate, "
-                "sha256, is_available FROM catalog_models", db);
+                "sha256, is_available, quant_real, tensor_breakdown, bpw, "
+                "quant_mismatch FROM catalog_models", db);
     while (q.next()) {
         CatalogModel m;
         m.id = q.value(0).toString();
@@ -302,6 +326,10 @@ void ModelCatalog::loadFromDb()
         m.isDraftCandidate = q.value(9).toBool();
         m.sha256 = q.value(10).toString();
         m.isAvailable = q.value(11).toBool();
+        m.quantReal = q.value(12).toString();
+        m.tensorBreakdown = q.value(13).toString();
+        m.bpw = q.value(14).toDouble();
+        m.quantMismatch = q.value(15).toBool();
         m_all.append(m);
     }
 }
@@ -314,8 +342,8 @@ void ModelCatalog::saveToDb(const CatalogModel &m)
         INSERT OR REPLACE INTO catalog_models
         (id, root_id, absolute_path, file_name, size_bytes, mtime,
          family_hint, quant_hint, is_vision_candidate, is_draft_candidate,
-         sha256, is_available)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+         sha256, is_available, quant_real, tensor_breakdown, bpw, quant_mismatch)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     )");
     q.addBindValue(m.id);
     q.addBindValue(m.rootId);
@@ -329,6 +357,10 @@ void ModelCatalog::saveToDb(const CatalogModel &m)
     q.addBindValue(m.isDraftCandidate ? 1 : 0);
     q.addBindValue(m.sha256);
     q.addBindValue(m.isAvailable ? 1 : 0);
+    q.addBindValue(m.quantReal);
+    q.addBindValue(m.tensorBreakdown);
+    q.addBindValue(m.bpw);
+    q.addBindValue(m.quantMismatch ? 1 : 0);
     if (!q.exec())
         qWarning() << "saveToDb failed:" << q.lastError().text();
 }

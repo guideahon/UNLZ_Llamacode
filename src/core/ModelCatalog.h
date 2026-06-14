@@ -22,6 +22,10 @@ public:
         MtimeRole,
         FamilyHintRole,
         QuantHintRole,
+        QuantRealRole,
+        TensorBreakdownRole,
+        BpwRole,
+        QuantMismatchRole,
         IsVisionCandidateRole,
         IsDraftCandidateRole,
         IsAvailableRole

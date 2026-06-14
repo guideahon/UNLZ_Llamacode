@@ -29,6 +29,10 @@ private slots:
     void visionCandidate();
     void draftCandidate();
 
+    // ── GGUFScanner::readComposition (parser binario) ──
+    void readComposition_realTensors();
+    void readComposition_rejectsGarbage();
+
     // ── EffectiveProfileBuilder ──
     void builder_emitsHostPort();
     void builder_dropsUnsupportedFlag();
@@ -85,6 +89,75 @@ void CoreTests::draftCandidate()
     QVERIFY(GGUFScanner::isDraftCandidate("qwen-0.5b-draft-Q4.gguf", 400LL * 1024 * 1024));
     QVERIFY(GGUFScanner::isDraftCandidate("tiny.gguf", 1LL * 1024 * 1024 * 1024));
     QVERIFY(!GGUFScanner::isDraftCandidate("Qwen2.5-32B-Q5_K_M.gguf", 20LL * 1024 * 1024 * 1024));
+}
+
+// ── Helpers para construir un GGUF sintético en disco ──────────────────────
+namespace {
+void putU32(QByteArray &b, quint32 v) {
+    for (int i = 0; i < 4; ++i) b.append(char((v >> (8*i)) & 0xFF));
+}
+void putU64(QByteArray &b, quint64 v) {
+    for (int i = 0; i < 8; ++i) b.append(char((v >> (8*i)) & 0xFF));
+}
+void putStr(QByteArray &b, const QByteArray &s) {
+    putU64(b, quint64(s.size()));
+    b.append(s);
+}
+// Escribe un tensor info: name, n_dims, dims[], type, offset.
+void putTensor(QByteArray &b, const QByteArray &name,
+               const QList<quint64> &dims, quint32 type) {
+    putStr(b, name);
+    putU32(b, quint32(dims.size()));
+    for (quint64 d : dims) putU64(b, d);
+    putU32(b, type);
+    putU64(b, 0); // offset
+}
+// GGUF v3 mínimo: magic, version, tensorCount, kvCount=0, luego tensor infos.
+QString writeGgufFixture(const QString &name, const QList<QPair<quint32, quint64>> &tensors)
+{
+    QByteArray b;
+    putU32(b, 0x46554747u); // "GGUF"
+    putU32(b, 3);           // version
+    putU64(b, quint64(tensors.size()));
+    putU64(b, 0);           // kv count
+    int idx = 0;
+    for (const auto &t : tensors)
+        putTensor(b, QByteArray("t") + QByteArray::number(idx++),
+                  {t.second}, t.first);
+    const QString path = QDir(QDir::tempPath()).filePath(name);
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly)) { f.write(b); f.close(); }
+    return path;
+}
+} // namespace
+
+void CoreTests::readComposition_realTensors()
+{
+    // Archivo llamado "Q4_K_XL" pero contenido = mayoría q4_0 (caso unsloth).
+    // type ids: 2=q4_0, 14=q6_k, 0=f32.
+    const QString path = writeGgufFixture(
+        "gemma-fake-Q4_K_XL.gguf",
+        { {2, 1000000}, {2, 2000000}, {14, 50000}, {0, 1000} });
+
+    const auto c = GGUFScanner::readComposition(path, QFileInfo(path).size());
+    QVERIFY(c.valid);
+    QCOMPARE(c.dominantQuant, QStringLiteral("q4_0")); // por elementos, no por nombre
+    QCOMPARE(c.typeTensors.value("q4_0"), 2);
+    QCOMPARE(c.typeTensors.value("q6_k"), 1);
+    QVERIFY(c.totalElements == 3051000);
+    QVERIFY(c.bpw > 0.0);
+    QVERIFY(c.breakdown().contains("q4_0:2"));
+}
+
+void CoreTests::readComposition_rejectsGarbage()
+{
+    const QString path = QDir(QDir::tempPath()).filePath("not_a_gguf.bin");
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("this is definitely not a gguf header at all");
+    f.close();
+    const auto c = GGUFScanner::readComposition(path, QFileInfo(path).size());
+    QVERIFY(!c.valid);
 }
 
 // build() valida que el binario exista en disco → necesitamos un archivo real.

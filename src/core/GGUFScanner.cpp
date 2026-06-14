@@ -1,8 +1,10 @@
 #include "GGUFScanner.h"
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 #include <QUuid>
 #include <QRegularExpression>
+#include <QStringList>
 
 GGUFScanner::GGUFScanner(QObject *parent) : QObject(parent) {}
 
@@ -31,6 +33,20 @@ QList<CatalogModel> GGUFScanner::scan(const ModelRoot &root)
         m.mtime = info.lastModified();
         m.familyHint = inferFamily(info.fileName());
         m.quantHint = inferQuant(info.fileName());
+
+        // Composición real de tensores: el nombre de archivo miente (Google "Q4_0"
+        // trae Q6_K/F16; unsloth "Q4_K_XL" es casi todo Q4_0). Clasificamos por el
+        // contenido real y marcamos mismatch para avisar en UI.
+        const Composition comp = readComposition(filePath, info.size());
+        if (comp.valid) {
+            m.quantReal = comp.dominantQuant;
+            m.tensorBreakdown = comp.breakdown();
+            m.bpw = comp.bpw;
+            m.quantMismatch =
+                !m.quantReal.isEmpty() && m.quantHint != "unknown"
+                && m.quantHint.compare(m.quantReal, Qt::CaseInsensitive) != 0;
+        }
+
         m.isVisionCandidate = isVisionCandidate(info.fileName());
         m.isDraftCandidate = isDraftCandidate(info.fileName(), info.size());
         m.isAvailable = true;
@@ -78,4 +94,185 @@ bool GGUFScanner::isDraftCandidate(const QString &fileName, qint64 sizeBytes)
     if (lower.contains("draft") || lower.contains("small")) return true;
     // Heuristic: models under 2GB are draft candidates
     return sizeBytes > 0 && sizeBytes < 2LL * 1024 * 1024 * 1024;
+}
+
+// ---- Parser de header GGUF (composición real de tensores) ------------------
+
+QString GGUFScanner::ggmlTypeName(quint32 t)
+{
+    // Subconjunto estable de ggml_type (llama.cpp ggml.h).
+    switch (t) {
+    case 0:  return "f32";
+    case 1:  return "f16";
+    case 2:  return "q4_0";
+    case 3:  return "q4_1";
+    case 6:  return "q5_0";
+    case 7:  return "q5_1";
+    case 8:  return "q8_0";
+    case 9:  return "q8_1";
+    case 10: return "q2_k";
+    case 11: return "q3_k";
+    case 12: return "q4_k";
+    case 13: return "q5_k";
+    case 14: return "q6_k";
+    case 15: return "q8_k";
+    case 16: return "iq2_xxs";
+    case 17: return "iq2_xs";
+    case 18: return "iq3_xxs";
+    case 19: return "iq1_s";
+    case 20: return "iq4_nl";
+    case 21: return "iq3_s";
+    case 22: return "iq2_s";
+    case 23: return "iq4_xs";
+    case 24: return "i8";
+    case 25: return "i16";
+    case 26: return "i32";
+    case 27: return "i64";
+    case 28: return "f64";
+    case 29: return "iq1_m";
+    case 30: return "bf16";
+    default: return QStringLiteral("t%1").arg(t);
+    }
+}
+
+namespace {
+
+// Lector secuencial little-endian con control de fin de buffer.
+struct LeReader {
+    const uchar *p;
+    qint64 n;
+    qint64 i = 0;
+    bool ok = true;
+
+    bool need(qint64 k) {
+        if (!ok || i + k > n) { ok = false; return false; }
+        return true;
+    }
+    quint32 u32() {
+        if (!need(4)) return 0;
+        quint32 v = quint32(p[i]) | (quint32(p[i+1])<<8)
+                  | (quint32(p[i+2])<<16) | (quint32(p[i+3])<<24);
+        i += 4; return v;
+    }
+    quint64 u64() {
+        if (!need(8)) return 0;
+        quint64 v = 0;
+        for (int b = 0; b < 8; ++b) v |= quint64(p[i+b]) << (8*b);
+        i += 8; return v;
+    }
+    void skip(qint64 k) { if (need(k)) i += k; }
+    void skipStr() { quint64 len = u64(); skip(qint64(len)); }
+};
+
+// Tamaño en bytes de un valor escalar de metadata GGUF por type-id.
+qint64 ggufScalarSize(quint32 t) {
+    switch (t) {
+    case 0: case 1: case 7: return 1;   // uint8/int8/bool
+    case 2: case 3: return 2;           // uint16/int16
+    case 4: case 5: case 6: return 4;   // uint32/int32/float32
+    case 10: case 11: case 12: return 8;// uint64/int64/float64
+    default: return -1;                 // 8=string, 9=array -> manejo aparte
+    }
+}
+
+// Salta un valor de metadata (escalar, string o array).
+void skipMetaValue(LeReader &r, quint32 type) {
+    if (type == 8) { r.skipStr(); return; }           // STRING
+    if (type == 9) {                                   // ARRAY
+        quint32 elemType = r.u32();
+        quint64 count = r.u64();
+        if (elemType == 8) {
+            for (quint64 k = 0; k < count && r.ok; ++k) r.skipStr();
+        } else {
+            qint64 sz = ggufScalarSize(elemType);
+            if (sz < 0) { r.ok = false; return; }      // array anidado: no soportado
+            r.skip(qint64(count) * sz);
+        }
+        return;
+    }
+    qint64 sz = ggufScalarSize(type);
+    if (sz < 0) { r.ok = false; return; }
+    r.skip(sz);
+}
+
+} // namespace
+
+QString GGUFScanner::Composition::breakdown() const
+{
+    QStringList parts;
+    for (auto it = typeTensors.constBegin(); it != typeTensors.constEnd(); ++it)
+        parts << QStringLiteral("%1:%2").arg(it.key()).arg(it.value());
+    return parts.join(", ");
+}
+
+GGUFScanner::Composition GGUFScanner::readComposition(const QString &filePath,
+                                                      qint64 fileSizeBytes)
+{
+    Composition c;
+
+    QFile f(filePath);
+    if (!f.open(QIODevice::ReadOnly)) return c;
+
+    // El header (metadata + tensor infos) está al inicio; con 16 MiB sobra para
+    // cualquier GGUF razonable y evitamos mapear archivos de decenas de GB.
+    const qint64 kCap = 16LL * 1024 * 1024;
+    const qint64 toRead = qMin(kCap, f.size());
+    const QByteArray buf = f.read(toRead);
+    if (buf.size() < 24) return c;
+
+    LeReader r{ reinterpret_cast<const uchar*>(buf.constData()), buf.size() };
+
+    const quint32 magic = r.u32();
+    if (magic != 0x46554747u) return c;  // "GGUF"
+    const quint32 version = r.u32();
+    if (version < 2 || version > 3) return c; // v1 usaba uint32 counts; no soportado
+
+    const quint64 tensorCount = r.u64();
+    const quint64 kvCount = r.u64();
+    if (tensorCount == 0 || tensorCount > 100000) return c;
+
+    // Saltar metadata KV.
+    for (quint64 k = 0; k < kvCount && r.ok; ++k) {
+        r.skipStr();                 // key
+        quint32 vt = r.u32();        // value type
+        skipMetaValue(r, vt);
+    }
+    if (!r.ok) return c;
+
+    // Tensor infos: name(str), n_dims(u32), dims[n_dims](u64), type(u32), offset(u64).
+    for (quint64 t = 0; t < tensorCount && r.ok; ++t) {
+        r.skipStr();
+        quint32 nDims = r.u32();
+        if (nDims > 8) { r.ok = false; break; }
+        qint64 elems = 1;
+        for (quint32 d = 0; d < nDims; ++d) elems *= qint64(r.u64());
+        quint32 type = r.u32();
+        r.u64(); // offset
+        if (!r.ok) break;
+        const QString name = ggmlTypeName(type);
+        c.typeTensors[name] += 1;
+        c.typeElements[name] += elems;
+        c.totalElements += elems;
+    }
+    if (!r.ok || c.totalElements <= 0) return c;
+
+    // Quant dominante: dtype cuantizado (no float crudo) con más elementos.
+    static const QStringList rawFloats = {"f32", "f16", "bf16", "f64"};
+    qint64 best = -1;
+    for (auto it = c.typeElements.constBegin(); it != c.typeElements.constEnd(); ++it) {
+        if (rawFloats.contains(it.key())) continue;
+        if (it.value() > best) { best = it.value(); c.dominantQuant = it.key(); }
+    }
+    // Modelo full-precision: sin tensores cuantizados.
+    if (c.dominantQuant.isEmpty()) {
+        qint64 b2 = -1;
+        for (auto it = c.typeElements.constBegin(); it != c.typeElements.constEnd(); ++it)
+            if (it.value() > b2) { b2 = it.value(); c.dominantQuant = it.key(); }
+    }
+
+    if (fileSizeBytes > 0)
+        c.bpw = double(fileSizeBytes) * 8.0 / double(c.totalElements);
+
+    c.valid = true;
+    return c;
 }

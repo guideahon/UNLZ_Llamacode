@@ -453,7 +453,20 @@ Item {
                                 Row {
                                     spacing: 8
                                     Text { text: family;    font.pixelSize: 11; color: Theme.accent }
-                                    Text { text: quant;     font.pixelSize: 11; color: Theme.successText }
+                                    // Quant real (composición de tensores). Si difiere del nombre
+                                    // de archivo, lo marcamos: el sufijo del archivo miente seguido.
+                                    Text {
+                                        text: (quantReal && quantReal.length > 0)
+                                              ? (quantMismatch ? "⚠ " + quant + "→" + quantReal : quantReal)
+                                              : quant
+                                        font.pixelSize: 11
+                                        color: quantMismatch ? Theme.warnText : Theme.successText
+                                    }
+                                    Text {
+                                        visible: bpw > 0
+                                        text: bpw.toFixed(2) + " bpw"
+                                        font.pixelSize: 11; color: Theme.textMuted
+                                    }
                                     Text { text: sizeLabel; font.pixelSize: 11; color: Theme.textMuted }
                                 }
                             }
