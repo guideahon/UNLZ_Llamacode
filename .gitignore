@@ -79,3 +79,7 @@ BUILD_PENDING
 # Runtime artifacts
 build_log.txt
 /tools/_pid.txt
+
+# tuner selftest build artifacts
+build_tuner/
+tuner_selftest.exe
