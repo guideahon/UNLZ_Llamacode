@@ -20,6 +20,21 @@ Item {
     property string harnessAdapter: "none"
     property string harnessProfileId: ""
 
+    // ── Maestro (supervisor) ──────────────────────────────────────
+    property string masterKind: "none"          // none | http | cli
+    property string masterCliName: "claude"
+    property string masterEscalation: "manual"  // manual | auto | both
+    property int    masterAutoAfterFails: 3
+    property bool   masterApplyEdits: true
+    property var    masterCliStatusCache: ({})   // name -> status map
+    function refreshMasterCliStatus(force) {
+        const names = App.masterCliList()
+        let m = {}
+        for (let i = 0; i < names.length; ++i)
+            m[names[i]] = App.masterCliStatus(names[i], force === true)
+        masterCliStatusCache = m
+    }
+
     function splitArgs(raw) {
         const out = []
         const lines = raw.split("\n")
@@ -284,6 +299,18 @@ Item {
             if (cur === "--no-warmup") { noWarmupCheck.checked = true; continue }
         }
 
+        // Maestro (supervisor)
+        const mc = lp.master ?? {}
+        masterKind = mc.kind ?? "none"
+        masterCliName = (mc.cliName && mc.cliName.length > 0) ? mc.cliName : "claude"
+        masterEscalation = mc.escalation ?? "manual"
+        masterAutoAfterFails = mc.autoAfterFails ?? 3
+        masterApplyEdits = (mc.applyEdits !== false)
+        masterHttpUrlField.text = mc.httpUrl ?? ""
+        masterHttpModelField.text = mc.httpModel ?? ""
+        masterHttpKeyField.text = mc.httpKey ?? ""
+        refreshMasterCliStatus(false)
+
         // Refresca vista previa del comando para el perfil cargado
         App.computeEffectiveProfile(selectedLaunchId)
     }
@@ -418,7 +445,16 @@ Item {
             "alias": profileAliasField.text.trim(), "favorite": root.launchFavorite,
             "backendProfileId": effectiveBid, "modelProfileId": effectiveMid,
             "runtimePresetId": effectiveRid, "extraArgs": rebuiltArgs, "envOverrides": envOverrides,
-            "harnessProfileId": resolvedHarnessId
+            "harnessProfileId": resolvedHarnessId,
+            "master": {
+                "kind": masterKind, "cliName": masterCliName,
+                "httpUrl": masterHttpUrlField.text.trim(),
+                "httpModel": masterHttpModelField.text.trim(),
+                "httpKey": masterHttpKeyField.text.trim(),
+                "escalation": masterEscalation,
+                "autoAfterFails": masterAutoAfterFails,
+                "applyEdits": masterApplyEdits
+            }
         })
 
         console.log("[saveAll] updateLaunchProfile result:", lpOk)
@@ -1100,6 +1136,165 @@ Item {
                                 color: Theme.textPrimary
                                 wrapMode: TextArea.WrapAtWordBoundaryOrAnywhere
                                 background: Rectangle { color: Theme.inputBg; radius: 6; border.color: Theme.borderColor }
+                            }
+                        }
+                    }
+                }
+
+                // ── Maestro (supervisor) ─────────────────────────────────────
+                Rectangle {
+                    Layout.fillWidth: true
+                    color: Theme.surfaceBg
+                    border.color: Theme.borderColor
+                    radius: 8
+                    implicitHeight: masterCol.implicitHeight + 20
+                    ColumnLayout {
+                        id: masterCol
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                        spacing: 8
+
+                        Text {
+                            text: "Maestro (supervisor)"
+                            color: Theme.textSecondary; font { pixelSize: 12; bold: true }
+                        }
+                        Text {
+                            text: "Modelo más capaz al que el LLM local escala un problema que no resuelve."
+                            color: Theme.textMuted; font.pixelSize: 11
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Tipo"; color: Theme.textSecondary; font.pixelSize: 12
+                                   Layout.preferredWidth: 90 }
+                            LcComboBox {
+                                id: masterKindCombo
+                                Layout.fillWidth: true
+                                implicitHeight: 32
+                                model: [
+                                    { value: "none", label: "Ninguno" },
+                                    { value: "cli",  label: "CLI local (Claude Code / Codex)" },
+                                    { value: "http", label: "Endpoint HTTP (OpenAI-compat)" }
+                                ]
+                                textRole: "label"
+                                valueRole: "value"
+                                currentIndex: Math.max(0, indexOfValue(masterKind))
+                                onActivated: masterKind = currentValue
+                            }
+                        }
+
+                        // ── Modo CLI ──────────────────────────────────────────
+                        ColumnLayout {
+                            visible: masterKind === "cli"
+                            Layout.fillWidth: true; spacing: 6
+
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 8
+                                Text { text: "CLI"; color: Theme.textSecondary; font.pixelSize: 12
+                                       Layout.preferredWidth: 90 }
+                                LcComboBox {
+                                    id: masterCliCombo
+                                    Layout.fillWidth: true
+                                    implicitHeight: 32
+                                    model: App.masterCliList()
+                                    currentIndex: Math.max(0, indexOfValue(masterCliName))
+                                    onActivated: masterCliName = currentValue
+                                }
+                                LcButton {
+                                    text: "Detectar"; secondary: true; implicitHeight: 30
+                                    onClicked: refreshMasterCliStatus(true)
+                                }
+                            }
+
+                            // Estado de instalación del CLI seleccionado
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 6
+                                property var st: masterCliStatusCache[masterCliName] ?? ({})
+                                Rectangle {
+                                    width: 7; height: 7; radius: 4
+                                    color: (parent.st.installed === true) ? Theme.successText : Theme.errorText
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: (parent.st.installed === true)
+                                        ? ((parent.st.label ?? masterCliName) + " — " + (parent.st.version ?? "instalado"))
+                                        : ((parent.st.label ?? masterCliName) + " no detectado en PATH")
+                                    color: (parent.st.installed === true) ? Theme.successText : Theme.textMuted
+                                    font.pixelSize: 11; wrapMode: Text.WrapAnywhere
+                                }
+                            }
+                            // Comando de instalación (si no está)
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 6
+                                visible: (masterCliStatusCache[masterCliName] ?? {}).installed !== true
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: App.masterCliInstallCommand(masterCliName)
+                                    color: Theme.textMuted; font { pixelSize: 11; family: "monospace" }
+                                    wrapMode: Text.WrapAnywhere
+                                }
+                                LcButton {
+                                    text: "Copiar"; secondary: true; implicitHeight: 28
+                                    onClicked: App.copyToClipboard(App.masterCliInstallCommand(masterCliName))
+                                }
+                            }
+
+                            CheckBox {
+                                id: masterApplyEditsCheck
+                                text: "El maestro edita archivos directo (sino, sólo devuelve plan)"
+                                checked: masterApplyEdits
+                                onToggled: masterApplyEdits = checked
+                                contentItem: Text {
+                                    text: masterApplyEditsCheck.text; color: Theme.textPrimary
+                                    font.pixelSize: 12; leftPadding: masterApplyEditsCheck.indicator.width + 6
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                        }
+
+                        // ── Modo HTTP ─────────────────────────────────────────
+                        ColumnLayout {
+                            visible: masterKind === "http"
+                            Layout.fillWidth: true; spacing: 6
+                            LcTextField { id: masterHttpUrlField;   Layout.fillWidth: true
+                                          placeholderText: "Endpoint (ej. https://api.openai.com)" }
+                            LcTextField { id: masterHttpModelField; Layout.fillWidth: true
+                                          placeholderText: "Modelo (ej. gpt-4o)" }
+                            LcTextField { id: masterHttpKeyField;   Layout.fillWidth: true
+                                          echoMode: TextInput.Password
+                                          placeholderText: "API key (opcional)" }
+                        }
+
+                        // ── Escalado ──────────────────────────────────────────
+                        RowLayout {
+                            visible: masterKind !== "none"
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Escalado"; color: Theme.textSecondary; font.pixelSize: 12
+                                   Layout.preferredWidth: 90 }
+                            LcComboBox {
+                                id: masterEscalationCombo
+                                Layout.fillWidth: true
+                                implicitHeight: 32
+                                model: [
+                                    { value: "manual", label: "Manual (botón en el agente)" },
+                                    { value: "auto",   label: "Automático (al atascarse)" },
+                                    { value: "both",   label: "Ambos" }
+                                ]
+                                textRole: "label"
+                                valueRole: "value"
+                                currentIndex: Math.max(0, indexOfValue(masterEscalation))
+                                onActivated: masterEscalation = currentValue
+                            }
+                        }
+                        RowLayout {
+                            visible: masterKind !== "none" && masterEscalation !== "manual"
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Auto tras N fallos"; color: Theme.textSecondary; font.pixelSize: 12
+                                   Layout.preferredWidth: 130 }
+                            SpinBox {
+                                from: 1; to: 20; value: masterAutoAfterFails
+                                onValueModified: masterAutoAfterFails = value
+                                implicitHeight: 32
                             }
                         }
                     }

@@ -75,6 +75,26 @@ struct WorkspaceProfile {
     static QString generateId();
 };
 
+// Config del "maestro" (supervisor): modelo más capaz al que el agente local
+// escala un sub-problema que no resuelve. Vive por LaunchProfile; si kind=="none"
+// se usa el fallback global (Ajustes). Ver tool ask_teacher.
+struct MasterConfig {
+    QString kind = "none";           // none | http | cli
+    QString cliName;                 // claude | codex   (kind==cli)
+    QString httpUrl;                 // endpoint OpenAI-compat (kind==http)
+    QString httpModel;
+    QString httpKey;
+    QString escalation = "manual";   // manual | auto | both
+    int     autoAfterFails = 3;      // gatillo auto: N fallos de la misma tool/firma
+    bool    applyEdits = true;       // CLI edita archivos directo vs sólo devolver plan
+    int     timeoutSec = 300;
+
+    bool isConfigured() const { return kind != QLatin1String("none"); }
+
+    QJsonObject toJson() const;
+    static MasterConfig fromJson(const QJsonObject &obj);
+};
+
 struct LaunchProfile {
     QString id;
     QString name;
@@ -87,6 +107,7 @@ struct LaunchProfile {
     QString workspaceProfileId;
     QStringList extraArgs;
     QMap<QString, QString> envOverrides;
+    MasterConfig master;      // supervisor opcional (maestro CLI/HTTP)
 
     QJsonObject toJson() const;
     static LaunchProfile fromJson(const QJsonObject &obj);

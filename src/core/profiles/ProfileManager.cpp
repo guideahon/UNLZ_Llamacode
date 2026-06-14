@@ -311,6 +311,20 @@ bool ProfileManager::updateLaunchProfile(const QVariantMap &data)
     p.harnessProfileId = data.value("harnessProfileId", p.harnessProfileId).toString();
     p.workspaceProfileId = data.value("workspaceProfileId", p.workspaceProfileId).toString();
     p.extraArgs = data.value("extraArgs", p.extraArgs).toStringList();
+    if (data.contains("master")) {
+        const QVariantMap m = data.value("master").toMap();
+        MasterConfig mc = p.master;
+        mc.kind = m.value("kind", mc.kind).toString();
+        mc.cliName = m.value("cliName", mc.cliName).toString();
+        mc.httpUrl = m.value("httpUrl", mc.httpUrl).toString();
+        mc.httpModel = m.value("httpModel", mc.httpModel).toString();
+        mc.httpKey = m.value("httpKey", mc.httpKey).toString();
+        mc.escalation = m.value("escalation", mc.escalation).toString();
+        mc.autoAfterFails = m.value("autoAfterFails", mc.autoAfterFails).toInt();
+        mc.applyEdits = m.value("applyEdits", mc.applyEdits).toBool();
+        mc.timeoutSec = m.value("timeoutSec", mc.timeoutSec).toInt();
+        p.master = mc;
+    }
     bool ok = m_launches.update(p);
     if (ok) { save(); emit launchesChanged(); }
     return ok;
@@ -328,7 +342,14 @@ QVariantMap ProfileManager::getLaunchProfile(const QString &id) const
             {"runtimePresetId", p.runtimePresetId},
             {"harnessProfileId", p.harnessProfileId},
             {"workspaceProfileId", p.workspaceProfileId},
-            {"extraArgs", p.extraArgs}};
+            {"extraArgs", p.extraArgs},
+            {"master", QVariantMap{
+                {"kind", p.master.kind}, {"cliName", p.master.cliName},
+                {"httpUrl", p.master.httpUrl}, {"httpModel", p.master.httpModel},
+                {"httpKey", p.master.httpKey}, {"escalation", p.master.escalation},
+                {"autoAfterFails", p.master.autoAfterFails},
+                {"applyEdits", p.master.applyEdits},
+                {"timeoutSec", p.master.timeoutSec}}}};
 }
 
 void ProfileManager::setLaunchFavorite(const QString &id, bool favorite)

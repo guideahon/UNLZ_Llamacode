@@ -119,6 +119,29 @@ WorkspaceProfile WorkspaceProfile::fromJson(const QJsonObject &o) {
 }
 QString WorkspaceProfile::generateId() { return newId(); }
 
+// ---- MasterConfig ----
+QJsonObject MasterConfig::toJson() const {
+    QJsonObject o;
+    o["kind"] = kind; o["cliName"] = cliName;
+    o["httpUrl"] = httpUrl; o["httpModel"] = httpModel; o["httpKey"] = httpKey;
+    o["escalation"] = escalation; o["autoAfterFails"] = autoAfterFails;
+    o["applyEdits"] = applyEdits; o["timeoutSec"] = timeoutSec;
+    return o;
+}
+MasterConfig MasterConfig::fromJson(const QJsonObject &o) {
+    MasterConfig m;
+    m.kind = o["kind"].toString("none");
+    m.cliName = o["cliName"].toString();
+    m.httpUrl = o["httpUrl"].toString();
+    m.httpModel = o["httpModel"].toString();
+    m.httpKey = o["httpKey"].toString();
+    m.escalation = o["escalation"].toString("manual");
+    m.autoAfterFails = o["autoAfterFails"].toInt(3);
+    m.applyEdits = o["applyEdits"].toBool(true);
+    m.timeoutSec = o["timeoutSec"].toInt(300);
+    return m;
+}
+
 // ---- LaunchProfile ----
 QJsonObject LaunchProfile::toJson() const {
     QJsonObject o;
@@ -131,6 +154,7 @@ QJsonObject LaunchProfile::toJson() const {
     o["workspaceProfileId"] = workspaceProfileId;
     o["extraArgs"] = QJsonArray::fromStringList(extraArgs);
     o["envOverrides"] = mapToJson(envOverrides);
+    o["master"] = master.toJson();
     return o;
 }
 LaunchProfile LaunchProfile::fromJson(const QJsonObject &o) {
@@ -150,6 +174,7 @@ LaunchProfile LaunchProfile::fromJson(const QJsonObject &o) {
     p.workspaceProfileId = o["workspaceProfileId"].toString();
     for (const auto &v : o["extraArgs"].toArray()) p.extraArgs.append(v.toString());
     p.envOverrides = mapFromJson(o["envOverrides"].toObject());
+    p.master = MasterConfig::fromJson(o["master"].toObject());
     return p;
 }
 QString LaunchProfile::generateId() { return newId(); }
