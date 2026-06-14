@@ -1,7 +1,10 @@
 #include "LlamaAgentBackend.h"
 #include "AgentToolRunner.h"
 #include "SubAgentRunner.h"
+#include "MemoryStore.h"          // consolidación de memoria (background)
 #include "core/DocumentExtractor.h"
+
+#include <QJsonArray>
 
 #include <QCryptographicHash>
 
@@ -360,6 +363,95 @@ void LlamaAgentBackend::startCompaction(int head, int keepFrom)
     });
 }
 
+void LlamaAgentBackend::consolidateMemory()
+{
+    // Consolidación de background: extrae hechos DURABLES del transcript actual y
+    // los guarda en la memoria estructurada (source="consolidation"). Captura por la
+    // ausencia de save/link en vivo del modelo chico. Async, no bloquea la UI.
+    if (m_ephemeralSessions) return;                 // sesiones efímeras: no persistir
+    if (m_consolidateReply) return;                  // ya hay una corriendo
+    if (m_cwd.isEmpty() || m_sessionId.isEmpty()) return;
+
+    const int n = m_apiMessages.size();
+    if (n < 4) return;                               // muy poco para extraer algo útil
+    if (m_consolidatedLen.value(m_sessionId) >= n) return;  // sin novedades desde la última
+
+    // Snapshot: la sesión puede cambiar/limpiarse mientras la request está en vuelo.
+    const QString cwd = m_cwd;
+    const QString sid = m_sessionId;
+    QString convo;
+    for (int i = 0; i < n; ++i)
+        convo += serializeMsgForSummary(m_apiMessages[i].toObject());
+    if (convo.trimmed().isEmpty()) return;
+
+    const QString sys = QStringLiteral(
+        "Sos un consolidador de memoria de un agente de coding. Leé la conversación y "
+        "extraé SOLO hechos DURABLES que sirvan en futuras sesiones de ESTE proyecto: "
+        "preferencias del usuario, decisiones de diseño tomadas, convenciones, datos no "
+        "obvios del repo, bugs conocidos. NO incluyas pasos efímeros, charla, ni cosas "
+        "deducibles leyendo el código. Respondé SOLO con un array JSON; cada item: "
+        "{\"content\":string, \"scope\":\"project\"|\"personal\", "
+        "\"type\":\"preference\"|\"decision\"|\"fact\"|\"bug\", \"confidence\":0..1}. "
+        "Si no hay nada durable, respondé []. Máximo 10 items, cada content una sola frase.");
+
+    QJsonObject payload{
+        {QStringLiteral("model"), m_ctx.modelId.isEmpty() ? QStringLiteral("local") : m_ctx.modelId},
+        {QStringLiteral("messages"), QJsonArray{
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("system")}, {QStringLiteral("content"), sys}},
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("user")}, {QStringLiteral("content"), convo}}}},
+        {QStringLiteral("stream"), false},
+        {QStringLiteral("temperature"), 0.1},
+        {QStringLiteral("max_tokens"), qMin(1024, m_ctxLimit > 0 ? m_ctxLimit / 8 : 1024)},
+        {QStringLiteral("cache_prompt"), true}
+    };
+
+    const QString url = m_ctx.serverBaseUrl + QStringLiteral("/v1/chat/completions");
+    QNetworkRequest req((QUrl(url)));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
+
+    m_consolidatedLen[sid] = n;   // marcar ya (evita re-disparos aunque falle)
+    emit logAppended(QStringLiteral("[consolidando memoria: analizando %1 mensajes…]\n").arg(n));
+
+    m_consolidateReply = m_nam->post(req, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(m_consolidateReply, &QNetworkReply::finished, this, [this, cwd, sid]() {
+        QNetworkReply *r = m_consolidateReply;
+        if (!r) return;
+        m_consolidateReply = nullptr;
+        r->deleteLater();
+        if (r->error() != QNetworkReply::NoError) return;
+
+        const QJsonObject root = QJsonDocument::fromJson(r->readAll()).object();
+        const QJsonArray choices = root.value(QStringLiteral("choices")).toArray();
+        if (choices.isEmpty()) return;
+        QString out = choices.first().toObject().value(QStringLiteral("message"))
+                          .toObject().value(QStringLiteral("content")).toString();
+        out = stripThinkForContext(out).trimmed();
+
+        // Aislar el array JSON (el modelo puede envolverlo en texto/```).
+        const int lb = out.indexOf(QLatin1Char('['));
+        const int rb = out.lastIndexOf(QLatin1Char(']'));
+        if (lb < 0 || rb <= lb) return;
+        const QJsonArray facts = QJsonDocument::fromJson(
+            out.mid(lb, rb - lb + 1).toUtf8()).array();
+        if (facts.isEmpty()) return;
+
+        int saved = 0;
+        for (const QJsonValue &fv : facts) {
+            const QJsonObject f = fv.toObject();
+            const QString content = f.value(QStringLiteral("content")).toString().trimmed();
+            if (content.isEmpty()) continue;
+            MemoryStore::save(cwd, content,
+                              f.value(QStringLiteral("scope")).toString(QStringLiteral("project")),
+                              f.value(QStringLiteral("type")).toString(QStringLiteral("fact")),
+                              f.value(QStringLiteral("confidence")).toDouble(0.6),
+                              QStringLiteral("consolidation"));
+            if (++saved >= 10) break;
+        }
+        if (saved > 0)
+            emit logAppended(QStringLiteral("[memoria consolidada: +%1 hecho(s) durables]\n").arg(saved));
+    });
+}
+
 void LlamaAgentBackend::stop()
 {
     if (m_compactReply) {
@@ -367,6 +459,10 @@ void LlamaAgentBackend::stop()
         cr->disconnect(this); cr->abort(); cr->deleteLater();
     }
     m_compacting = false;
+    if (m_consolidateReply) {
+        QNetworkReply *cr = m_consolidateReply; m_consolidateReply = nullptr;
+        cr->disconnect(this); cr->abort(); cr->deleteLater();
+    }
     if (m_reply) {
         QNetworkReply *r = m_reply;
         m_reply = nullptr;
@@ -2527,6 +2623,7 @@ void LlamaAgentBackend::revertEdit(const QString &path)
 void LlamaAgentBackend::newSession()
 {
     saveCurrentSession();
+    consolidateMemory();     // extraer hechos durables de la sesión saliente
     m_sessionId.clear();
     m_messages.clear();
     m_apiMessages = {};
@@ -2629,6 +2726,7 @@ void LlamaAgentBackend::refreshSessions() { emit sessionsChanged(); }
 void LlamaAgentBackend::setCurrentSession(const QString &sessionId)
 {
     saveCurrentSession();   // vuelca la sesión actual antes de cambiar
+    consolidateMemory();    // extraer hechos durables de la sesión saliente
     m_sessionId = sessionId;
     m_curAsstIdx = -1;
     m_messages.clear();

@@ -100,6 +100,11 @@ public:
     // Memoria por proyecto: ruta del archivo de memoria dentro de un cwd.
     static QString memoryFilePath(const QString &cwd);
 
+    // Consolidación de memoria (background): corre 1 completion sobre el transcript
+    // actual y extrae hechos durables → MemoryStore (source="consolidation"). Async,
+    // fire-and-forget. Se dispara solo al dejar una sesión y puede invocarse manual.
+    void consolidateMemory();
+
     QString currentSessionId() const override { return m_sessionId; }
     QString currentSessionTitle() const override { return m_sessionTitle; }
     QString currentProjectDir() const override { return m_cwd; }
@@ -189,6 +194,8 @@ private:
     QNetworkAccessManager *m_nam = nullptr;
     QNetworkReply *m_compactReply = nullptr;   // request de resumen (compactación)
     bool m_compacting = false;                 // compactación en curso
+    QNetworkReply *m_consolidateReply = nullptr;     // request de consolidación de memoria
+    QHash<QString, int> m_consolidatedLen;     // sessionId → nº de msgs ya consolidados (dedupe)
     QNetworkReply *m_reply = nullptr;
     bool m_running = false;
     QString m_cwd;
