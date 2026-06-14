@@ -5,7 +5,7 @@ import LlamaCode 1.0
 
 ApplicationWindow {
     id: window
-    title: "LlamaCode"
+    title: "UNLZ_Llamacode"
     width: 1200
     height: 760
     minimumWidth: 900
@@ -69,7 +69,7 @@ ApplicationWindow {
                     spacing: 0
 
                     Label {
-                        text: "LlamaCode"
+                        text: "UNLZ_Llamacode"
                         color: Theme.textPrimary
                         font.pixelSize: 13
                         font.bold: true

@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
             p.drawPixmap((360 - 64) / 2, 28, icon);
         p.setPen(QColor(0xe0, 0xe0, 0xe0));
         QFont f = p.font(); f.setPointSize(11); p.setFont(f);
-        p.drawText(QRect(0, 104, 360, 24), Qt::AlignCenter, "LlamaCode");
+        p.drawText(QRect(0, 104, 360, 24), Qt::AlignCenter, "UNLZ_Llamacode");
         p.setPen(QColor(0x9a, 0x9a, 0x9a));
         f.setPointSize(9); p.setFont(f);
         p.drawText(QRect(0, 128, 360, 20), Qt::AlignCenter, "Cargando…");

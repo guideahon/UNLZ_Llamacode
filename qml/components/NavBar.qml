@@ -32,7 +32,7 @@ Rectangle {
             color: Theme.titleBg
             Text {
                 anchors.centerIn: parent
-                text: "LlamaCode"
+                text: "UNLZ_Llamacode"
                 font { pixelSize: 16; bold: true }
                 color: Theme.textPrimary
             }
