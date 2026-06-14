@@ -5370,6 +5370,22 @@ void AppController::runBenchmarkInternal(const QStringList &profileIds, const QS
                             res["category"] = task.category;
                             if (!task.isSpeed && task.eval)
                                 res["passed"] = task.eval(res.value("response").toString());
+                            // EvalSuite: scoring por substrings esperados en la respuesta
+                            // (tareas de texto sin auto-eval; pasa si están TODOS).
+                            else if (!task.isSpeed) {
+                                const QVariantList subs = task.acceptance
+                                    .value(QStringLiteral("expectSubstrings")).toList();
+                                if (!subs.isEmpty()) {
+                                    const QString hay = res.value("response").toString().toLower();
+                                    bool all = true;
+                                    for (const QVariant &sv : subs) {
+                                        const QString needle = sv.toString().trimmed();
+                                        if (needle.isEmpty()) continue;
+                                        if (!hay.contains(needle.toLower())) { all = false; break; }
+                                    }
+                                    res["passed"] = all;
+                                }
+                            }
 
                             if (isCustom) {
                                 const QString resp = res.value("response").toString();
@@ -5723,6 +5739,28 @@ void AppController::runAgentBenchmark(const QString &profileId, const QString &p
                     acceptanceRows.append(row);
                     qTotal++;
                     if (row.value(QStringLiteral("passed")).toBool()) qScore++;
+                }
+
+                // Substrings esperados en la respuesta del agente (EvalSuite: tareas
+                // de texto sin archivos/comandos, p.ej. periciales/docs). Match
+                // case-insensitive sobre finalText.
+                const QVariantList expectSubs = acceptance.value(QStringLiteral("expectSubstrings")).toList();
+                const QString hay = finalText.toLower();
+                for (const QVariant &sv : expectSubs) {
+                    const QString needle = sv.toString().trimmed();
+                    if (needle.isEmpty()) continue;
+                    const bool ok = hay.contains(needle.toLower());
+                    QVariantMap row;
+                    row[QStringLiteral("taskId")] = taskId;
+                    row[QStringLiteral("type")] = QStringLiteral("substring");
+                    row[QStringLiteral("name")] = needle;
+                    row[QStringLiteral("passed")] = ok;
+                    row[QStringLiteral("output")] = ok
+                        ? QStringLiteral("Texto presente en la respuesta.")
+                        : QStringLiteral("Texto esperado ausente en la respuesta.");
+                    acceptanceRows.append(row);
+                    qTotal++;
+                    if (ok) qScore++;
                 }
             }
 
@@ -6657,15 +6695,16 @@ QString AppController::importEvalSuite(const QString &path)
         return {};
     }
 
-    // EvalSuite → schema de custom benchmark (prompts[] con acceptance.files/commands).
-    // El acceptance por substrings de EvalSuite no es auto-puntuable por el runner de
-    // agente (que valida archivos/comandos), así que se conserva como 'notes' para
-    // revisión. Las tareas de coding pueden luego enriquecerse con commands.
+    // EvalSuite → schema de custom benchmark. El acceptance por substrings se mapea a
+    // acceptance.expectSubstrings, auto-puntuable en ambos paths (agente: contra el
+    // texto final; modelo/chat: contra la respuesta). Coding puede luego agregar
+    // files/commands editando el benchmark.
     QVariantList prompts;
     for (const EvalTask &t : suite.tasks) {
         QVariantMap acc;
         acc["files"] = QVariantList{};
         acc["commands"] = QVariantList{};
+        acc["expectSubstrings"] = QVariant(t.acceptance);
         QVariantMap p;
         p["id"] = t.id;
         p["prompt"] = t.prompt;
@@ -6673,7 +6712,6 @@ QString AppController::importEvalSuite(const QString &path)
         p["maxTokens"] = 8000;
         p["category"] = t.category;
         p["weight"] = t.weight;
-        p["notes"] = t.acceptance.join(QStringLiteral(" · "));
         p["attachments"] = QVariant(t.attachments);
         p["acceptance"] = acc;
         prompts.append(p);
