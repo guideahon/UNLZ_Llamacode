@@ -10,6 +10,9 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QStandardPaths>
+#include <QDir>
+#include <QFileInfo>
+#include <QFile>
 #include <QSignalSpy>
 #include "core/LlamaBinary.h"
 #include "core/ModelRoot.h"
@@ -19,6 +22,7 @@
 
 static QString writeFakeFile(const QString &path, const QByteArray &data = "x")
 {
+    QDir().mkpath(QFileInfo(path).absolutePath());
     QFile f(path);
     if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
     return path;
@@ -35,6 +39,7 @@ private slots:
     void modelRoot_jsonRoundTrip();
 
     void binaryRegistry_addGetRemove();
+    void binaryRegistry_addIsAppendOnly();
     void binaryRegistry_supportedFlagsAndHash();
     void binaryRegistry_persists();
 
@@ -93,6 +98,28 @@ void RegistriesTests::binaryRegistry_addGetRemove()
     QCOMPARE(reg.get(id).value("name").toString(), QStringLiteral("srv2"));
     QVERIFY(reg.remove(id));
     QVERIFY(reg.get(id).isEmpty());
+}
+
+// Bump de binario = append-only: instalar un build nuevo NUNCA reemplaza ni borra
+// uno viejo (un perfil puede rendir mejor en un binario previo). Cada entrada debe
+// quedar identificable por su versionHint/tag.
+void RegistriesTests::binaryRegistry_addIsAppendOnly()
+{
+    QTemporaryDir dir;
+    const QString exeOld = writeFakeFile(dir.filePath("old/llama-server.exe"), "old");
+    const QString exeNew = writeFakeFile(dir.filePath("new/llama-server.exe"), "new");
+    BinaryRegistry reg;
+    // El storage (AppData test mode) persiste entre corridas: contar el delta, no
+    // el total absoluto.
+    const int before = reg.rowCount(QModelIndex());
+    const QString idOld = reg.add(exeOld, "llama-server (official b9000)", "official", "cuda", "b9000");
+    const QString idNew = reg.add(exeNew, "llama-server (official b9274)", "official", "cuda", "b9274");
+    // Dos entradas distintas; el viejo sigue presente tras agregar el nuevo.
+    QCOMPARE(reg.rowCount(QModelIndex()), before + 2);
+    QVERIFY(idOld != idNew);
+    QCOMPARE(reg.get(idOld).value("versionHint").toString(), QStringLiteral("b9000"));
+    QCOMPARE(reg.get(idNew).value("versionHint").toString(), QStringLiteral("b9274"));
+    QCOMPARE(reg.get(idOld).value("path").toString(), exeOld);
 }
 
 void RegistriesTests::binaryRegistry_supportedFlagsAndHash()

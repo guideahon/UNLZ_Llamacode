@@ -1182,6 +1182,7 @@ try {
     Write-Output 'STATUS: Consultando release latest de llama.cpp...'
     $api = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
     $rel = Invoke-RestMethod -Uri $api -Headers $headers
+    $tag = [string]$rel.tag_name
     $assets = @($rel.assets)
     $pick = $assets | Where-Object { $_.name -match 'bin-win-cuda.*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1
     if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'bin-win-(avx2|cpu|openblas).*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1 }
@@ -1208,6 +1209,7 @@ try {
     $exe = Get-ChildItem -Path $extract -Recurse -Filter 'llama-server.exe' | Select-Object -First 1
     if (-not $exe) { throw 'llama-server.exe not found after extraction.' }
     Write-Output 'STATUS: Registrando binario en LlamaCode...'
+    if ($tag) { Write-Output ('TAG: ' + $tag) }
     Write-Output $exe.FullName
 } catch {
     Write-Output ('ERROR: ' + $_.Exception.Message)
@@ -1279,17 +1281,31 @@ try {
         QString installedPath;
         QString message;
         if (exitCode == 0) {
-            // Last non-empty line that isn't a STATUS/ERROR prefix is the exe path
+            // Last non-empty line that isn't a STATUS/ERROR/TAG prefix is the exe
+            // path; the TAG line (si vino) trae el build tag del release (ej. b9274).
             const QStringList lines = stdOut.split('\n', Qt::SkipEmptyParts);
+            QString releaseTag;
             for (int i = lines.size() - 1; i >= 0; --i) {
                 const QString t = lines[i].trimmed();
-                if (!t.startsWith("STATUS:") && !t.startsWith("ERROR:") && !t.isEmpty()) {
+                if (t.startsWith("TAG:")) {
+                    if (releaseTag.isEmpty()) releaseTag = t.mid(4).trimmed();
+                    continue;
+                }
+                if (!t.startsWith("STATUS:") && !t.startsWith("ERROR:") && !t.isEmpty()
+                    && installedPath.isEmpty()) {
                     installedPath = t;
-                    break;
                 }
             }
             if (QFileInfo::exists(installedPath)) {
-                const QString id = m_binaries.add(installedPath, "llama-server (official latest)", "official", "cuda", "latest");
+                // Nombre y versionHint con el tag real para distinguir builds: los
+                // binarios viejos NUNCA se reemplazan (un perfil puede rendir mejor
+                // en uno previo), así que el catálogo es append-only y necesita que
+                // cada entrada sea identificable.
+                const QString tag = releaseTag.isEmpty() ? QStringLiteral("latest") : releaseTag;
+                const QString name = releaseTag.isEmpty()
+                    ? QStringLiteral("llama-server (official latest)")
+                    : QStringLiteral("llama-server (official %1)").arg(releaseTag);
+                const QString id = m_binaries.add(installedPath, name, "official", "cuda", tag);
                 if (!id.isEmpty()) {
                     ok = true;
                     message = "Official llama.cpp binary installed and registered.";
@@ -7208,7 +7224,11 @@ QVector<TunableParam> buildTuneParams(bool hasDraft = false)
     QVector<TunableParam> params = {
         {ParamSpec::categorical("ngl", {"0", "20", "40", "99"}), "-ngl", false},
         {ParamSpec::categorical("batch", {"256", "512", "1024", "2048"}), "-b", false},
-        {ParamSpec::categorical("ubatch", {"128", "256", "512"}), "-ub", false},
+        // ubatch alto solía costar mucha VRAM (el compute graph escala con -ub).
+        // La máscara FA en f16 (llama.cpp #23764, ~2x menos con MTP) lo abarata, así
+        // que ahora exploramos 1024/2048: con flash-attn on suelen rendir más TPS sin
+        // OOM. Los trials que igual no entren fallan/puntúan bajo y el TPE los descarta.
+        {ParamSpec::categorical("ubatch", {"128", "256", "512", "1024", "2048"}), "-ub", false},
         {ParamSpec::categorical("flash-attn", {"off", "on"}), "--flash-attn", true},
         {ParamSpec::categorical("cache-type-k", {"f16", "q8_0", "q4_0"}, true),
          "--cache-type-k", false},
