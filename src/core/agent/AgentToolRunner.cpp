@@ -342,6 +342,66 @@ void AgentToolRunner::setTeacherConfig(const QString &url, const QString &model,
     m_teacherModel = model.trimmed();
     m_teacherKey = key.trimmed();
 }
+void AgentToolRunner::setMasterCli(const QString &kind, const QString &cliName,
+                                   const QString &cliPath, bool applyEdits, int timeoutSec)
+{
+    m_masterKind = kind.trimmed().isEmpty() ? QStringLiteral("none") : kind.trimmed();
+    m_masterCliName = cliName.trimmed();
+    m_masterCliPath = cliPath.trimmed();
+    m_masterApplyEdits = applyEdits;
+    m_masterTimeoutS = timeoutSec > 0 ? timeoutSec : 300;
+}
+
+// Invoca claude-code / codex en modo no-interactivo, bloqueante. cwd = proyecto.
+QString AgentToolRunner::runMasterCli(const QString &question, const QString &context,
+                                      const QString &cwd, bool *ok)
+{
+    if (m_masterCliPath.isEmpty())
+        return QStringLiteral("[ask_teacher: CLI maestro '%1' no encontrado en PATH. "
+                              "Instalalo o configurá el maestro en el perfil.]").arg(m_masterCliName);
+
+    QString prompt = question;
+    if (!context.isEmpty())
+        prompt = QStringLiteral("Contexto:\n%1\n\nProblema:\n%2").arg(context, question);
+    if (!m_masterApplyEdits)
+        prompt += QStringLiteral("\n\nNO modifiques archivos. Devolvé sólo un plan/solución concreta.");
+    else
+        prompt += QStringLiteral("\n\nResolvé el problema en el proyecto (podés editar archivos). "
+                                 "Al terminar resumí qué cambiaste.");
+
+    QStringList args;
+    if (m_masterCliName == QLatin1String("claude")) {
+        // Claude Code modo print: respuesta a stdout y termina.
+        args << QStringLiteral("-p") << prompt;
+        if (m_masterApplyEdits)
+            args << QStringLiteral("--permission-mode") << QStringLiteral("acceptEdits");
+    } else if (m_masterCliName == QLatin1String("codex")) {
+        // Codex modo no-interactivo.
+        args << QStringLiteral("exec");
+        if (m_masterApplyEdits) args << QStringLiteral("--full-auto");
+        args << prompt;
+    } else {
+        return QStringLiteral("[ask_teacher: CLI maestro desconocido: %1]").arg(m_masterCliName);
+    }
+
+    QProcess proc;
+    if (!cwd.isEmpty()) proc.setWorkingDirectory(cwd);
+    proc.setProcessChannelMode(QProcess::MergedChannels);
+    proc.start(m_masterCliPath, args);
+    if (!proc.waitForStarted(10000))
+        return QStringLiteral("[ask_teacher: no se pudo iniciar %1]").arg(m_masterCliName);
+    if (!proc.waitForFinished(m_masterTimeoutS * 1000)) {
+        proc.kill();
+        proc.waitForFinished(2000);
+        return QStringLiteral("[ask_teacher: el maestro %1 superó el timeout de %2s]")
+            .arg(m_masterCliName).arg(m_masterTimeoutS);
+    }
+    const QString out = QString::fromUtf8(proc.readAll()).trimmed();
+    if (out.isEmpty())
+        return QStringLiteral("[ask_teacher: respuesta vacía del maestro %1]").arg(m_masterCliName);
+    if (ok) *ok = true;
+    return QStringLiteral("[Respuesta del maestro %1]\n%2").arg(m_masterCliName, out);
+}
 
 void AgentToolRunner::shutdown()
 {
@@ -1192,6 +1252,10 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
         // Config por env: LLAMACODE_TEACHER_URL (req), _MODEL, _KEY (opcionales).
         const QString question = args.value(QStringLiteral("question")).toString().trimmed();
         if (question.isEmpty()) return QStringLiteral("[ask_teacher: 'question' vacía]");
+        const QString ctxArg = args.value(QStringLiteral("context")).toString();
+        // Maestro CLI (claude-code / codex) tiene prioridad si el perfil lo configuró.
+        if (m_masterKind == QLatin1String("cli"))
+            return runMasterCli(question, ctxArg, cwd, ok);
         // Config de UI (setTeacherConfig) tiene prioridad; si está vacía, env vars.
         const QString teacher = !m_teacherUrl.isEmpty()
             ? m_teacherUrl : qEnvironmentVariable("LLAMACODE_TEACHER_URL").trimmed();

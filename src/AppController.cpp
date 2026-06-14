@@ -2015,6 +2015,19 @@ void AppController::startAgent(const QString &launchProfileId)
             return;
         }
         b->setAgentTuning(m_agentSystemPrompt, m_agentTemperature >= 0.0 ? m_agentTemperature : m_resolvedProfileTemperature);
+        if (auto *cb = qobject_cast<LlamaAgentBackend *>(b)) {
+            const MasterConfig &mc = ctx.launch.master;
+            if (mc.kind == QLatin1String("cli")) {
+                const QString cliPath = m_masterCli.resolvePath(mc.cliName);
+                cb->setMasterCli(mc.kind, mc.cliName, cliPath, mc.escalation,
+                                 mc.autoAfterFails, mc.applyEdits, mc.timeoutSec);
+            } else if (mc.kind == QLatin1String("http")) {
+                cb->setTeacherConfig(mc.httpUrl, mc.httpModel, mc.httpKey);
+                cb->setMasterCli(QStringLiteral("none"), {}, {}, mc.escalation,
+                                 mc.autoAfterFails, mc.applyEdits, mc.timeoutSec);
+            }
+            // kind=="none": queda el fallback global de setTeacherConfig (ensureAgentBackend).
+        }
         const QString agentCwd = m_agentCwdOverride.isEmpty()
             ? ctx.workspace.cwd.trimmed() : m_agentCwdOverride;
         AgentContext c;

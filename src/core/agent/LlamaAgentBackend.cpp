@@ -172,6 +172,10 @@ void LlamaAgentBackend::start(const AgentContext &ctx)
     QMetaObject::invokeMethod(m_worker, "setTeacherConfig", Qt::QueuedConnection,
                               Q_ARG(QString, m_teacherUrl), Q_ARG(QString, m_teacherModel),
                               Q_ARG(QString, m_teacherKey));
+    QMetaObject::invokeMethod(m_worker, "setMasterCli", Qt::QueuedConnection,
+                              Q_ARG(QString, m_masterKind), Q_ARG(QString, m_masterCliName),
+                              Q_ARG(QString, m_masterCliPath), Q_ARG(bool, m_masterApplyEdits),
+                              Q_ARG(int, m_masterTimeoutS));
     QMetaObject::invokeMethod(m_worker, "initServers", Qt::QueuedConnection,
                               Q_ARG(QVariantList, m_mcpConfig), Q_ARG(QString, m_cwd));
     emit runningChanged();
@@ -2263,6 +2267,24 @@ void LlamaAgentBackend::setTeacherConfig(const QString &url, const QString &mode
     if (m_running && m_worker)
         QMetaObject::invokeMethod(m_worker, "setTeacherConfig", Qt::QueuedConnection,
                                   Q_ARG(QString, url), Q_ARG(QString, model), Q_ARG(QString, key));
+}
+
+void LlamaAgentBackend::setMasterCli(const QString &kind, const QString &cliName,
+                                     const QString &cliPath, const QString &escalation,
+                                     int autoAfterFails, bool applyEdits, int timeoutSec)
+{
+    m_masterKind = kind.isEmpty() ? QStringLiteral("none") : kind;
+    m_masterCliName = cliName;
+    m_masterCliPath = cliPath;
+    m_masterEscalation = escalation.isEmpty() ? QStringLiteral("manual") : escalation;
+    m_masterAutoAfterFails = autoAfterFails > 0 ? autoAfterFails : 3;
+    m_masterApplyEdits = applyEdits;
+    m_masterTimeoutS = timeoutSec > 0 ? timeoutSec : 300;
+    if (m_running && m_worker)
+        QMetaObject::invokeMethod(m_worker, "setMasterCli", Qt::QueuedConnection,
+                                  Q_ARG(QString, m_masterKind), Q_ARG(QString, m_masterCliName),
+                                  Q_ARG(QString, m_masterCliPath), Q_ARG(bool, m_masterApplyEdits),
+                                  Q_ARG(int, m_masterTimeoutS));
 }
 
 // ───────────────────────────── MCP / Worker ──────────────────────────────

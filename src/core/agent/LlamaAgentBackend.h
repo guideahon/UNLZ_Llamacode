@@ -86,6 +86,11 @@ public:
 
     // Config del modelo maestro (tool ask_teacher). Se reenvía al worker.
     void setTeacherConfig(const QString &url, const QString &model, const QString &key);
+    // Config de maestro tipo CLI (claude-code / codex). Se reenvía al worker.
+    // escalation: "manual"|"auto"|"both"; autoAfterFails dispara el escalado auto.
+    void setMasterCli(const QString &kind, const QString &cliName, const QString &cliPath,
+                      const QString &escalation, int autoAfterFails,
+                      bool applyEdits, int timeoutSec);
 
     // Memoria por proyecto: ruta del archivo de memoria dentro de un cwd.
     static QString memoryFilePath(const QString &cwd);
@@ -196,6 +201,12 @@ private:
 
     QSet<QString> m_disabledTools;   // tools off por el usuario (built-in y MCP)
     QString m_teacherUrl, m_teacherModel, m_teacherKey;  // ask_teacher (config UI)
+    // Maestro CLI (claude-code / codex) por perfil.
+    QString m_masterKind = QStringLiteral("none");
+    QString m_masterCliName, m_masterCliPath, m_masterEscalation = QStringLiteral("manual");
+    int     m_masterAutoAfterFails = 3;
+    bool    m_masterApplyEdits = true;
+    int     m_masterTimeoutS = 300;
 
     QVariantList m_mcpConfig;        // config de servers MCP (de AppController)
     QVariantList m_mcpTools;         // cache de tool-defs MCP del worker {server,name,description,schema}

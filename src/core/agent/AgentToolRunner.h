@@ -36,6 +36,10 @@ public slots:
     void setServerBaseUrl(const QString &url);
     // Config del modelo maestro (tool ask_teacher). Vacío = usar env vars.
     void setTeacherConfig(const QString &url, const QString &model, const QString &key);
+    // Config de maestro tipo CLI (claude-code / codex). cliPath vacío = deshabilitado.
+    // Si kind=="cli" la tool ask_teacher invoca el CLI en vez del endpoint HTTP.
+    void setMasterCli(const QString &kind, const QString &cliName, const QString &cliPath,
+                      bool applyEdits, int timeoutSec);
     // Mata el run_shell en curso (cancelación real desde PARAR/steer).
     void cancelShell();
     void shutdown();
@@ -64,6 +68,15 @@ private:
     bool m_confined = true;
     QString m_serverBaseUrl;
     QString m_teacherUrl, m_teacherModel, m_teacherKey;   // ask_teacher (override de env)
+    // Maestro CLI (claude-code / codex). m_masterKind: "none"|"http"|"cli".
+    QString m_masterKind = QStringLiteral("none");
+    QString m_masterCliName, m_masterCliPath;
+    bool    m_masterApplyEdits = true;
+    int     m_masterTimeoutS = 300;
+    // Ejecuta el CLI maestro de forma bloqueante (worker thread). Devuelve stdout
+    // o un mensaje [ask_teacher: ...] de error.
+    QString runMasterCli(const QString &question, const QString &context,
+                         const QString &cwd, bool *ok);
 
     // Estado del run_shell async en curso (uno a la vez; el loop es secuencial).
     QProcess   *m_shellProc = nullptr;
