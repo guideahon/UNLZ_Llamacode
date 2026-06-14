@@ -1360,11 +1360,13 @@ void LlamaAgentBackend::processPendingCalls()
         return;
     }
 
-    // memory: 'save' muta el archivo de memoria → tratar como write (requiere
-    // aprobación). 'recall' (o sin action) es lectura pura → auto.
-    if (name == QLatin1String("memory")
-        && args.value(QStringLiteral("action")).toString().toLower() == QLatin1String("save"))
-        kind = QStringLiteral("write");
+    // memory: 'save'/'forget' mutan el archivo de memoria → tratar como write
+    // (requiere aprobación). 'recall' (o sin action) es lectura pura → auto.
+    if (name == QLatin1String("memory")) {
+        const QString a = args.value(QStringLiteral("action")).toString().toLower();
+        if (a == QLatin1String("save") || a == QLatin1String("forget"))
+            kind = QStringLiteral("write");
+    }
 
     // PLAN MODE: bloquear cualquier tool que mute (write/shell/mcp). Las read
     // ya están filtradas del schema, pero defendemos por si el modelo igual la pide.
@@ -2214,17 +2216,22 @@ QJsonArray LlamaAgentBackend::toolSchemas()
            QJsonArray{QStringLiteral("claims")}),
         fn(QStringLiteral("memory"),
            QStringLiteral("Memoria PERSISTENTE por CAPAS (sobrevive entre sesiones). "
-                          "action='save' guarda un hecho atómico con metadata; "
-                          "action='recall' (default) lo recupera. scope='session|project|personal', "
-                          "type='preference|decision|fact|bug'. En recall, pasá 'query' para rankear "
-                          "por relevancia y/o 'scope' para filtrar la capa. Usala para preferencias "
-                          "del usuario, decisiones de diseño y datos no obvios del repo."),
+                          "action='save' guarda un hecho atómico con metadata y PROVENANCE; "
+                          "action='recall' (default) lo recupera (rankeado por relevancia, "
+                          "confianza y recencia; ignora hechos olvidados); action='forget' marca "
+                          "hechos obsoletos. scope='session|project|personal', "
+                          "type='preference|decision|fact|bug'. En recall/forget pasá 'query' para "
+                          "matchear por keywords y/o 'scope' para filtrar la capa. Usala para "
+                          "preferencias del usuario, decisiones de diseño y datos no obvios del repo; "
+                          "'forget' cuando un hecho quedó desactualizado (memoria stale es peor que nada)."),
            QJsonObject{
-               {QStringLiteral("action"), strProp(QStringLiteral("'save' o 'recall' (default 'recall')."))},
+               {QStringLiteral("action"), strProp(QStringLiteral("'save' | 'recall' (default) | 'forget'."))},
                {QStringLiteral("content"), strProp(QStringLiteral("Hecho a guardar (sólo action='save')."))},
                {QStringLiteral("scope"), strProp(QStringLiteral("Capa: 'session'|'project'|'personal' (default 'project')."))},
                {QStringLiteral("type"), strProp(QStringLiteral("'preference'|'decision'|'fact'|'bug' (sólo save)."))},
-               {QStringLiteral("query"), strProp(QStringLiteral("Filtro por relevancia (sólo recall)."))},
+               {QStringLiteral("query"), strProp(QStringLiteral("Keywords: rankea en recall, selecciona en forget."))},
+               {QStringLiteral("source"), strProp(QStringLiteral("Provenance: de dónde salió el hecho (ej. 'user', archivo). Sólo save."))},
+               {QStringLiteral("mode"), strProp(QStringLiteral("forget: 'stale' (default, conserva historial) o 'delete'."))},
                {QStringLiteral("confidence"), QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
                    {QStringLiteral("description"), QStringLiteral("Confianza 0..1 (sólo save, default 0.8).")}}}},
            QJsonArray{}),

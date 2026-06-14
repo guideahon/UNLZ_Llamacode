@@ -18,12 +18,21 @@ namespace MemoryStore {
 // Ruta del JSONL estructurado para un cwd dado.
 QString jsonlPath(const QString &cwd);
 
-// Guarda un hecho atómico. Devuelve un mensaje de estado para la tool.
+// Guarda un hecho atómico. 'source' = PROVENANCE (de dónde salió el hecho:
+// nombre de sesión/tarea, archivo, "user", etc.); opcional. Cada hecho recibe
+// un 'id' corto estable. Devuelve un mensaje de estado para la tool.
 QString save(const QString &cwd, const QString &content, const QString &scope,
-             const QString &type, double confidence);
+             const QString &type, double confidence, const QString &source);
 
-// Recupera hechos. Si query != "", rankea por solapamiento de keywords;
-// si scope != "", filtra por capa. Devuelve top-k formateado (markdown).
+// Recupera hechos NO obsoletos. Si query != "", rankea por solapamiento de
+// keywords + sesgo por confianza y recencia; si scope != "", filtra por capa.
+// Devuelve top-k formateado (markdown) con id y provenance.
 QString recall(const QString &cwd, const QString &query, const QString &scope, int k);
+
+// OLVIDO: marca como obsoletos (o borra) los hechos que matchean 'query'
+// (keywords sobre content) y/o 'scope'. mode='stale' (default, conserva
+// historial) o 'delete' (reescribe el JSONL sin ellos). Devuelve estado.
+QString forget(const QString &cwd, const QString &query, const QString &scope,
+               const QString &mode);
 
 }  // namespace MemoryStore

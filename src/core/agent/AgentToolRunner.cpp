@@ -1217,7 +1217,8 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
             if (content.isEmpty()) return QStringLiteral("[memory save: 'content' vacío]");
             const QString type = args.value(QStringLiteral("type")).toString();
             const double conf = args.value(QStringLiteral("confidence")).toDouble();
-            const QString res = MemoryStore::save(cwd, content, scope, type, conf);
+            const QString source = args.value(QStringLiteral("source")).toString();
+            const QString res = MemoryStore::save(cwd, content, scope, type, conf, source);
             // Espejo en memory.md para inspección humana / compatibilidad.
             const QString mdPath = LlamaAgentBackend::memoryFilePath(cwd);
             QDir().mkpath(QFileInfo(mdPath).absolutePath());
@@ -1227,6 +1228,14 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
                               .arg(QDateTime::currentDateTime().toString(Qt::ISODate), content)).toUtf8());
                 md.close();
             }
+            if (ok) *ok = true;
+            return res;
+        }
+        if (action == QLatin1String("forget")) {
+            // Olvido: marca stale (default) o borra hechos que matchean query/scope.
+            const QString query = args.value(QStringLiteral("query")).toString();
+            const QString mode = args.value(QStringLiteral("mode")).toString();
+            const QString res = MemoryStore::forget(cwd, query, scope, mode);
             if (ok) *ok = true;
             return res;
         }
