@@ -21,7 +21,13 @@ EffectiveProfile EffectiveProfileBuilder::build(const Context &ctx)
     applyBackend(ctx.backend, args, env, result.warnings, result.blockingErrors);
     applyModel(ctx.model, ctx.catalogModel, ctx.mmprojModel, ctx.draftModel,
                ctx.binary, args, result.warnings, result.blockingErrors);
-    applyRuntime(ctx.runtime, ctx.binary, args, result.warnings, result.blockingErrors);
+    // Speculative decoding activo: hay draft model resuelto. Con MTP, un KV-cache
+    // cuantizado (q4_0/q8_0) colapsa el draft acceptance ~a 0 (necesita f16); ver
+    // reportes de comunidad sobre Gemma4 QAT+MTP. Forzamos f16 y avisamos.
+    const bool specDecoding =
+        !ctx.model.draftModelId.isEmpty() && ctx.draftModel.isAvailable;
+    applyRuntime(ctx.runtime, ctx.binary, args, result.warnings,
+                 result.blockingErrors, specDecoding);
 
     // Harness env
     for (auto it = ctx.harness.env.begin(); it != ctx.harness.env.end(); ++it)
@@ -104,10 +110,24 @@ void EffectiveProfileBuilder::applyModel(const ModelProfile &mp,
     }
 
     if (!mp.draftModelId.isEmpty()) {
-        if (!draft.isAvailable)
+        if (!draft.isAvailable) {
             warnings.append("Draft model unavailable, speculative decoding disabled.");
-        else
+        } else {
             addFlag(bin, "--draft-model", draft.absolutePath, args, warnings);
+            // Flags de speculative decoding / MTP. Solo se emiten los seteados;
+            // vacío/0 = default del binario.
+            if (!mp.specType.isEmpty())
+                addFlag(bin, "--spec-type", mp.specType, args, warnings);
+            if (mp.specDraftNMax > 0)
+                addFlag(bin, "--spec-draft-n-max",
+                        QString::number(mp.specDraftNMax), args, warnings);
+            if (!mp.specDraftNgl.isEmpty())
+                addFlag(bin, "--spec-draft-ngl", mp.specDraftNgl, args, warnings);
+            if (!mp.specDraftTypeK.isEmpty())
+                addFlag(bin, "--spec-draft-type-k", mp.specDraftTypeK, args, warnings);
+            if (!mp.specDraftTypeV.isEmpty())
+                addFlag(bin, "--spec-draft-type-v", mp.specDraftTypeV, args, warnings);
+        }
     }
 }
 
@@ -115,7 +135,8 @@ void EffectiveProfileBuilder::applyRuntime(const RuntimePreset &rt,
                                            const LlamaBinary &bin,
                                            QStringList &args,
                                            QStringList &warnings,
-                                           QStringList &errors)
+                                           QStringList &errors,
+                                           bool specDecoding)
 {
     Q_UNUSED(errors)
     args << "--ctx-size" << QString::number(rt.ctx);
@@ -143,8 +164,15 @@ void EffectiveProfileBuilder::applyRuntime(const RuntimePreset &rt,
     if (rt.parallelSlots > 1)
         args << "--parallel" << QString::number(rt.parallelSlots);
 
-    if (!rt.cacheType.isEmpty() && rt.cacheType != "f16")
-        addFlag(bin, "--cache-type-k", rt.cacheType, args, warnings);
+    if (!rt.cacheType.isEmpty() && rt.cacheType != "f16") {
+        if (specDecoding) {
+            warnings.append(QStringLiteral(
+                "Speculative decoding active: KV cache quant '%1' kills draft "
+                "acceptance; forcing f16.").arg(rt.cacheType));
+        } else {
+            addFlag(bin, "--cache-type-k", rt.cacheType, args, warnings);
+        }
+    }
 }
 
 void EffectiveProfileBuilder::addFlag(const LlamaBinary &bin, const QString &flag,

@@ -24,6 +24,13 @@ struct ModelProfile {
     QString modelId;
     QString mmprojId;
     QString draftModelId;
+    // Speculative decoding / MTP (solo aplican si draftModelId != ""). Ver los
+    // flags spec-draft de llama-server. Vacío/0 = no emitir (default del binario).
+    QString specType;          // "" | "draft-mtp" (Gemma4 QAT assistant heads)
+    int     specDraftNMax = 0; // --spec-draft-n-max (0 = no emitir)
+    QString specDraftNgl;      // --spec-draft-ngl  ("" | "all" | número de capas)
+    QString specDraftTypeK;    // --spec-draft-type-k ("" | "q8_0" | "f16"...)
+    QString specDraftTypeV;    // --spec-draft-type-v
 
     QJsonObject toJson() const;
     static ModelProfile fromJson(const QJsonObject &obj);

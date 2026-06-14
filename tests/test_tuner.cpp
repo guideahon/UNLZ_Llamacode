@@ -5,6 +5,7 @@
 
 #include <QtTest>
 #include "core/tuner/AutoTuner.h"
+#include "core/tuner/TunerEngine.h"
 
 using namespace tuner;
 
@@ -16,6 +17,7 @@ private slots:
     void paramSpec_categorical();
     void computeLoss_penalizesSubGate();
     void run_qualityGateAvoidsLowestQuant();
+    void tunedArgs_emitsSpecDraftNMax();
 };
 
 void TunerTests::paramSpec_intRange()
@@ -67,6 +69,19 @@ void TunerTests::run_qualityGateAvoidsLowestQuant()
     const Trial best = t.run(eval);
     QVERIFY(best.config.at("cache") != 2);           // NO colapsó al peor quant
     QVERIFY(best.result.quality >= s.qualityGate);
+}
+
+// spec-draft-n-max (MTP) como param afinable: el índice elegido se mapea al flag
+// de llama-server. intRange(1,5) idx 1 = "2".
+void TunerTests::tunedArgs_emitsSpecDraftNMax()
+{
+    QVector<TunableParam> params{
+        {ParamSpec::intRange("spec-draft-n-max", 1, 5, 1), "--spec-draft-n-max", false},
+    };
+    Config cfg; cfg["spec-draft-n-max"] = 1;  // -> "2"
+    const QStringList args = TunerEngine::tunedArgs(params, cfg);
+    const int i = args.indexOf("--spec-draft-n-max");
+    QVERIFY(i >= 0 && args[i + 1] == "2");
 }
 
 QTEST_MAIN(TunerTests)

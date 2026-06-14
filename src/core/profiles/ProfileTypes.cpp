@@ -43,6 +43,9 @@ QJsonObject ModelProfile::toJson() const {
     QJsonObject o;
     o["id"] = id; o["name"] = name; o["modelId"] = modelId;
     o["mmprojId"] = mmprojId; o["draftModelId"] = draftModelId;
+    o["specType"] = specType; o["specDraftNMax"] = specDraftNMax;
+    o["specDraftNgl"] = specDraftNgl;
+    o["specDraftTypeK"] = specDraftTypeK; o["specDraftTypeV"] = specDraftTypeV;
     return o;
 }
 ModelProfile ModelProfile::fromJson(const QJsonObject &o) {
@@ -51,6 +54,11 @@ ModelProfile ModelProfile::fromJson(const QJsonObject &o) {
     p.modelId = o["modelId"].toString();
     p.mmprojId = o["mmprojId"].toString();
     p.draftModelId = o["draftModelId"].toString();
+    p.specType = o["specType"].toString();
+    p.specDraftNMax = o["specDraftNMax"].toInt(0);
+    p.specDraftNgl = o["specDraftNgl"].toString();
+    p.specDraftTypeK = o["specDraftTypeK"].toString();
+    p.specDraftTypeV = o["specDraftTypeV"].toString();
     return p;
 }
 QString ModelProfile::generateId() { return newId(); }

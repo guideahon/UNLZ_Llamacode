@@ -35,7 +35,8 @@ private:
     static void applyRuntime(const RuntimePreset &rt,
                              const LlamaBinary &bin,
                              QStringList &args,
-                             QStringList &warnings, QStringList &errors);
+                             QStringList &warnings, QStringList &errors,
+                             bool specDecoding = false);
 
     static void addFlag(const LlamaBinary &bin, const QString &flag,
                         const QString &value, QStringList &args,

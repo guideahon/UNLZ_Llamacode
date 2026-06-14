@@ -7197,10 +7197,10 @@ namespace {
 // Espacio de búsqueda por defecto: flags ampliamente soportados por llama-server.
 // cache-type-k/v marcados como qualityRisk: el gate de calidad impide que el
 // optimizador colapse al quant más bajo solo por velocidad.
-QVector<TunableParam> buildTuneParams()
+QVector<TunableParam> buildTuneParams(bool hasDraft = false)
 {
     using tuner::ParamSpec;
-    return {
+    QVector<TunableParam> params = {
         {ParamSpec::categorical("ngl", {"0", "20", "40", "99"}), "-ngl", false},
         {ParamSpec::categorical("batch", {"256", "512", "1024", "2048"}), "-b", false},
         {ParamSpec::categorical("ubatch", {"128", "256", "512"}), "-ub", false},
@@ -7210,6 +7210,13 @@ QVector<TunableParam> buildTuneParams()
         {ParamSpec::categorical("cache-type-v", {"f16", "q8_0", "q4_0"}, true),
          "--cache-type-v", false},
     };
+    // Si hay draft model (spec decoding / MTP), afinar spec-draft-n-max: el sweet
+    // spot del acceptance/throughput varía por modelo (p.ej. 26B→1, 12B→2-3).
+    if (hasDraft) {
+        params.append({ParamSpec::intRange("spec-draft-n-max", 1, 5, 1),
+                       "--spec-draft-n-max", false});
+    }
+    return params;
 }
 
 // Quita flags (y su valor adyacente, salvo switches) de una lista de args.
@@ -7250,7 +7257,9 @@ void AppController::startAutoTune(const QString &launchProfileId, int maxTrials,
     const QStringList effArgs = m_effectiveProfile.value(QStringLiteral("effectiveArgs")).toStringList();
     const QVariantMap effEnv = m_effectiveProfile.value(QStringLiteral("effectiveEnv")).toMap();
 
-    QVector<TunableParam> params = buildTuneParams();
+    const bool hasDraft = effArgs.contains(QStringLiteral("--draft-model"))
+                          || effArgs.contains(QStringLiteral("-md"));
+    QVector<TunableParam> params = buildTuneParams(hasDraft);
 
     // baseArgs = args efectivos menos host/port y menos los flags que vamos a
     // afinar (con sus aliases), para no duplicarlos.
@@ -7261,6 +7270,7 @@ void AppController::startAutoTune(const QString &launchProfileId, int maxTrials,
         QStringLiteral("-ub"), QStringLiteral("--ubatch-size"),
         QStringLiteral("--cache-type-k"), QStringLiteral("-ctk"),
         QStringLiteral("--cache-type-v"), QStringLiteral("-ctv"),
+        QStringLiteral("--spec-draft-n-max"),
     };
     const QSet<QString> switchFlags = {
         QStringLiteral("--flash-attn"), QStringLiteral("-fa"),

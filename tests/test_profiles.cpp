@@ -62,11 +62,18 @@ void ProfilesTests::modelProfile_jsonRoundTrip()
     ModelProfile m;
     m.id = "m1"; m.name = "qwen"; m.modelId = "cat1";
     m.mmprojId = "mm1"; m.draftModelId = "d1";
+    m.specType = "draft-mtp"; m.specDraftNMax = 3; m.specDraftNgl = "all";
+    m.specDraftTypeK = "q8_0"; m.specDraftTypeV = "q8_0";
     const ModelProfile r = ModelProfile::fromJson(m.toJson());
     QCOMPARE(r.name, m.name);
     QCOMPARE(r.modelId, m.modelId);
     QCOMPARE(r.mmprojId, m.mmprojId);
     QCOMPARE(r.draftModelId, m.draftModelId);
+    QCOMPARE(r.specType, m.specType);
+    QCOMPARE(r.specDraftNMax, m.specDraftNMax);
+    QCOMPARE(r.specDraftNgl, m.specDraftNgl);
+    QCOMPARE(r.specDraftTypeK, m.specDraftTypeK);
+    QCOMPARE(r.specDraftTypeV, m.specDraftTypeV);
 }
 
 void ProfilesTests::runtimePreset_jsonRoundTrip()

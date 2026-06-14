@@ -33,6 +33,8 @@ private slots:
     void builder_emitsHostPort();
     void builder_dropsUnsupportedFlag();
     void builder_missingModelIsBlocking();
+    void builder_emitsSpecFlags();
+    void builder_forcesF16KvWithDraft();
 };
 
 void CoreTests::inferFamily_data()
@@ -143,6 +145,61 @@ void CoreTests::builder_missingModelIsBlocking()
     ctx.catalogModel = CatalogModel{};  // sin modelo resuelto
     const EffectiveProfile ep = EffectiveProfileBuilder::build(ctx);
     QVERIFY(!ep.blockingErrors.isEmpty());
+}
+
+// Con draft model resuelto, los flags spec-draft seteados deben emitirse.
+void CoreTests::builder_emitsSpecFlags()
+{
+    auto ctx = makeCtx();
+    ctx.model.draftModelId = "d1";
+    ctx.model.specType = "draft-mtp";
+    ctx.model.specDraftNMax = 3;
+    ctx.model.specDraftNgl = "all";
+    ctx.model.specDraftTypeK = "q8_0";
+    ctx.model.specDraftTypeV = "q8_0";
+    ctx.draftModel.id = "d1";
+    ctx.draftModel.isAvailable = true;
+    ctx.draftModel.absolutePath = "C:/models/draft.gguf";
+
+    const EffectiveProfile ep = EffectiveProfileBuilder::build(ctx);
+    const QStringList &a = ep.effectiveArgs;
+    QVERIFY(a.contains("--draft-model"));
+    int i = a.indexOf("--spec-type");
+    QVERIFY(i >= 0 && a[i + 1] == "draft-mtp");
+    i = a.indexOf("--spec-draft-n-max");
+    QVERIFY(i >= 0 && a[i + 1] == "3");
+    i = a.indexOf("--spec-draft-ngl");
+    QVERIFY(i >= 0 && a[i + 1] == "all");
+    QVERIFY(a.contains("--spec-draft-type-k"));
+    QVERIFY(a.contains("--spec-draft-type-v"));
+}
+
+// Spec decoding activo + KV cache cuantizado → forzar f16 (no emitir el flag) y
+// avisar. Sin draft, el quant pasa normal.
+void CoreTests::builder_forcesF16KvWithDraft()
+{
+    // Caso sin draft: el quant se emite.
+    {
+        auto ctx = makeCtx();
+        ctx.runtime.cacheType = "q4_0";
+        const EffectiveProfile ep = EffectiveProfileBuilder::build(ctx);
+        QVERIFY(ep.effectiveArgs.contains("--cache-type-k"));
+    }
+    // Caso con draft disponible: se descarta el quant y se avisa.
+    {
+        auto ctx = makeCtx();
+        ctx.runtime.cacheType = "q4_0";
+        ctx.model.draftModelId = "d1";
+        ctx.draftModel.id = "d1";
+        ctx.draftModel.isAvailable = true;
+        ctx.draftModel.absolutePath = "C:/models/draft.gguf";
+        const EffectiveProfile ep = EffectiveProfileBuilder::build(ctx);
+        QVERIFY(!ep.effectiveArgs.contains("--cache-type-k"));
+        bool warned = false;
+        for (const QString &w : ep.warnings)
+            if (w.contains("f16")) warned = true;
+        QVERIFY(warned);
+    }
 }
 
 QTEST_MAIN(CoreTests)
