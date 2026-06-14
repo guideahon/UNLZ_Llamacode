@@ -9,6 +9,11 @@
   Proyecto institucional · Práctica Profesional Supervisada / Investigación aplicada
 </p>
 
+<p align="center">
+  🇦🇷 <strong>Español</strong> (este documento) ·
+  🇬🇧 <a href="README.en.md">English</a>
+</p>
+
 ---
 
 > **Proyecto institucional de la Universidad Nacional de Lomas de Zamora (UNLZ), Facultad de Ingeniería.**
@@ -21,6 +26,18 @@
 > Se desarrolla como base de trabajo académico y de investigación, pensado para
 > docencia, experimentación con LLMs locales y trabajo de becarios/tesistas de la
 > Facultad.
+
+## Índice
+
+- [Instalación ultra-rápida](#instalación-ultra-rápida-banco-de-pruebas-aislado)
+- [Qué es](#qué-es) · [Estado actual](#estado-actual) · [Objetivo](#objetivo) · [Foco diferencial](#foco-diferencial)
+- [Arquitectura](#arquitectura)
+- [Diseño Multi-llama.cpp](#diseño-multi-llamacpp) · [Multi-GGUF roots](#diseño-multi-gguf-roots) · [Multi-perfiles](#diseño-multi-perfiles-compuestos)
+- [Cookbook de modelos (hardware-fit)](#cookbook-de-modelos-recomendaciones-hardware-fit)
+- [Chat integrado](#chat-integrado) · [Harness de Agente](#harness-de-agente-opencode) · [Lanzamiento del servidor](#lanzamiento-del-servidor-launchpage)
+- [Process Lifecycle](#process-lifecycle) · [Stack técnico](#stack-técnico) · [Build](#build) · [Estructura del repo](#estructura-del-repo)
+- [Fases](#fases) · [Benchmarking](#benchmarking) · [Auto-tuning](#auto-tuning-de-parámetros) · [Seguridad operativa](#seguridad-operativa)
+- [Agradecimientos](#agradecimientos)
 
 ## Instalación ultra-rápida (banco de pruebas aislado)
 
@@ -57,6 +74,8 @@ Microsoft Store). **Linux** soporta apt / dnf / pacman / zypper y pide `sudo`
 para los paquetes de sistema.
 
 ---
+
+## Qué es
 
 UNLZ_Llamacode es una app nativa (Qt/QML + C++) para orquestar múltiples backends `llama.cpp`, gestionar sesiones de chat, y ejecutar harnesses de agente IA (opencode, aider) sobre repos locales.
 
