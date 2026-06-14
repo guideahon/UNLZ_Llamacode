@@ -1,5 +1,6 @@
 # Build directories
 /build/
+/build_tests/
 /build2/
 /cmake-build-*/
 /out/
@@ -79,6 +80,8 @@ BUILD_PENDING
 # Runtime artifacts
 build_log.txt
 /tools/_pid.txt
+/r.txt
+result.txt
 
 # tuner selftest build artifacts
 build_tuner/
