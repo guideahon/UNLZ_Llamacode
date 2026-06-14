@@ -75,21 +75,32 @@ void ControlApi::handleRequest(QTcpSocket *sock, const QByteArray &method,
 {
     QByteArray resp;
     const QString p = path.section('?', 0, 0);
+    const QUrlQuery query(path.section('?', 1));
+    // target: query param (GET) o campo JSON (POST). Ruta de QObject* hijos.
+    QString targetPath = query.queryItemValue(QStringLiteral("target"));
+    if (method == "POST" && targetPath.isEmpty())
+        targetPath = QJsonDocument::fromJson(body).object()
+                         .value(QStringLiteral("target")).toString();
 
     if (p == QLatin1String("/health")) {
         resp = httpResponse(200, "{\"ok\":true}");
     } else if (p == QLatin1String("/methods")) {
-        resp = httpResponse(200, jsonMethods());
+        resp = httpResponse(200, jsonMethods(targetPath));
     } else if (p == QLatin1String("/prop")) {
-        const QUrlQuery q(path.section('?', 1));
-        resp = httpResponse(200, jsonProperty(q.queryItemValue(QStringLiteral("name"))));
+        QObject *t = resolveTarget(targetPath);
+        resp = t ? httpResponse(200, jsonProperty(t, query.queryItemValue(QStringLiteral("name"))))
+                 : httpResponse(400, "{\"error\":\"target desconocido\"}");
     } else if (p == QLatin1String("/setprop") && method == "POST") {
         bool ok = false;
-        const QByteArray out = setProperty(body, &ok);
+        QObject *t = resolveTarget(targetPath);
+        const QByteArray out = t ? setProperty(t, body, &ok)
+                                 : QByteArray("{\"error\":\"target desconocido\"}");
         resp = httpResponse(ok ? 200 : 400, out);
     } else if (p == QLatin1String("/invoke") && method == "POST") {
         bool ok = false;
-        const QByteArray out = invokeMethod(body, &ok);
+        QObject *t = resolveTarget(targetPath);
+        const QByteArray out = t ? invokeMethod(t, body, &ok)
+                                 : QByteArray("{\"error\":\"target desconocido\"}");
         resp = httpResponse(ok ? 200 : 400, out);
     } else {
         resp = httpResponse(404, "{\"error\":\"unknown endpoint\"}");
@@ -100,9 +111,41 @@ void ControlApi::handleRequest(QTcpSocket *sock, const QByteArray &method,
     sock->disconnectFromHost();
 }
 
-QByteArray ControlApi::jsonMethods() const
+QObject *ControlApi::resolveTarget(const QString &path) const
 {
-    const QMetaObject *mo = m_target->metaObject();
+    QObject *cur = m_target;
+    if (path.isEmpty()) return cur;
+    const QStringList segs = path.split('.', Qt::SkipEmptyParts);
+    for (const QString &seg : segs) {
+        if (!cur) return nullptr;
+        const QVariant v = cur->property(seg.toUtf8().constData());
+        QObject *child = v.value<QObject *>();
+        if (!child) return nullptr;
+        cur = child;
+    }
+    return cur;
+}
+
+// Lista las propiedades que son QObject* (sub-targets navegables headless).
+static QJsonArray childTargets(QObject *obj)
+{
+    QJsonArray out;
+    const QMetaObject *mo = obj->metaObject();
+    for (int i = mo->propertyOffset(); i < mo->propertyCount(); ++i) {
+        const QMetaProperty pr = mo->property(i);
+        const QVariant v = obj->property(pr.name());
+        if (v.value<QObject *>())
+            out.append(QString::fromUtf8(pr.name()));
+    }
+    return out;
+}
+
+QByteArray ControlApi::jsonMethods(const QString &targetPath) const
+{
+    QObject *target = resolveTarget(targetPath);
+    if (!target)
+        return "{\"error\":\"target desconocido\"}";
+    const QMetaObject *mo = target->metaObject();
     QJsonArray methods;
     for (int i = mo->methodOffset(); i < mo->methodCount(); ++i) {
         const QMetaMethod m = mo->method(i);
@@ -130,13 +173,14 @@ QByteArray ControlApi::jsonMethods() const
     }
     return QJsonDocument(QJsonObject{
         {QStringLiteral("methods"), methods},
-        {QStringLiteral("properties"), props}
+        {QStringLiteral("properties"), props},
+        {QStringLiteral("targets"), childTargets(target)}
     }).toJson(QJsonDocument::Compact);
 }
 
-QByteArray ControlApi::jsonProperty(const QString &name) const
+QByteArray ControlApi::jsonProperty(QObject *target, const QString &name) const
 {
-    const QVariant v = m_target->property(name.toUtf8().constData());
+    const QVariant v = target->property(name.toUtf8().constData());
     if (!v.isValid())
         return "{\"error\":\"propiedad desconocida: " + name.toUtf8() + "\"}";
     const QJsonValue jv = QJsonValue::fromVariant(v);
@@ -146,21 +190,21 @@ QByteArray ControlApi::jsonProperty(const QString &name) const
     }).toJson(QJsonDocument::Compact);
 }
 
-QByteArray ControlApi::setProperty(const QByteArray &jsonBody, bool *ok) const
+QByteArray ControlApi::setProperty(QObject *target, const QByteArray &jsonBody, bool *ok) const
 {
     if (ok) *ok = false;
     const QJsonObject req = QJsonDocument::fromJson(jsonBody).object();
     const QString name = req.value(QStringLiteral("name")).toString();
     if (name.isEmpty()) return "{\"error\":\"falta 'name'\"}";
     const QVariant val = req.value(QStringLiteral("value")).toVariant();
-    const bool done = m_target->setProperty(name.toUtf8().constData(), val);
+    const bool done = target->setProperty(name.toUtf8().constData(), val);
     if (!done)
         return "{\"error\":\"propiedad no escribible o desconocida: " + name.toUtf8() + "\"}";
     if (ok) *ok = true;
     return "{\"ok\":true}";
 }
 
-QByteArray ControlApi::invokeMethod(const QByteArray &jsonBody, bool *ok) const
+QByteArray ControlApi::invokeMethod(QObject *targetObj, const QByteArray &jsonBody, bool *ok) const
 {
     if (ok) *ok = false;
     const QJsonObject req = QJsonDocument::fromJson(jsonBody).object();
@@ -169,7 +213,7 @@ QByteArray ControlApi::invokeMethod(const QByteArray &jsonBody, bool *ok) const
     if (name.isEmpty())
         return "{\"error\":\"falta 'method'\"}";
 
-    const QMetaObject *mo = m_target->metaObject();
+    const QMetaObject *mo = targetObj->metaObject();
     QMetaMethod target;
     for (int i = 0; i < mo->methodCount(); ++i) {
         const QMetaMethod m = mo->method(i);
@@ -210,13 +254,13 @@ QByteArray ControlApi::invokeMethod(const QByteArray &jsonBody, bool *ok) const
     QVariant ret;
     bool invoked = false;
     if (retType == QMetaType::Void || retType == QMetaType::UnknownType) {
-        invoked = target.invoke(m_target, Qt::DirectConnection,
+        invoked = target.invoke(targetObj, Qt::DirectConnection,
                                 ga[0], ga[1], ga[2], ga[3], ga[4], ga[5], ga[6], ga[7]);
     } else {
         ret = QVariant(QMetaType(retType));
         const QByteArray retName = target.typeName();
         QGenericReturnArgument rga(retName.constData(), ret.data());
-        invoked = target.invoke(m_target, Qt::DirectConnection, rga,
+        invoked = target.invoke(targetObj, Qt::DirectConnection, rga,
                                 ga[0], ga[1], ga[2], ga[3], ga[4], ga[5], ga[6], ga[7]);
     }
     if (!invoked)

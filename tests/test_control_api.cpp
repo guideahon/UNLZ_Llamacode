@@ -10,14 +10,27 @@
 #include <QJsonObject>
 #include "core/ControlApi.h"
 
+// Sub-objeto hijo: emula un registry/profileManager expuesto como QObject* prop.
+class FakeChild : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString label MEMBER m_label)
+public:
+    Q_INVOKABLE QString greet(const QString &who) { return QStringLiteral("hi ") + who; }
+    QString m_label = QStringLiteral("child");
+};
+
 // Target de prueba: una propiedad escribible y un método invocable con retorno.
 class FakeTarget : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int counter MEMBER m_counter)
+    Q_PROPERTY(FakeChild* child READ child CONSTANT)
 public:
     Q_INVOKABLE int addNums(int a, int b) { return a + b; }
+    FakeChild *child() { return &m_child; }
     int m_counter = 7;
+    FakeChild m_child;
 };
 
 class ControlApiTests : public QObject
@@ -31,6 +44,11 @@ private slots:
     void setProperty();
     void invokeMethodWithReturn();
     void invokeUnknownMethodErrors();
+    void methodsListsChildTargets();
+    void getChildProperty();
+    void setChildProperty();
+    void invokeChildMethod();
+    void unknownTargetErrors();
 
 private:
     QJsonObject request(const QByteArray &method, const QString &path,
@@ -133,6 +151,42 @@ void ControlApiTests::invokeUnknownMethodErrors()
 {
     const QJsonObject o = request("POST", "/invoke",
                                   R"({"method":"nope","args":[]})");
+    QVERIFY(o.contains("error"));
+}
+
+void ControlApiTests::methodsListsChildTargets()
+{
+    const QJsonObject o = request("GET", "/methods");
+    const QJsonArray targets = o.value("targets").toArray();
+    QVERIFY(targets.contains(QJsonValue(QStringLiteral("child"))));
+}
+
+void ControlApiTests::getChildProperty()
+{
+    const QJsonObject o = request("GET", "/prop?name=label&target=child");
+    QCOMPARE(o.value("value").toString(), QStringLiteral("child"));
+}
+
+void ControlApiTests::setChildProperty()
+{
+    const QJsonObject o = request("POST", "/setprop",
+                                  R"({"target":"child","name":"label","value":"x"})");
+    QCOMPARE(o.value("ok").toBool(), true);
+    QCOMPARE(m_target.m_child.m_label, QStringLiteral("x"));
+}
+
+void ControlApiTests::invokeChildMethod()
+{
+    const QJsonObject o = request("POST", "/invoke",
+                                  R"({"target":"child","method":"greet","args":["bob"]})");
+    QCOMPARE(o.value("ok").toBool(), true);
+    QCOMPARE(o.value("result").toString(), QStringLiteral("hi bob"));
+}
+
+void ControlApiTests::unknownTargetErrors()
+{
+    const QJsonObject o = request("POST", "/invoke",
+                                  R"({"target":"nope","method":"greet","args":["x"]})");
     QVERIFY(o.contains("error"));
 }
 
