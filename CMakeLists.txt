@@ -36,6 +36,7 @@ set(SOURCES
     src/core/agent/AgentToolRunner.cpp
     src/core/agent/SubAgentRunner.cpp
     src/core/agent/MemoryStore.cpp
+    src/core/agent/MasterCli.cpp
     src/core/eval/EvalSuite.cpp
     src/core/tuner/AutoTuner.cpp
     src/core/tuner/TunerEngine.cpp

@@ -5,6 +5,7 @@
 #include "core/profiles/ProfileManager.h"
 #include "core/profiles/EffectiveProfileBuilder.h"
 #include "core/agent/IAgentBackend.h"
+#include "core/agent/MasterCli.h"
 #include "core/tuner/TunerWorker.h"
 #include <QObject>
 #include <QProcess>
@@ -269,6 +270,10 @@ public:
     Q_INVOKABLE QVariantList wipeCategories() const;
     Q_INVOKABLE bool isHarnessInstalled(const QString &adapter) const;
     Q_INVOKABLE void installHarness(const QString &adapter);
+    // Maestro CLI (supervisor): detección + metadata para la UI de Perfiles.
+    Q_INVOKABLE QStringList masterCliList() const;
+    Q_INVOKABLE QVariantMap masterCliStatus(const QString &name, bool force = false);
+    Q_INVOKABLE QString masterCliInstallCommand(const QString &name) const;
     Q_INVOKABLE void startAgent(const QString &launchProfileId);
     Q_INVOKABLE void stopAgent();
     Q_INVOKABLE void sendToAgent(const QString &text);
@@ -593,6 +598,7 @@ private:
     QString   m_agentTeacherUrl;                // ask_teacher: endpoint OpenAI-compat
     QString   m_agentTeacherModel;
     QString   m_agentTeacherKey;
+    MasterCli m_masterCli;                      // detección de CLIs maestro (claude/codex)
     int       m_agentContextUsed = 0;
     int       m_agentContextLimit = -1;
     QString   m_agentSystemPrompt;

@@ -1824,6 +1824,21 @@ void AppController::setAgentTeacherKey(const QString &key)
     emit agentTeacherChanged();
 }
 
+QStringList AppController::masterCliList() const
+{
+    return MasterCli::supported();
+}
+
+QVariantMap AppController::masterCliStatus(const QString &name, bool force)
+{
+    return m_masterCli.status(name, force);
+}
+
+QString AppController::masterCliInstallCommand(const QString &name) const
+{
+    return MasterCli::installCommand(name);
+}
+
 QVariantList AppController::agentToolCatalog() const
 {
     QVariantList out = LlamaAgentBackend::toolCatalog();
