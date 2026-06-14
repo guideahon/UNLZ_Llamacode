@@ -146,4 +146,4 @@ void CoreTests::builder_missingModelIsBlocking()
 }
 
 QTEST_MAIN(CoreTests)
-#include "test_core.moc"
+#include "test_gguf_profiles.moc"

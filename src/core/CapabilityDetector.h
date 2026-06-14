@@ -17,6 +17,7 @@ class CapabilityDetector
 public:
     static DetectedCapabilities detect(const QString &binaryPath, int timeoutMs = 15000);
 
-private:
+    // Parsea el texto de `--help` y extrae flags + alias. Público para tests
+    // unitarios (lógica pura, sin proceso). Lo usa detect() internamente.
     static DetectedCapabilities parse(const QString &helpOutput);
 };

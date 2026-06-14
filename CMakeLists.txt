@@ -12,8 +12,7 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick Sql Concurrent Network Widge
 
 qt_standard_project_setup(REQUIRES 6.4)
 
-set(SOURCES
-    src/main.cpp
+set(CORE_SOURCES
     src/AppController.cpp
     src/ThemeProvider.cpp
     src/core/LlamaBinary.cpp
@@ -76,10 +75,30 @@ set(HEADERS
     src/core/tuner/TunerWorker.h
 )
 
-qt_add_executable(LlamaCode
-    ${SOURCES}
+# ── Libreria core compartida (app + tests) ──
+# Toda la logica del nucleo vive aca para que los tests linkeen contra los mismos
+# objetos que el app, sin recompilar ni mantener listas de fuentes duplicadas.
+add_library(llamacode_core STATIC
+    ${CORE_SOURCES}
     ${HEADERS}
 )
+target_include_directories(llamacode_core PUBLIC src)
+target_link_libraries(llamacode_core PUBLIC
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Sql
+    Qt6::Concurrent
+    Qt6::Network
+    Qt6::Widgets
+)
+if (MSVC)
+    target_compile_options(llamacode_core PRIVATE /utf-8)
+endif()
+
+qt_add_executable(LlamaCode
+    src/main.cpp
+)
+target_link_libraries(LlamaCode PRIVATE llamacode_core)
 
 if (WIN32)
     target_sources(LlamaCode PRIVATE app_icon.rc)
@@ -145,25 +164,39 @@ set_target_properties(LlamaCode PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
-# ── Tests unitarios (lógica pura del núcleo) ──
+# ── Tests unit + integration ──
+# Un executable por subsistema (QtTest = 1 QTEST_MAIN por binario). Cada uno
+# linkea la lib core (mismos objetos que el app) + Qt6::Test.
+# Para agregar tests de una feature nueva: crear tests/test_<area>.cpp y sumar
+# una linea add_lc_test(<area> tests/test_<area>.cpp). Ver CLAUDE.md.
 if (BUILD_TESTS)
     enable_testing()
     find_package(Qt6 6.4 REQUIRED COMPONENTS Test)
 
-    qt_add_executable(LlamaCodeTests
-        tests/test_core.cpp
-        src/core/GGUFScanner.cpp
-        src/core/CatalogModel.cpp
-        src/core/ModelRoot.cpp
-        src/core/LlamaBinary.cpp
-        src/core/profiles/ProfileTypes.cpp
-        src/core/profiles/EffectiveProfileBuilder.cpp
-    )
-    if (MSVC)
-        target_compile_options(LlamaCodeTests PRIVATE /utf-8)
-    endif()
-    target_include_directories(LlamaCodeTests PRIVATE src)
-    target_link_libraries(LlamaCodeTests PRIVATE
-        Qt6::Core Qt6::Test)
-    add_test(NAME CoreTests COMMAND LlamaCodeTests)
+    function(add_lc_test name file)
+        qt_add_executable(${name} ${file})
+        # Subsistema consola: si no, QtTest no imprime a stdout (output perdido).
+        set_target_properties(${name} PROPERTIES WIN32_EXECUTABLE FALSE)
+        if (MSVC)
+            target_compile_options(${name} PRIVATE /utf-8)
+            target_link_options(${name} PRIVATE /SUBSYSTEM:CONSOLE /ENTRY:mainCRTStartup)
+        endif()
+        target_include_directories(${name} PRIVATE src tests)
+        target_link_libraries(${name} PRIVATE llamacode_core Qt6::Test)
+        add_test(NAME ${name} COMMAND ${name})
+    endfunction()
+
+    add_lc_test(test_gguf_profiles      tests/test_gguf_profiles.cpp)
+    add_lc_test(test_profiles           tests/test_profiles.cpp)
+    add_lc_test(test_registries         tests/test_registries.cpp)
+    add_lc_test(test_catalog            tests/test_catalog.cpp)
+    add_lc_test(test_capability         tests/test_capability.cpp)
+    add_lc_test(test_document_extractor tests/test_document_extractor.cpp)
+    add_lc_test(test_memory_graph       tests/test_memory_graph.cpp)
+    add_lc_test(test_tuner              tests/test_tuner.cpp)
+    add_lc_test(test_eval               tests/test_eval.cpp)
+    add_lc_test(test_control_api        tests/test_control_api.cpp)
+    add_lc_test(test_agent_tools        tests/test_agent_tools.cpp)
+    add_lc_test(test_master_cli         tests/test_master_cli.cpp)
+    add_lc_test(test_backends_net       tests/test_backends_net.cpp)
 endif()
