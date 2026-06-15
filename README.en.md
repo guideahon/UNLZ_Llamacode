@@ -19,9 +19,14 @@
 > **Institutional project of the National University of Lomas de Zamora (UNLZ), Faculty of Engineering.**
 >
 > UNLZ_Llamacode is a local-AI workstation: a native desktop app (Qt/QML + C++)
-> to **orchestrate `llama.cpp` models**, manage chat with persistent history, and
-> run **coding agents** over local repositories — all running on your own hardware,
-> with no dependency on cloud services.
+> that, on your own hardware and with no dependency on the cloud, covers
+> **integrated chat** with persistent history, a **coding agent harness** over
+> local repositories, **server launch** for `llama.cpp` models (multi-binary /
+> multi-GGUF roots / composable profiles), **cloud backends with encrypted
+> secrets**, **Talk mode** (voice-to-voice STT/TTS), **memory/RAG and claim
+> verification**, **master/supervisor escalation**, **mail accounts**, **browser
+> automation (Playwright)**, **attachments/documents + vision**, **Tasks**
+> (semantic macros + cron scheduler), and a **watchdog + live VRAM meter**.
 >
 > It is developed as a foundation for academic and research work, aimed at teaching,
 > experimentation with local LLMs, and the work of the Faculty's fellows/thesis

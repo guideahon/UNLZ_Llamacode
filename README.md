@@ -19,9 +19,15 @@
 > **Proyecto institucional de la Universidad Nacional de Lomas de Zamora (UNLZ), Facultad de Ingeniería.**
 >
 > UNLZ_Llamacode es una estación de trabajo de IA local: una app nativa de escritorio
-> (Qt/QML + C++) para **orquestar modelos `llama.cpp`**, gestionar chat con historial
-> persistente y ejecutar **agentes de código** sobre repositorios locales — todo
-> corriendo en hardware propio, sin depender de servicios en la nube.
+> (Qt/QML + C++) que, en hardware propio y sin depender de la nube, abarca **chat
+> integrado** con historial persistente, **harness de agente de código** sobre
+> repositorios locales, **lanzamiento del servidor** de modelos `llama.cpp`
+> (multi-binario / multi-GGUF roots / perfiles compuestos), **backends cloud con
+> secretos cifrados**, **modo Charla** (voz-a-voz STT/TTS), **memoria/RAG y
+> verificación de afirmaciones**, **maestro/supervisor (escalado)**, **cuentas de
+> correo**, **automatización de browser (Playwright)**, **adjuntos/documentos +
+> visión**, **Tasks** (macros semánticas + scheduler cron) y **watchdog + medidor
+> de VRAM en vivo**.
 >
 > Se desarrolla como base de trabajo académico y de investigación, pensado para
 > docencia, experimentación con LLMs locales y trabajo de becarios/tesistas de la
