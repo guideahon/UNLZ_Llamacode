@@ -36,7 +36,7 @@
 - [Model cookbook (hardware-fit)](#model-cookbook-hardware-fit-recommendations)
 - [Integrated chat](#integrated-chat) · [Agent harness](#agent-harness-opencode) · [Server launch](#server-launch-launchpage)
 - [Process lifecycle](#process-lifecycle) · [Tech stack](#tech-stack) · [Build](#build) · [Repo layout](#repo-layout)
-- [Phases](#phases) · [Benchmarking](#benchmarking) · [Auto-tuning](#parameter-auto-tuning) · [Operational security](#operational-security)
+- [Phases](#phases) · [Tasks (macros + scheduler)](#tasks-configurable-macros--cron-scheduler) · [Benchmarking](#benchmarking) · [Auto-tuning](#parameter-auto-tuning) · [Operational security](#operational-security)
 - [Acknowledgements](#acknowledgements)
 
 ## Ultra-fast install (isolated test bench)
@@ -178,6 +178,7 @@ LlamaCode
     ├── profiles/{backends,models,runtimes,...}.json
     ├── services.json             ← PID state for orphan detection
     ├── chat/{index.json, *.json} ← persisted chat sessions
+    ├── tasks/tasks.json          ← Tasks (macros) + their cron schedule
     └── benchmarks/               ← quality benchmark cache + run results
 ```
 
@@ -373,6 +374,50 @@ LlamaCode/
 4. **P3** ✅ opencode harness via HTTP API + sessions + projects
 5. **P4** ✅ Integrated streaming chat + persistent history + projects
 6. **P5** ✅ Built-in native coding agent (`LlamaAgentBackend`): ReAct loop against `llama-server`, tools (read/write/edit/grep/glob/list_dir/run_shell/web_fetch/task), MCP stdio, approvals, plan mode, checkpoint/rollback, parallel subagents in git worktrees, per-pattern permissions, @-mentions, images (vision)
+7. **P6** ✅ Tasks (configurable semantic macros) + in-app cron scheduler, with automatic agent lifecycle
+
+## Tasks (configurable macros + cron scheduler)
+
+A **Tasks** section (in the NavBar, above Benchmark): macros the user configures,
+saves and runs. **They are not dumb macros** — instead of recording raw
+coordinates TinyTask-style, they delegate to the AI agent: each Task stores a
+**natural-language goal** + **reference steps**, and at run time the agent
+re-derives the actions with its tools (browser MCP, shell, mail, etc.) and
+**adapts** if a button, element or file moved or got renamed.
+
+### Data model (`TaskStore`)
+
+- `id`, `name`, `description` (the goal), `profileId` (optional agent profile).
+- `steps[]`: each step `{kind, intent, ref}` with `kind` ∈
+  `instruction|browser|shell|mail|desktop`. `browser` steps record a replayable
+  skill via Playwright codegen (reuses the browser *teach* mode).
+- `scheduleEnabled` / `scheduleCron`, `lastRunAt` / `lastRunStatus`.
+- JSON persistence at `AppLocalData/LlamaCode/tasks/tasks.json`.
+- `composePrompt()` builds the goal prompt with an explicit instruction that the
+  steps are a **guide, not a literal script** (adaptive replay).
+
+### Execution (manual or scheduled)
+
+`runTask()` unifies the ▶ button and the scheduler with automatic agent lifecycle:
+
+- If the **agent is already running**, it uses it as-is (does not stop it).
+- If **no agent is up**, it auto-starts server + agent (the Task's profile or the
+  active one), runs once ready and **shuts it down** when the turn ends.
+- No assignable profile → marks `lastRun = "error"`.
+
+The lifecycle close-out relies on the `IAgentBackend::turnFinished` signal (emitted
+when the turn completes), which marks `lastRun = "ok"` and stops the auto-started
+agent.
+
+### Cron scheduler (`CronSchedule` + `TaskScheduler`)
+
+- Pure 5-field cron parser `min hour dayOfMonth month dayOfWeek`: `*`, lists
+  `a,b`, ranges `a-b`, steps `*/n` and `a-b/n`, day-of-week `0`/`7` = Sunday, OR
+  semantics of dayOfMonth/dayOfWeek when both are restricted.
+- `TaskScheduler` evaluates per minute (in-app timer, per-minute de-dup) and fires
+  `runTask` for every due Task. Global toggle persisted; runs while the app is open.
+- Examples: `0 9 * * *` (daily at 9:00) · `*/15 9-17 * * 1-5` (every 15 min, 9–17h,
+  Mon–Fri) · `0 0 1 * *` (1st of each month).
 
 ## Benchmarking
 

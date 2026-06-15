@@ -36,7 +36,7 @@
 - [Cookbook de modelos (hardware-fit)](#cookbook-de-modelos-recomendaciones-hardware-fit)
 - [Chat integrado](#chat-integrado) · [Harness de Agente](#harness-de-agente-opencode) · [Lanzamiento del servidor](#lanzamiento-del-servidor-launchpage)
 - [Process Lifecycle](#process-lifecycle) · [Stack técnico](#stack-técnico) · [Build](#build) · [Estructura del repo](#estructura-del-repo)
-- [Fases](#fases) · [Benchmarking](#benchmarking) · [Auto-tuning](#auto-tuning-de-parámetros) · [Seguridad operativa](#seguridad-operativa)
+- [Fases](#fases) · [Tasks (macros + scheduler)](#tasks-macros-configurables--scheduler-cron) · [Benchmarking](#benchmarking) · [Auto-tuning](#auto-tuning-de-parámetros) · [Seguridad operativa](#seguridad-operativa)
 - [Agradecimientos](#agradecimientos)
 
 ## Instalación ultra-rápida (banco de pruebas aislado)
@@ -178,6 +178,7 @@ LlamaCode
     ├── profiles/{backends,models,runtimes,...}.json
     ├── services.json             ← PID state para orphan detection
     ├── chat/{index.json, *.json} ← sesiones de chat persistidas
+    ├── tasks/tasks.json          ← Tasks (macros) + su programación cron
     └── benchmarks/               ← caché del benchmark de calidad + resultados de corridas
 ```
 
@@ -373,6 +374,50 @@ LlamaCode/
 4. **P3** ✅ Harness opencode via HTTP API + sesiones + proyectos
 5. **P4** ✅ Chat integrado streaming + historial persistente + proyectos
 6. **P5** ✅ Built-in coding agent nativo (`LlamaAgentBackend`): loop ReAct contra `llama-server`, tools (read/write/edit/grep/glob/list_dir/run_shell/web_fetch/task), MCP stdio, aprobaciones, plan mode, checkpoint/rollback, subagents paralelos en git worktrees, permisos por patrón, @-mentions, imágenes (visión)
+7. **P6** ✅ Tasks (macros semánticas configurables) + scheduler cron in-app, con auto ciclo de vida del agente
+
+## Tasks (macros configurables + scheduler cron)
+
+Sección **Tasks** (en la NavBar, arriba de Benchmark): macros que el usuario
+configura, guarda y ejecuta. **No son macros tontas** — no graban coordenadas
+crudas estilo TinyTask, sino que delegan en el agente IA: cada Task guarda un
+**objetivo en lenguaje natural** + **pasos de referencia**, y en la ejecución el
+agente re-deriva las acciones con sus tools (browser MCP, shell, mail, etc.) y
+**se adapta** si un botón, elemento o archivo cambió de lugar o de nombre.
+
+### Modelo de datos (`TaskStore`)
+
+- `id`, `name`, `description` (el objetivo), `profileId` (perfil de agente opcional).
+- `steps[]`: cada paso `{kind, intent, ref}` con `kind` ∈
+  `instruction|browser|shell|mail|desktop`. Los pasos `browser` graban un skill
+  reproducible vía Playwright codegen (reusa el modo *teach* del browser).
+- `scheduleEnabled` / `scheduleCron`, `lastRunAt` / `lastRunStatus`.
+- Persistencia JSON en `AppLocalData/LlamaCode/tasks/tasks.json`.
+- `composePrompt()` arma el prompt-objetivo con la consigna explícita de que los
+  pasos son **guía, no guion literal** (replay adaptativo).
+
+### Ejecución (manual o programada)
+
+`runTask()` unifica el botón ▶ y el scheduler con auto ciclo de vida del agente:
+
+- Si el **agente ya corre**, lo usa tal cual (no lo apaga).
+- Si **no hay agente**, auto-inicia servidor + agente (perfil de la Task o el
+  activo), ejecuta al quedar listo y **lo apaga** al terminar el turno.
+- Sin perfil asignable → marca `lastRun = "error"`.
+
+El cierre del ciclo se apoya en la señal `IAgentBackend::turnFinished` (emitida al
+completar el turno), que marca `lastRun = "ok"` y apaga el agente auto-iniciado.
+
+### Scheduler cron (`CronSchedule` + `TaskScheduler`)
+
+- Parser cron puro de 5 campos `min hora díaMes mes díaSem`: `*`, listas `a,b`,
+  rangos `a-b`, pasos `*/n` y `a-b/n`, día de semana `0`/`7` = domingo, semántica
+  OR de díaMes/díaSem cuando ambos están restringidos.
+- `TaskScheduler` evalúa por minuto (timer in-app, de-dup por minuto) y dispara
+  `runTask` en cada Task vencida. Toggle global persistido; corre mientras la app
+  esté abierta.
+- Ejemplos: `0 9 * * *` (9:00 diario) · `*/15 9-17 * * 1-5` (cada 15 min, 9–17h,
+  lun–vie) · `0 0 1 * *` (día 1 de cada mes).
 
 ## Benchmarking
 
