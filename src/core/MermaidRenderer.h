@@ -4,10 +4,13 @@
 #include <QSet>
 #include <QVariantList>
 
-// Renderiza bloques ```mermaid del chat a PNG vía sidecar mermaid-cli (mmdc).
-//  - Detección/split de bloques en C++ (testeable) → segments().
-//  - Render async con QProcess; cache por md5 del source en AppLocalData/mermaid.
-//  - PNG (no SVG) para que QML Image lo cargue sin depender de Qt6::Svg.
+// Renderiza bloques ```mermaid (sidecar mmdc, async) y ```svg (QSvgRenderer,
+// sincrónico) del chat a PNG.
+//  - Detección/split de bloques en C++ (testeable) → segments(): type
+//    "text" | "mermaid" | "svg".
+//  - mermaid: render async con QProcess; cache por md5 en AppLocalData/mermaid.
+//  - svg: rasterizado a PNG con QSvgRenderer → no se depende del plugin SVG de
+//    QtQuick en runtime; el pipeline PNG ya está desplegado.
 // Bloques sin cerrar (streaming) quedan como texto: no se rinde a medias.
 // Sidecar: env LLAMACODE_MMDC pisa; si no, se busca "mmdc" en PATH.
 class MermaidRenderer : public QObject
@@ -34,6 +37,11 @@ public:
     // Dispara el render async. Emite renderReady o renderFailed. Idempotente:
     // si ya hay cache emite ready directo; si está en vuelo, no relanza.
     Q_INVOKABLE void requestRender(const QString &source);
+
+    // Rasteriza un bloque ```svg a PNG (sincrónico, sin sidecar) vía QSvgRenderer.
+    // Cachea por md5 en AppLocalData/mermaid (sufijo .svg.png). Devuelve la ruta
+    // del PNG o "" si el SVG es inválido / no se pudo escribir.
+    Q_INVOKABLE QString renderSvg(const QString &source);
 
     // Helper estático para tests: split puro sin instanciar QML.
     static QVariantList splitSegments(const QString &content);

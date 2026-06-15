@@ -928,7 +928,10 @@ Item {
                                         return base + "▌"
                                     return base
                                 }
-                                readonly property bool plainOnly: delegateRoot.isTyping || !Mermaid.available || !App.mermaidEnabled
+                                // svg se rasteriza sin sidecar (QSvgRenderer), así
+                                // que parseamos aunque mmdc no esté; los bloques
+                                // mermaid sin sidecar degradan a ⚠ por su cuenta.
+                                readonly property bool plainOnly: delegateRoot.isTyping || !App.mermaidEnabled
                                 readonly property var segs: plainOnly
                                     ? [{ "type": "text", "text": bodyText }]
                                     : Mermaid.segments(bodyText)
@@ -938,14 +941,16 @@ Item {
                                     delegate: Item {
                                         width: msgBody.width
                                         readonly property bool isMermaid: modelData.type === "mermaid"
+                                        readonly property bool isSvg: modelData.type === "svg"
+                                        readonly property bool isBlock: isMermaid || isSvg
                                         readonly property string segSrc: modelData.text
-                                        height: isMermaid ? mermaidWrap.height : segText.height
+                                        height: isBlock ? mermaidWrap.height : segText.height
 
                                         TextEdit {
                                             id: segText
-                                            visible: !isMermaid
+                                            visible: !isBlock
                                             width: parent.width
-                                            text: isMermaid ? "" : modelData.text
+                                            text: isBlock ? "" : modelData.text
                                             color: {
                                                 if (delegateRoot.isTyping && delegateRoot.content.length === 0)
                                                     return Theme.textMuted
@@ -959,25 +964,36 @@ Item {
                                             selectByMouse: true
                                         }
 
-                                        // Diagrama mermaid: PNG renderizado (click = preview)
-                                        // o placeholder mientras rinde / si falla.
+                                        // Bloque mermaid (async) o svg (sincrónico):
+                                        // PNG renderizado (click = preview) o
+                                        // placeholder mientras rinde / si falla.
                                         Item {
                                             id: mermaidWrap
-                                            visible: isMermaid
+                                            visible: isBlock
                                             width: parent.width
-                                            height: isMermaid ? (diagImg.status === Image.Ready && diagImg.source != ""
+                                            height: isBlock ? (diagImg.status === Image.Ready && diagImg.source != ""
                                                                   ? diagImg.paintedHeight + 8
                                                                   : 40)
-                                                              : 0
+                                                            : 0
 
-                                            readonly property string h: isMermaid ? Mermaid.sourceHash(segSrc) : ""
-                                            readonly property string imgUrl: isMermaid ? (root.mermaidPaths[h] ?? "") : ""
-                                            readonly property string errTxt: isMermaid ? (root.mermaidErrors[h] ?? "") : ""
+                                            readonly property string h: isBlock ? Mermaid.sourceHash(segSrc) : ""
+                                            readonly property string imgUrl: isBlock ? (root.mermaidPaths[h] ?? "") : ""
+                                            readonly property string errTxt: isBlock ? (root.mermaidErrors[h] ?? "") : ""
 
                                             onHChanged: tryRender()
                                             Component.onCompleted: tryRender()
                                             function tryRender() {
-                                                if (!isMermaid || imgUrl !== "") return
+                                                if (!isBlock || imgUrl !== "") return
+                                                if (isSvg) {
+                                                    // QSvgRenderer es sincrónico: path directo.
+                                                    const p = Mermaid.renderSvg(segSrc)
+                                                    if (p !== "") {
+                                                        const m = root.mermaidPaths; m[h] = root.mermaidUrl(p); root.mermaidPaths = m
+                                                    } else {
+                                                        const e = root.mermaidErrors; e[h] = "SVG inválido"; root.mermaidErrors = e
+                                                    }
+                                                    return
+                                                }
                                                 const c = Mermaid.cachedPath(segSrc)
                                                 if (c !== "") {
                                                     const m = root.mermaidPaths; m[h] = root.mermaidUrl(c); root.mermaidPaths = m

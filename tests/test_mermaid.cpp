@@ -7,6 +7,7 @@
 
 #include <QtTest>
 #include <QSignalSpy>
+#include <QFile>
 #include <QStandardPaths>
 #include "core/MermaidRenderer.h"
 
@@ -21,9 +22,13 @@ private slots:
     void segments_textBeforeAndAfter();
     void segments_unclosedFenceStaysText();
     void segments_caseInsensitiveLang();
+    void segments_svgBlock();
+    void segments_mixedMermaidAndSvg();
     void hash_stableAndDistinct();
     void cachedPath_emptyWhenNotRendered();
     void requestRender_emitsResult();
+    void renderSvg_validProducesPng();
+    void renderSvg_invalidReturnsEmpty();
 };
 
 static QString segType(const QVariantList &l, int i)
@@ -78,6 +83,26 @@ void MermaidTests::segments_caseInsensitiveLang()
     QCOMPARE(segType(s, 0), QString("mermaid"));
 }
 
+void MermaidTests::segments_svgBlock()
+{
+    MermaidRenderer m;
+    const QVariantList s = m.segments("```svg\n<svg/>\n```");
+    QCOMPARE(s.size(), 1);
+    QCOMPARE(segType(s, 0), QString("svg"));
+    QCOMPARE(segText(s, 0), QString("<svg/>"));
+}
+
+void MermaidTests::segments_mixedMermaidAndSvg()
+{
+    MermaidRenderer m;
+    const QString in = "```mermaid\ngraph TD;A-->B;\n```\nmedio\n```svg\n<svg/>\n```";
+    const QVariantList s = m.segments(in);
+    QCOMPARE(s.size(), 3);
+    QCOMPARE(segType(s, 0), QString("mermaid"));
+    QCOMPARE(segType(s, 1), QString("text"));
+    QCOMPARE(segType(s, 2), QString("svg"));
+}
+
 void MermaidTests::hash_stableAndDistinct()
 {
     MermaidRenderer m;
@@ -109,6 +134,26 @@ void MermaidTests::requestRender_emitsResult()
         QTRY_VERIFY_WITH_TIMEOUT(failed.count() + ready.count() >= 1, 60000);
     }
     QVERIFY(failed.count() + ready.count() >= 1);
+}
+
+void MermaidTests::renderSvg_validProducesPng()
+{
+    // SVG válido → rasteriza a PNG (sincrónico, sin sidecar). Idempotente.
+    MermaidRenderer m;
+    const QString svg =
+        "<svg xmlns='http://www.w3.org/2000/svg' width='40' height='30'>"
+        "<rect width='40' height='30' fill='red'/></svg>";
+    const QString p = m.renderSvg(svg);
+    QVERIFY(!p.isEmpty());
+    QVERIFY(QFile::exists(p));
+    QVERIFY(p.endsWith(".svg.png"));
+    QCOMPARE(m.renderSvg(svg), p);  // cache hit
+}
+
+void MermaidTests::renderSvg_invalidReturnsEmpty()
+{
+    MermaidRenderer m;
+    QVERIFY(m.renderSvg("no es svg en absoluto <<<").isEmpty());
 }
 
 QTEST_MAIN(MermaidTests)

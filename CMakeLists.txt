@@ -9,7 +9,7 @@ set(CMAKE_AUTORCC ON)
 option(BUILD_TESTS "Build unit tests (LlamaCodeTests)" OFF)
 option(LC_USE_QTKEYCHAIN "Cifrar secretos vía QtKeychain (Secret Service / WinCred / macOS Keychain)" ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick Sql Concurrent Network Widgets Multimedia)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick Sql Concurrent Network Widgets Multimedia Svg)
 
 # --- QtKeychain: almacenamiento de secretos respaldado por el SO, multiplataforma.
 # Se intenta find_package (system/vcpkg); si no está y la opción está ON, se baja con
@@ -140,6 +140,7 @@ target_link_libraries(llamacode_core PUBLIC
     Qt6::Network
     Qt6::Widgets
     Qt6::Multimedia
+    Qt6::Svg
 )
 if (MSVC)
     target_compile_options(llamacode_core PRIVATE /utf-8)
@@ -240,6 +241,7 @@ target_link_libraries(LlamaCode
     Qt6::Network
     Qt6::Widgets
     Qt6::Multimedia
+    Qt6::Svg
 )
 
 set_target_properties(LlamaCode PROPERTIES

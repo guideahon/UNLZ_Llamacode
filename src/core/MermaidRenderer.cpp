@@ -4,19 +4,23 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
+#include <QPainter>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QSvgRenderer>
 #include <QVariantMap>
 
 namespace {
 
-// Fence ```mermaid ... ``` (lenguaje case-insensitive, ws opcional). El cierre
-// es ``` solo en su línea. Multiline + dotall para capturar el cuerpo.
+// Fence ```mermaid|svg ... ``` (lenguaje case-insensitive, ws opcional). El
+// cierre es ``` solo en su línea. Multiline + dotall para capturar el cuerpo.
+// group(1) = lenguaje (mermaid|svg), group(2) = cuerpo.
 QRegularExpression fenceRe()
 {
     static QRegularExpression re(
-        QStringLiteral("```[ \\t]*mermaid[ \\t]*\\r?\\n(.*?)\\r?\\n[ \\t]*```"),
+        QStringLiteral("```[ \\t]*(mermaid|svg)[ \\t]*\\r?\\n(.*?)\\r?\\n[ \\t]*```"),
         QRegularExpression::CaseInsensitiveOption |
         QRegularExpression::DotMatchesEverythingOption);
     return re;
@@ -77,8 +81,9 @@ QVariantList MermaidRenderer::splitSegments(const QString &content)
             const QString pre = content.mid(last, start - last);
             if (!pre.isEmpty()) out.append(seg(QStringLiteral("text"), pre));
         }
-        const QString body = m.captured(1).trimmed();
-        if (!body.isEmpty()) out.append(seg(QStringLiteral("mermaid"), body));
+        const QString lang = m.captured(1).toLower();
+        const QString body = m.captured(2).trimmed();
+        if (!body.isEmpty()) out.append(seg(lang, body));
         last = m.capturedEnd(0);
     }
     if (last < content.size()) {
@@ -166,4 +171,37 @@ void MermaidRenderer::requestRender(const QString &source)
     // -b transparent: fondo transparente para integrar con la burbuja.
     pc->start(exe, {QStringLiteral("-i"), in, QStringLiteral("-o"), out,
                     QStringLiteral("-b"), QStringLiteral("transparent")});
+}
+
+QString MermaidRenderer::renderSvg(const QString &source)
+{
+    const QString hash = sourceHash(source);
+    const QString out = cacheDir() + QStringLiteral("/") + hash
+                        + QStringLiteral(".svg.png");
+    if (QFileInfo::exists(out))
+        return out;
+
+    // QSvgRenderer es estático (sin scripting). Sólo refs raster locales podrían
+    // cargarse; no hay stack de red, así que no hay fetch remoto.
+    QSvgRenderer r(source.toUtf8());
+    if (!r.isValid())
+        return QString();
+
+    QSize sz = r.defaultSize();
+    if (sz.isEmpty())
+        sz = QSize(512, 512);
+
+    // x2 para nitidez al estirar a la burbuja; cap para no explotar memoria.
+    QSize px = sz * 2;
+    const int cap = 2048;
+    if (px.width() > cap || px.height() > cap)
+        px.scale(cap, cap, Qt::KeepAspectRatio);
+
+    QImage img(px, QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+    QPainter p(&img);
+    r.render(&p);
+    p.end();
+
+    return img.save(out, "PNG") ? out : QString();
 }
