@@ -355,15 +355,27 @@ bool ProfileManager::updateLaunchProfile(const QVariantMap &data)
     if (data.contains("master")) {
         const QVariantMap m = data.value("master").toMap();
         MasterConfig mc = p.master;
-        mc.kind = m.value("kind", mc.kind).toString();
-        mc.cliName = m.value("cliName", mc.cliName).toString();
-        mc.httpUrl = m.value("httpUrl", mc.httpUrl).toString();
-        mc.httpModel = m.value("httpModel", mc.httpModel).toString();
-        mc.httpKey = m.value("httpKey", mc.httpKey).toString();
         mc.escalation = m.value("escalation", mc.escalation).toString();
         mc.autoAfterFails = m.value("autoAfterFails", mc.autoAfterFails).toInt();
-        mc.applyEdits = m.value("applyEdits", mc.applyEdits).toBool();
-        mc.timeoutSec = m.value("timeoutSec", mc.timeoutSec).toInt();
+        // Cadena de fallbacks (ordenada). Reemplaza la lista entera si viene.
+        if (m.contains("fallbacks")) {
+            mc.fallbacks.clear();
+            const QVariantList arr = m.value("fallbacks").toList();
+            for (const QVariant &fv : arr) {
+                const QVariantMap fm = fv.toMap();
+                MasterFallback f;
+                f.type       = fm.value("type", "http").toString();
+                f.label      = fm.value("label").toString();
+                f.profileId  = fm.value("profileId").toString();
+                f.httpUrl    = fm.value("httpUrl").toString();
+                f.httpModel  = fm.value("httpModel").toString();
+                f.httpKeyRef = fm.value("httpKeyRef").toString();
+                f.cliName    = fm.value("cliName").toString();
+                f.applyEdits = fm.value("applyEdits", true).toBool();
+                f.timeoutSec = fm.value("timeoutSec", 300).toInt();
+                mc.fallbacks.append(f);
+            }
+        }
         p.master = mc;
     }
     if (data.contains("browserAutomation"))
@@ -371,6 +383,23 @@ bool ProfileManager::updateLaunchProfile(const QVariantMap &data)
     bool ok = m_launches.update(p);
     if (ok) { save(); emit launchesChanged(); }
     return ok;
+}
+
+// Serializa MasterConfig (cadena de fallbacks + política) a QVariantMap para QML.
+static QVariantMap masterToVariant(const MasterConfig &mc)
+{
+    QVariantList arr;
+    for (const MasterFallback &f : mc.fallbacks) {
+        arr.append(QVariantMap{
+            {"type", f.type}, {"label", f.label}, {"profileId", f.profileId},
+            {"httpUrl", f.httpUrl}, {"httpModel", f.httpModel},
+            {"httpKeyRef", f.httpKeyRef}, {"cliName", f.cliName},
+            {"applyEdits", f.applyEdits}, {"timeoutSec", f.timeoutSec}});
+    }
+    return QVariantMap{
+        {"fallbacks", arr},
+        {"escalation", mc.escalation},
+        {"autoAfterFails", mc.autoAfterFails}};
 }
 
 QVariantMap ProfileManager::getLaunchProfile(const QString &id) const
@@ -387,13 +416,7 @@ QVariantMap ProfileManager::getLaunchProfile(const QString &id) const
             {"workspaceProfileId", p.workspaceProfileId},
             {"extraArgs", p.extraArgs},
             {"browserAutomation", p.browserAutomation},
-            {"master", QVariantMap{
-                {"kind", p.master.kind}, {"cliName", p.master.cliName},
-                {"httpUrl", p.master.httpUrl}, {"httpModel", p.master.httpModel},
-                {"httpKey", p.master.httpKey}, {"escalation", p.master.escalation},
-                {"autoAfterFails", p.master.autoAfterFails},
-                {"applyEdits", p.master.applyEdits},
-                {"timeoutSec", p.master.timeoutSec}}}};
+            {"master", masterToVariant(p.master)}};
 }
 
 void ProfileManager::setLaunchFavorite(const QString &id, bool favorite)

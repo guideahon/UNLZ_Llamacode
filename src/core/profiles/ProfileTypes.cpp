@@ -138,26 +138,66 @@ WorkspaceProfile WorkspaceProfile::fromJson(const QJsonObject &o) {
 }
 QString WorkspaceProfile::generateId() { return newId(); }
 
+// ---- MasterFallback ----
+QJsonObject MasterFallback::toJson() const {
+    QJsonObject o;
+    o["type"] = type; o["label"] = label;
+    o["profileId"] = profileId;
+    o["httpUrl"] = httpUrl; o["httpModel"] = httpModel; o["httpKeyRef"] = httpKeyRef;
+    o["cliName"] = cliName;
+    o["applyEdits"] = applyEdits; o["timeoutSec"] = timeoutSec;
+    return o;
+}
+MasterFallback MasterFallback::fromJson(const QJsonObject &o) {
+    MasterFallback f;
+    f.type = o["type"].toString("http");
+    f.label = o["label"].toString();
+    f.profileId = o["profileId"].toString();
+    f.httpUrl = o["httpUrl"].toString();
+    f.httpModel = o["httpModel"].toString();
+    f.httpKeyRef = o["httpKeyRef"].toString();
+    f.cliName = o["cliName"].toString();
+    f.applyEdits = o["applyEdits"].toBool(true);
+    f.timeoutSec = o["timeoutSec"].toInt(300);
+    return f;
+}
+
 // ---- MasterConfig ----
 QJsonObject MasterConfig::toJson() const {
     QJsonObject o;
-    o["kind"] = kind; o["cliName"] = cliName;
-    o["httpUrl"] = httpUrl; o["httpModel"] = httpModel; o["httpKey"] = httpKey;
+    QJsonArray arr;
+    for (const MasterFallback &f : fallbacks) arr.append(f.toJson());
+    o["fallbacks"] = arr;
     o["escalation"] = escalation; o["autoAfterFails"] = autoAfterFails;
-    o["applyEdits"] = applyEdits; o["timeoutSec"] = timeoutSec;
     return o;
 }
 MasterConfig MasterConfig::fromJson(const QJsonObject &o) {
     MasterConfig m;
-    m.kind = o["kind"].toString("none");
-    m.cliName = o["cliName"].toString();
-    m.httpUrl = o["httpUrl"].toString();
-    m.httpModel = o["httpModel"].toString();
-    m.httpKey = o["httpKey"].toString();
     m.escalation = o["escalation"].toString("manual");
     m.autoAfterFails = o["autoAfterFails"].toInt(3);
-    m.applyEdits = o["applyEdits"].toBool(true);
-    m.timeoutSec = o["timeoutSec"].toInt(300);
+    if (o.contains("fallbacks")) {
+        for (const QJsonValue &v : o["fallbacks"].toArray())
+            m.fallbacks.append(MasterFallback::fromJson(v.toObject()));
+        return m;
+    }
+    // --- Migración legacy: un solo maestro → cadena de un nivel. ---
+    const QString kind = o["kind"].toString("none");
+    if (kind == QLatin1String("none")) return m;
+    MasterFallback f;
+    if (kind == QLatin1String("cli")) {
+        f.type = QStringLiteral("cli");
+        f.cliName = o["cliName"].toString();
+    } else {
+        f.type = QStringLiteral("http");
+        f.httpUrl = o["httpUrl"].toString();
+        f.httpModel = o["httpModel"].toString();
+        // Legacy guardaba la key en claro: la mantenemos como ref textual; la
+        // UI puede re-guardarla en SecretStore al editar.
+        f.httpKeyRef = o["httpKey"].toString();
+    }
+    f.applyEdits = o["applyEdits"].toBool(true);
+    f.timeoutSec = o["timeoutSec"].toInt(300);
+    m.fallbacks.append(f);
     return m;
 }
 

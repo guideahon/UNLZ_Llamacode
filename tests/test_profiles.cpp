@@ -24,6 +24,7 @@ private slots:
     void runtimePreset_jsonRoundTrip();
     void launchProfile_jsonRoundTrip();
     void masterConfig_jsonRoundTrip();
+    void masterConfig_legacyMigration();
 
     void manager_addGetRemoveBackend();
     void manager_setBackendCloud();
@@ -123,7 +124,8 @@ void ProfilesTests::launchProfile_jsonRoundTrip()
     l.id = "l1"; l.name = "prod"; l.alias = "P"; l.favorite = true;
     l.backendProfileId = "b1"; l.modelProfileId = "m1"; l.runtimePresetId = "r1";
     l.extraArgs = QStringList{"--verbose"};
-    l.master.kind = "cli"; l.master.cliName = "claude";
+    MasterFallback mf; mf.type = "cli"; mf.cliName = "claude";
+    l.master.fallbacks.append(mf);
     l.powerLimitW = 280;
     l.browserAutomation = "on";
     const LaunchProfile r = LaunchProfile::fromJson(l.toJson());
@@ -134,8 +136,9 @@ void ProfilesTests::launchProfile_jsonRoundTrip()
     QCOMPARE(r.backendProfileId, l.backendProfileId);
     QCOMPARE(r.modelProfileId, l.modelProfileId);
     QCOMPARE(r.extraArgs, l.extraArgs);
-    QCOMPARE(r.master.kind, QStringLiteral("cli"));
-    QCOMPARE(r.master.cliName, QStringLiteral("claude"));
+    QCOMPARE(r.master.fallbacks.size(), 1);
+    QCOMPARE(r.master.fallbacks.first().type, QStringLiteral("cli"));
+    QCOMPARE(r.master.fallbacks.first().cliName, QStringLiteral("claude"));
     QCOMPARE(r.powerLimitW, 280);
     // Default (campo ausente) → 0 = sin override.
     LaunchProfile empty;
@@ -148,18 +151,57 @@ void ProfilesTests::launchProfile_jsonRoundTrip()
 void ProfilesTests::masterConfig_jsonRoundTrip()
 {
     MasterConfig m;
-    m.kind = "http"; m.httpUrl = "http://x/v1"; m.httpModel = "big"; m.httpKey = "k";
-    m.escalation = "auto"; m.autoAfterFails = 5; m.applyEdits = false; m.timeoutSec = 600;
+    m.escalation = "auto"; m.autoAfterFails = 5;
+    // Cadena de 3 fallbacks ordenados: http → profile → cli.
+    MasterFallback f1; f1.type = "http"; f1.label = "GPT";
+    f1.httpUrl = "https://api.openai.com"; f1.httpModel = "gpt-4o";
+    f1.httpKeyRef = "master/openai"; f1.timeoutSec = 600;
+    MasterFallback f2; f2.type = "profile"; f2.profileId = "lp-big"; f2.label = "Cloud profile";
+    MasterFallback f3; f3.type = "cli"; f3.cliName = "claude"; f3.applyEdits = false;
+    m.fallbacks << f1 << f2 << f3;
     QVERIFY(m.isConfigured());
+
     const MasterConfig r = MasterConfig::fromJson(m.toJson());
-    QCOMPARE(r.kind, m.kind);
-    QCOMPARE(r.httpUrl, m.httpUrl);
-    QCOMPARE(r.httpModel, m.httpModel);
-    QCOMPARE(r.escalation, m.escalation);
-    QCOMPARE(r.autoAfterFails, m.autoAfterFails);
-    QCOMPARE(r.applyEdits, m.applyEdits);
-    QCOMPARE(r.timeoutSec, m.timeoutSec);
-    QVERIFY(!MasterConfig{}.isConfigured());  // default kind=none
+    QCOMPARE(r.escalation, QStringLiteral("auto"));
+    QCOMPARE(r.autoAfterFails, 5);
+    QCOMPARE(r.fallbacks.size(), 3);
+    // Orden preservado.
+    QCOMPARE(r.fallbacks[0].type, QStringLiteral("http"));
+    QCOMPARE(r.fallbacks[0].httpKeyRef, QStringLiteral("master/openai"));
+    QCOMPARE(r.fallbacks[0].timeoutSec, 600);
+    QCOMPARE(r.fallbacks[1].type, QStringLiteral("profile"));
+    QCOMPARE(r.fallbacks[1].profileId, QStringLiteral("lp-big"));
+    QCOMPARE(r.fallbacks[2].type, QStringLiteral("cli"));
+    QCOMPARE(r.fallbacks[2].cliName, QStringLiteral("claude"));
+    QCOMPARE(r.fallbacks[2].applyEdits, false);
+
+    QVERIFY(!MasterConfig{}.isConfigured());  // default: cadena vacía
+}
+
+void ProfilesTests::masterConfig_legacyMigration()
+{
+    // Perfil viejo: un solo maestro http con key en claro, sin array fallbacks.
+    QJsonObject o;
+    o["kind"] = "http"; o["httpUrl"] = "http://x"; o["httpModel"] = "big";
+    o["httpKey"] = "secret-k"; o["escalation"] = "both"; o["autoAfterFails"] = 4;
+    const MasterConfig r = MasterConfig::fromJson(o);
+    QCOMPARE(r.fallbacks.size(), 1);
+    QCOMPARE(r.fallbacks.first().type, QStringLiteral("http"));
+    QCOMPARE(r.fallbacks.first().httpUrl, QStringLiteral("http://x"));
+    QCOMPARE(r.fallbacks.first().httpKeyRef, QStringLiteral("secret-k"));
+    QCOMPARE(r.escalation, QStringLiteral("both"));
+    QCOMPARE(r.autoAfterFails, 4);
+
+    // Legacy CLI.
+    QJsonObject c; c["kind"] = "cli"; c["cliName"] = "codex";
+    const MasterConfig rc = MasterConfig::fromJson(c);
+    QCOMPARE(rc.fallbacks.size(), 1);
+    QCOMPARE(rc.fallbacks.first().type, QStringLiteral("cli"));
+    QCOMPARE(rc.fallbacks.first().cliName, QStringLiteral("codex"));
+
+    // Legacy none → cadena vacía.
+    QJsonObject n; n["kind"] = "none";
+    QVERIFY(!MasterConfig::fromJson(n).isConfigured());
 }
 
 void ProfilesTests::manager_addGetRemoveBackend()

@@ -4,6 +4,7 @@
 #include "MemoryStore.h"         // memoria por capas (hechos atómicos)
 #include "GraphStore.h"          // knowledge graph (entidades + relaciones)
 #include "BrowserTeach.h"        // skills de browser grabados (modo teach)
+#include "core/mail/MailClient.h" // tools email_send/list/read
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -338,6 +339,7 @@ AgentToolRunner::~AgentToolRunner() { shutdown(); }
 
 void AgentToolRunner::setConfined(bool confined) { m_confined = confined; }
 void AgentToolRunner::setServerBaseUrl(const QString &url) { m_serverBaseUrl = url; }
+void AgentToolRunner::setMailAccounts(const QVariantList &accounts) { m_mailAccounts = accounts; }
 void AgentToolRunner::setTeacherConfig(const QString &url, const QString &model, const QString &key)
 {
     m_teacherUrl = url.trimmed();
@@ -354,55 +356,144 @@ void AgentToolRunner::setMasterCli(const QString &kind, const QString &cliName,
     m_masterTimeoutS = timeoutSec > 0 ? timeoutSec : 300;
 }
 
+void AgentToolRunner::setMasterChain(const QVariantList &chain)
+{
+    m_masterChain = chain;
+}
+
 // Invoca claude-code / codex en modo no-interactivo, bloqueante. cwd = proyecto.
-QString AgentToolRunner::runMasterCli(const QString &question, const QString &context,
+QString AgentToolRunner::runMasterCli(const QString &cliName, const QString &cliPath,
+                                      bool applyEdits, int timeoutSec,
+                                      const QString &question, const QString &context,
                                       const QString &cwd, bool *ok)
 {
-    if (m_masterCliPath.isEmpty())
+    if (cliPath.isEmpty())
         return QStringLiteral("[ask_teacher: CLI maestro '%1' no encontrado en PATH. "
-                              "Instalalo o configurá el maestro en el perfil.]").arg(m_masterCliName);
+                              "Instalalo o configurá el maestro en el perfil.]").arg(cliName);
 
+    const int timeout = timeoutSec > 0 ? timeoutSec : 300;
     QString prompt = question;
     if (!context.isEmpty())
         prompt = QStringLiteral("Contexto:\n%1\n\nProblema:\n%2").arg(context, question);
-    if (!m_masterApplyEdits)
+    if (!applyEdits)
         prompt += QStringLiteral("\n\nNO modifiques archivos. Devolvé sólo un plan/solución concreta.");
     else
         prompt += QStringLiteral("\n\nResolvé el problema en el proyecto (podés editar archivos). "
                                  "Al terminar resumí qué cambiaste.");
 
     QStringList args;
-    if (m_masterCliName == QLatin1String("claude")) {
+    if (cliName == QLatin1String("claude")) {
         // Claude Code modo print: respuesta a stdout y termina.
         args << QStringLiteral("-p") << prompt;
-        if (m_masterApplyEdits)
+        if (applyEdits)
             args << QStringLiteral("--permission-mode") << QStringLiteral("acceptEdits");
-    } else if (m_masterCliName == QLatin1String("codex")) {
+    } else if (cliName == QLatin1String("codex")) {
         // Codex modo no-interactivo.
         args << QStringLiteral("exec");
-        if (m_masterApplyEdits) args << QStringLiteral("--full-auto");
+        if (applyEdits) args << QStringLiteral("--full-auto");
         args << prompt;
     } else {
-        return QStringLiteral("[ask_teacher: CLI maestro desconocido: %1]").arg(m_masterCliName);
+        return QStringLiteral("[ask_teacher: CLI maestro desconocido: %1]").arg(cliName);
     }
 
     QProcess proc;
     if (!cwd.isEmpty()) proc.setWorkingDirectory(cwd);
     proc.setProcessChannelMode(QProcess::MergedChannels);
-    proc.start(m_masterCliPath, args);
+    proc.start(cliPath, args);
     if (!proc.waitForStarted(10000))
-        return QStringLiteral("[ask_teacher: no se pudo iniciar %1]").arg(m_masterCliName);
-    if (!proc.waitForFinished(m_masterTimeoutS * 1000)) {
+        return QStringLiteral("[ask_teacher: no se pudo iniciar %1]").arg(cliName);
+    if (!proc.waitForFinished(timeout * 1000)) {
         proc.kill();
         proc.waitForFinished(2000);
         return QStringLiteral("[ask_teacher: el maestro %1 superó el timeout de %2s]")
-            .arg(m_masterCliName).arg(m_masterTimeoutS);
+            .arg(cliName).arg(timeout);
     }
     const QString out = QString::fromUtf8(proc.readAll()).trimmed();
     if (out.isEmpty())
-        return QStringLiteral("[ask_teacher: respuesta vacía del maestro %1]").arg(m_masterCliName);
+        return QStringLiteral("[ask_teacher: respuesta vacía del maestro %1]").arg(cliName);
     if (ok) *ok = true;
-    return QStringLiteral("[Respuesta del maestro %1]\n%2").arg(m_masterCliName, out);
+    return QStringLiteral("[Respuesta del maestro %1]\n%2").arg(cliName, out);
+}
+
+// Consulta HTTP OpenAI-compat a un maestro. ok=true sólo si hubo respuesta útil.
+QString AgentToolRunner::runHttpTeacher(const QString &url, const QString &model,
+                                        const QString &key, const QString &question,
+                                        const QString &context, bool *ok)
+{
+    if (url.isEmpty())
+        return QStringLiteral("[ask_teacher: endpoint del maestro vacío]");
+    const QString mdl = model.isEmpty() ? QStringLiteral("default") : model;
+    QString userMsg = question;
+    if (!context.isEmpty())
+        userMsg = QStringLiteral("Contexto:\n%1\n\nPregunta:\n%2").arg(context, question);
+    const QJsonArray msgs{
+        QJsonObject{{QStringLiteral("role"), QStringLiteral("system")},
+                    {QStringLiteral("content"), QStringLiteral(
+                         "Sos un experto sénior asistiendo a otro agente de código. "
+                         "Respondé conciso, correcto y accionable.")}},
+        QJsonObject{{QStringLiteral("role"), QStringLiteral("user")},
+                    {QStringLiteral("content"), userMsg}}};
+    const QJsonObject payload{
+        {QStringLiteral("model"), mdl},
+        {QStringLiteral("messages"), msgs},
+        {QStringLiteral("stream"), false}};
+    const QUrl endpoint(url.endsWith(QLatin1Char('/'))
+                            ? url + QStringLiteral("v1/chat/completions")
+                            : url + QStringLiteral("/v1/chat/completions"));
+    QString err;
+    const QByteArray resp = httpPostJson(endpoint,
+                                         QJsonDocument(payload).toJson(QJsonDocument::Compact),
+                                         &err, 120000, key);
+    if (resp.isEmpty())
+        return QStringLiteral("[ask_teacher: error consultando al maestro: %1]").arg(err);
+    const QJsonObject root = QJsonDocument::fromJson(resp).object();
+    const QString answer = root.value(QStringLiteral("choices")).toArray().isEmpty()
+        ? QString()
+        : root.value(QStringLiteral("choices")).toArray().first().toObject()
+              .value(QStringLiteral("message")).toObject()
+              .value(QStringLiteral("content")).toString();
+    if (answer.isEmpty())
+        return QStringLiteral("[ask_teacher: respuesta vacía del maestro]");
+    if (ok) *ok = true;
+    return QStringLiteral("[Respuesta del modelo maestro]\n") + answer;
+}
+
+// Recorre la cadena de fallbacks en orden; corta y devuelve al primer éxito.
+// Si todos fallan, devuelve el último error acumulado.
+QString AgentToolRunner::runMasterChain(const QString &question, const QString &context,
+                                        const QString &cwd, bool *ok)
+{
+    QString last = QStringLiteral("[ask_teacher: cadena de maestros vacía]");
+    int level = 0;
+    for (const QVariant &v : m_masterChain) {
+        const QVariantMap e = v.toMap();
+        const QString type = e.value(QStringLiteral("type")).toString();
+        const QString lbl  = e.value(QStringLiteral("label")).toString();
+        ++level;
+        bool localOk = false;
+        QString res;
+        if (type == QLatin1String("cli")) {
+            res = runMasterCli(e.value(QStringLiteral("cliName")).toString(),
+                               e.value(QStringLiteral("cliPath")).toString(),
+                               e.value(QStringLiteral("applyEdits"), true).toBool(),
+                               e.value(QStringLiteral("timeoutSec"), 300).toInt(),
+                               question, context, cwd, &localOk);
+        } else { // http (incluye profile ya resuelto a http)
+            res = runHttpTeacher(e.value(QStringLiteral("httpUrl")).toString(),
+                                 e.value(QStringLiteral("httpModel")).toString(),
+                                 e.value(QStringLiteral("httpKey")).toString(),
+                                 question, context, &localOk);
+        }
+        if (localOk) {
+            if (ok) *ok = true;
+            return res;
+        }
+        last = QStringLiteral("[fallback %1%2 falló] %3")
+                   .arg(level)
+                   .arg(lbl.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(lbl))
+                   .arg(res);
+    }
+    return last;
 }
 
 void AgentToolRunner::shutdown()
@@ -1291,9 +1382,13 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
         const QString question = args.value(QStringLiteral("question")).toString().trimmed();
         if (question.isEmpty()) return QStringLiteral("[ask_teacher: 'question' vacía]");
         const QString ctxArg = args.value(QStringLiteral("context")).toString();
-        // Maestro CLI (claude-code / codex) tiene prioridad si el perfil lo configuró.
+        // Cadena de fallbacks del perfil tiene prioridad: recorre niveles en orden.
+        if (!m_masterChain.isEmpty())
+            return runMasterChain(question, ctxArg, cwd, ok);
+        // Maestro CLI legacy (claude-code / codex) si el perfil lo configuró.
         if (m_masterKind == QLatin1String("cli"))
-            return runMasterCli(question, ctxArg, cwd, ok);
+            return runMasterCli(m_masterCliName, m_masterCliPath, m_masterApplyEdits,
+                                m_masterTimeoutS, question, ctxArg, cwd, ok);
         // Config de UI (setTeacherConfig) tiene prioridad; si está vacía, env vars.
         const QString teacher = !m_teacherUrl.isEmpty()
             ? m_teacherUrl : qEnvironmentVariable("LLAMACODE_TEACHER_URL").trimmed();
@@ -1375,6 +1470,100 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
         return QStringLiteral("[browser_skill_replay %1 · exit=%2]\n%3")
                    .arg(skill).arg(proc.exitCode()).arg(out.left(8000));
     }
+    if (name == QLatin1String("email_accounts")) {
+        if (ok) *ok = true;
+        if (m_mailAccounts.isEmpty())
+            return QStringLiteral("[sin cuentas de correo configuradas. El usuario las "
+                                  "agrega en Configuración → Correo.]");
+        QStringList names;
+        for (const QVariant &v : m_mailAccounts) {
+            const QVariantMap a = v.toMap();
+            names << QStringLiteral("%1 <%2>").arg(a.value(QStringLiteral("name")).toString(),
+                                                   a.value(QStringLiteral("email")).toString());
+        }
+        return QStringLiteral("Cuentas de correo:\n- ") + names.join(QStringLiteral("\n- "));
+    }
+
+    if (name == QLatin1String("email_send") || name == QLatin1String("email_list")
+        || name == QLatin1String("email_read")) {
+        if (m_mailAccounts.isEmpty())
+            return QStringLiteral("[%1: no hay cuentas de correo. Configuralas en "
+                                  "Configuración → Correo.]").arg(name);
+        // Resolver cuenta: por 'account' o la primera (default).
+        const QString want = args.value(QStringLiteral("account")).toString().trimmed();
+        QVariantMap acctMap = m_mailAccounts.first().toMap();
+        if (!want.isEmpty()) {
+            bool found = false;
+            for (const QVariant &v : m_mailAccounts) {
+                const QVariantMap a = v.toMap();
+                if (a.value(QStringLiteral("name")).toString() == want
+                    || a.value(QStringLiteral("email")).toString() == want) {
+                    acctMap = a; found = true; break;
+                }
+            }
+            if (!found)
+                return QStringLiteral("[%1: cuenta '%2' no encontrada. Usá email_accounts.]")
+                           .arg(name, want);
+        }
+        MailClient::Account acct;
+        acct.name        = acctMap.value(QStringLiteral("name")).toString();
+        acct.email       = acctMap.value(QStringLiteral("email")).toString();
+        acct.displayName = acctMap.value(QStringLiteral("displayName")).toString();
+        acct.provider    = acctMap.value(QStringLiteral("provider")).toString();
+        acct.smtpHost    = acctMap.value(QStringLiteral("smtpHost")).toString();
+        acct.smtpPort    = acctMap.value(QStringLiteral("smtpPort")).toInt();
+        acct.smtpSecurity= acctMap.value(QStringLiteral("smtpSecurity")).toString();
+        acct.recvProto   = acctMap.value(QStringLiteral("recvProto")).toString();
+        acct.recvHost    = acctMap.value(QStringLiteral("recvHost")).toString();
+        acct.recvPort    = acctMap.value(QStringLiteral("recvPort")).toInt();
+        acct.recvSsl     = acctMap.value(QStringLiteral("recvSsl"), true).toBool();
+        acct.user        = acctMap.value(QStringLiteral("user")).toString();
+        acct.password    = acctMap.value(QStringLiteral("password")).toString();
+
+        if (name == QLatin1String("email_send")) {
+            const QString to = args.value(QStringLiteral("to")).toString().trimmed();
+            const QString subject = args.value(QStringLiteral("subject")).toString();
+            const QString body = args.value(QStringLiteral("body")).toString();
+            const QString cc = args.value(QStringLiteral("cc")).toString();
+            if (to.isEmpty()) return QStringLiteral("[email_send: falta 'to']");
+            QString err;
+            if (MailClient::sendSmtp(acct, to, cc, subject, body, &err)) {
+                if (ok) *ok = true;
+                return QStringLiteral("[email enviado a %1 · asunto: %2]").arg(to, subject);
+            }
+            return QStringLiteral("[email_send falló: %1]").arg(err);
+        }
+        if (name == QLatin1String("email_list")) {
+            const QString folder = args.value(QStringLiteral("folder")).toString();
+            int limit = args.value(QStringLiteral("limit")).toInt(10);
+            const bool unread = args.value(QStringLiteral("unread_only")).toBool();
+            QString err;
+            const QVariantList msgs = MailClient::fetchInbox(acct, folder, limit, unread, &err);
+            if (!err.isEmpty()) return QStringLiteral("[email_list falló: %1]").arg(err);
+            if (ok) *ok = true;
+            if (msgs.isEmpty()) return QStringLiteral("[sin correos]");
+            QString s;
+            for (const QVariant &v : msgs) {
+                const QVariantMap m = v.toMap();
+                s += QStringLiteral("uid:%1 | %2 | de: %3 | %4\n")
+                         .arg(m.value(QStringLiteral("uid")).toString(),
+                              m.value(QStringLiteral("date")).toString(),
+                              m.value(QStringLiteral("from")).toString(),
+                              m.value(QStringLiteral("subject")).toString());
+            }
+            return s.trimmed();
+        }
+        // email_read
+        const QString uid = args.value(QStringLiteral("uid")).toString().trimmed();
+        if (uid.isEmpty()) return QStringLiteral("[email_read: falta 'uid' (ver email_list)]");
+        const QString folder = args.value(QStringLiteral("folder")).toString();
+        QString err;
+        const QString body = MailClient::readMessage(acct, folder, uid, &err);
+        if (!err.isEmpty()) return QStringLiteral("[email_read falló: %1]").arg(err);
+        if (ok) *ok = true;
+        return body.left(20000);
+    }
+
     // run_shell se maneja async en executeTool/startShell (no llega acá).
     return QStringLiteral("[tool desconocida: %1]").arg(name);
 }

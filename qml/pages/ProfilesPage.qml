@@ -21,12 +21,9 @@ Item {
     property string harnessAdapter: "none"
     property string harnessProfileId: ""
 
-    // ── Maestro (supervisor) ──────────────────────────────────────
-    property string masterKind: "none"          // none | http | cli
-    property string masterCliName: "claude"
+    // ── Maestro (supervisor): cadena de fallbacks ─────────────────
     property string masterEscalation: "manual"  // manual | auto | both
     property int    masterAutoAfterFails: 3
-    property bool   masterApplyEdits: true
     property var    masterCliStatusCache: ({})   // name -> status map
     function refreshMasterCliStatus(force) {
         const names = App.masterCliList()
@@ -35,6 +32,50 @@ Item {
             m[names[i]] = App.masterCliStatus(names[i], force === true)
         masterCliStatusCache = m
     }
+    // Modelo de la cadena (ordenado primero→último). Cada item:
+    // {type,label,profileId,httpUrl,httpModel,httpKeyRef,httpKeyValue,cliName,applyEdits,timeoutSec}
+    // httpKeyValue es transitorio (sólo si el usuario escribe una key nueva).
+    function masterChainLoad(fallbacks) {
+        masterChainModel.clear()
+        const arr = fallbacks ?? []
+        for (let i = 0; i < arr.length; ++i) {
+            const f = arr[i]
+            masterChainModel.append({
+                type: f.type ?? "http", label: f.label ?? "",
+                profileId: f.profileId ?? "",
+                httpUrl: f.httpUrl ?? "", httpModel: f.httpModel ?? "",
+                httpKeyRef: f.httpKeyRef ?? "", httpKeyValue: "",
+                cliName: (f.cliName && f.cliName.length > 0) ? f.cliName : "claude",
+                applyEdits: (f.applyEdits !== false),
+                timeoutSec: f.timeoutSec ?? 300
+            })
+        }
+    }
+    // Serializa el modelo a array para updateLaunchProfile. Las keys nuevas
+    // (httpKeyValue) se guardan en SecretStore bajo un ref estable y se persiste
+    // sólo el ref.
+    function masterChainToArray() {
+        const out = []
+        for (let i = 0; i < masterChainModel.count; ++i) {
+            const m = masterChainModel.get(i)
+            let keyRef = m.httpKeyRef ?? ""
+            if (m.type === "http" && m.httpKeyValue && m.httpKeyValue.length > 0) {
+                keyRef = "master/" + selectedLaunchId + "/" + i
+                App.setSecret(keyRef, m.httpKeyValue)
+            }
+            out.push({
+                type: m.type, label: m.label ?? "",
+                profileId: m.profileId ?? "",
+                httpUrl: (m.httpUrl ?? "").trim(),
+                httpModel: (m.httpModel ?? "").trim(),
+                httpKeyRef: keyRef,
+                cliName: m.cliName ?? "",
+                applyEdits: m.applyEdits, timeoutSec: m.timeoutSec
+            })
+        }
+        return out
+    }
+    ListModel { id: masterChainModel }
 
     function splitArgs(raw) {
         const out = []
@@ -311,16 +352,11 @@ Item {
             if (cur === "--no-warmup") { noWarmupCheck.checked = true; continue }
         }
 
-        // Maestro (supervisor)
+        // Maestro (supervisor): cadena de fallbacks
         const mc = lp.master ?? {}
-        masterKind = mc.kind ?? "none"
-        masterCliName = (mc.cliName && mc.cliName.length > 0) ? mc.cliName : "claude"
         masterEscalation = mc.escalation ?? "manual"
         masterAutoAfterFails = mc.autoAfterFails ?? 3
-        masterApplyEdits = (mc.applyEdits !== false)
-        masterHttpUrlField.text = mc.httpUrl ?? ""
-        masterHttpModelField.text = mc.httpModel ?? ""
-        masterHttpKeyField.text = mc.httpKey ?? ""
+        masterChainLoad(mc.fallbacks ?? [])
         refreshMasterCliStatus(false)
 
         // Refresca vista previa del comando para el perfil cargado
@@ -480,13 +516,9 @@ Item {
             "runtimePresetId": effectiveRid, "extraArgs": rebuiltArgs, "envOverrides": envOverrides,
             "harnessProfileId": resolvedHarnessId,
             "master": {
-                "kind": masterKind, "cliName": masterCliName,
-                "httpUrl": masterHttpUrlField.text.trim(),
-                "httpModel": masterHttpModelField.text.trim(),
-                "httpKey": masterHttpKeyField.text.trim(),
+                "fallbacks": masterChainToArray(),
                 "escalation": masterEscalation,
-                "autoAfterFails": masterAutoAfterFails,
-                "applyEdits": masterApplyEdits
+                "autoAfterFails": masterAutoAfterFails
             }
         })
 
@@ -1270,120 +1302,153 @@ Item {
                         spacing: 8
 
                         Text {
-                            text: "Maestro (supervisor)"
+                            text: "Maestro (supervisor) — Fallbacks"
                             color: Theme.textSecondary; font { pixelSize: 12; bold: true }
                         }
                         Text {
-                            text: "Modelo más capaz al que el LLM local escala un problema que no resuelve."
+                            text: "Cadena ordenada de modelos/CLIs más capaces. Al atascarse el LLM local, "
+                                + "se escala al primero; si también falla, al siguiente, y así sucesivamente."
                             color: Theme.textMuted; font.pixelSize: 11
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
                         }
 
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            Text { text: "Tipo"; color: Theme.textSecondary; font.pixelSize: 12
-                                   Layout.preferredWidth: 90 }
-                            LcComboBox {
-                                id: masterKindCombo
+                        // ── Lista de fallbacks (ordenada) ─────────────────────
+                        Repeater {
+                            model: masterChainModel
+                            delegate: Rectangle {
                                 Layout.fillWidth: true
-                                implicitHeight: 32
-                                model: [
-                                    { value: "none", label: "Ninguno" },
-                                    { value: "cli",  label: "CLI local (Claude Code / Codex)" },
-                                    { value: "http", label: "Endpoint HTTP (OpenAI-compat)" }
-                                ]
-                                textRole: "label"
-                                valueRole: "value"
-                                currentIndex: Math.max(0, indexOfValue(masterKind))
-                                onActivated: masterKind = currentValue
+                                color: Theme.inputBg
+                                border.color: Theme.borderColor
+                                radius: 6
+                                implicitHeight: fbCol.implicitHeight + 16
+                                ColumnLayout {
+                                    id: fbCol
+                                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+                                    spacing: 6
+
+                                    // Encabezado: nivel + tipo + reordenar/quitar
+                                    RowLayout {
+                                        Layout.fillWidth: true; spacing: 6
+                                        Text { text: "#" + (index + 1); color: Theme.textSecondary
+                                               Layout.preferredWidth: 28
+                                               font.pixelSize: 12; font.bold: true }
+                                        LcComboBox {
+                                            Layout.fillWidth: true; implicitHeight: 30
+                                            model: [
+                                                { value: "profile", label: "Otro perfil LlamaCode" },
+                                                { value: "http",    label: "Cloud API (OpenAI-compat)" },
+                                                { value: "cli",     label: "CLI suscripción (Claude/Codex)" }
+                                            ]
+                                            textRole: "label"; valueRole: "value"
+                                            currentIndex: Math.max(0, indexOfValue(type))
+                                            onActivated: masterChainModel.setProperty(index, "type", currentValue)
+                                        }
+                                        LcButton { text: "▲"; secondary: true; implicitHeight: 28; implicitWidth: 30
+                                            enabled: index > 0
+                                            onClicked: masterChainModel.move(index, index - 1, 1) }
+                                        LcButton { text: "▼"; secondary: true; implicitHeight: 28; implicitWidth: 30
+                                            enabled: index < masterChainModel.count - 1
+                                            onClicked: masterChainModel.move(index, index + 1, 1) }
+                                        LcButton { text: "✕"; secondary: true; implicitHeight: 28; implicitWidth: 30
+                                            onClicked: masterChainModel.remove(index) }
+                                    }
+
+                                    LcTextField {
+                                        Layout.fillWidth: true; implicitHeight: 30
+                                        placeholderText: "Etiqueta (opcional, ej. GPT-4o / Claude sub)"
+                                        text: label ?? ""
+                                        onTextChanged: masterChainModel.setProperty(index, "label", text)
+                                    }
+
+                                    // ── type == profile ──────────────────────
+                                    LcComboBox {
+                                        visible: type === "profile"
+                                        Layout.fillWidth: true; implicitHeight: 30
+                                        model: App.profileManager.launchProfilesForMenu()
+                                        textRole: "displayName"; valueRole: "id"
+                                        currentIndex: Math.max(0, indexOfValue(masterChainModel.get(index).profileId))
+                                        onActivated: masterChainModel.setProperty(index, "profileId", currentValue)
+                                    }
+
+                                    // ── type == http (cloud) ─────────────────
+                                    ColumnLayout {
+                                        visible: type === "http"
+                                        Layout.fillWidth: true; spacing: 4
+                                        LcTextField { Layout.fillWidth: true; implicitHeight: 30
+                                            placeholderText: "Endpoint (ej. https://api.openai.com)"
+                                            text: httpUrl ?? ""
+                                            onTextChanged: masterChainModel.setProperty(index, "httpUrl", text) }
+                                        LcTextField { Layout.fillWidth: true; implicitHeight: 30
+                                            placeholderText: "Modelo (ej. gpt-4o)"
+                                            text: httpModel ?? ""
+                                            onTextChanged: masterChainModel.setProperty(index, "httpModel", text) }
+                                        LcTextField { Layout.fillWidth: true; implicitHeight: 30
+                                            echoMode: TextInput.Password
+                                            placeholderText: (httpKeyRef && httpKeyRef.length > 0)
+                                                ? "API key guardada — escribí para reemplazar" : "API key"
+                                            text: httpKeyValue ?? ""
+                                            onTextChanged: masterChainModel.setProperty(index, "httpKeyValue", text) }
+                                    }
+
+                                    // ── type == cli ──────────────────────────
+                                    ColumnLayout {
+                                        visible: type === "cli"
+                                        Layout.fillWidth: true; spacing: 4
+                                        RowLayout {
+                                            Layout.fillWidth: true; spacing: 6
+                                            LcComboBox {
+                                                Layout.fillWidth: true; implicitHeight: 30
+                                                model: App.masterCliList()
+                                                currentIndex: Math.max(0, indexOfValue(masterChainModel.get(index).cliName))
+                                                onActivated: masterChainModel.setProperty(index, "cliName", currentValue)
+                                            }
+                                            LcButton { text: "Detectar"; secondary: true; implicitHeight: 28
+                                                onClicked: refreshMasterCliStatus(true) }
+                                        }
+                                        Text {
+                                            Layout.fillWidth: true; font.pixelSize: 11; wrapMode: Text.WrapAnywhere
+                                            property var st: masterCliStatusCache[cliName] ?? ({})
+                                            text: (st.installed === true)
+                                                ? ((st.label ?? cliName) + " — " + (st.version ?? "instalado"))
+                                                : ((st.label ?? cliName) + " no detectado · " + App.masterCliInstallCommand(cliName))
+                                            color: (st.installed === true) ? Theme.successText : Theme.textMuted
+                                        }
+                                        CheckBox {
+                                            text: "Edita archivos directo (sino, sólo plan)"
+                                            checked: applyEdits !== false
+                                            onToggled: masterChainModel.setProperty(index, "applyEdits", checked)
+                                            contentItem: Text {
+                                                text: parent.text; color: Theme.textPrimary; font.pixelSize: 12
+                                                leftPadding: parent.indicator.width + 6
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true; spacing: 6
+                                        Text { text: "Timeout (s)"; color: Theme.textSecondary; font.pixelSize: 11 }
+                                        SpinBox {
+                                            from: 10; to: 3600; stepSize: 10; implicitHeight: 28
+                                            value: timeoutSec ?? 300
+                                            onValueModified: masterChainModel.setProperty(index, "timeoutSec", value)
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        // ── Modo CLI ──────────────────────────────────────────
-                        ColumnLayout {
-                            visible: masterKind === "cli"
-                            Layout.fillWidth: true; spacing: 6
-
-                            RowLayout {
-                                Layout.fillWidth: true; spacing: 8
-                                Text { text: "CLI"; color: Theme.textSecondary; font.pixelSize: 12
-                                       Layout.preferredWidth: 90 }
-                                LcComboBox {
-                                    id: masterCliCombo
-                                    Layout.fillWidth: true
-                                    implicitHeight: 32
-                                    model: App.masterCliList()
-                                    currentIndex: Math.max(0, indexOfValue(masterCliName))
-                                    onActivated: masterCliName = currentValue
-                                }
-                                LcButton {
-                                    text: "Detectar"; secondary: true; implicitHeight: 30
-                                    onClicked: refreshMasterCliStatus(true)
-                                }
-                            }
-
-                            // Estado de instalación del CLI seleccionado
-                            RowLayout {
-                                Layout.fillWidth: true; spacing: 6
-                                property var st: masterCliStatusCache[masterCliName] ?? ({})
-                                Rectangle {
-                                    width: 7; height: 7; radius: 4
-                                    color: (parent.st.installed === true) ? Theme.successText : Theme.errorText
-                                }
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: (parent.st.installed === true)
-                                        ? ((parent.st.label ?? masterCliName) + " — " + (parent.st.version ?? "instalado"))
-                                        : ((parent.st.label ?? masterCliName) + " no detectado en PATH")
-                                    color: (parent.st.installed === true) ? Theme.successText : Theme.textMuted
-                                    font.pixelSize: 11; wrapMode: Text.WrapAnywhere
-                                }
-                            }
-                            // Comando de instalación (si no está)
-                            RowLayout {
-                                Layout.fillWidth: true; spacing: 6
-                                visible: (masterCliStatusCache[masterCliName] ?? {}).installed !== true
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: App.masterCliInstallCommand(masterCliName)
-                                    color: Theme.textMuted; font { pixelSize: 11; family: "monospace" }
-                                    wrapMode: Text.WrapAnywhere
-                                }
-                                LcButton {
-                                    text: "Copiar"; secondary: true; implicitHeight: 28
-                                    onClicked: App.copyToClipboard(App.masterCliInstallCommand(masterCliName))
-                                }
-                            }
-
-                            CheckBox {
-                                id: masterApplyEditsCheck
-                                text: "El maestro edita archivos directo (sino, sólo devuelve plan)"
-                                checked: masterApplyEdits
-                                onToggled: masterApplyEdits = checked
-                                contentItem: Text {
-                                    text: masterApplyEditsCheck.text; color: Theme.textPrimary
-                                    font.pixelSize: 12; leftPadding: masterApplyEditsCheck.indicator.width + 6
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
+                        LcButton {
+                            text: "+ Agregar fallback"; secondary: true; implicitHeight: 30
+                            onClicked: masterChainModel.append({
+                                type: "http", label: "", profileId: "",
+                                httpUrl: "", httpModel: "", httpKeyRef: "", httpKeyValue: "",
+                                cliName: "claude", applyEdits: true, timeoutSec: 300 })
                         }
 
-                        // ── Modo HTTP ─────────────────────────────────────────
-                        ColumnLayout {
-                            visible: masterKind === "http"
-                            Layout.fillWidth: true; spacing: 6
-                            LcTextField { id: masterHttpUrlField;   Layout.fillWidth: true
-                                          placeholderText: "Endpoint (ej. https://api.openai.com)" }
-                            LcTextField { id: masterHttpModelField; Layout.fillWidth: true
-                                          placeholderText: "Modelo (ej. gpt-4o)" }
-                            LcTextField { id: masterHttpKeyField;   Layout.fillWidth: true
-                                          echoMode: TextInput.Password
-                                          placeholderText: "API key (opcional)" }
-                        }
-
-                        // ── Escalado ──────────────────────────────────────────
+                        // ── Política de escalado (global a la cadena) ─────────
                         RowLayout {
-                            visible: masterKind !== "none"
+                            visible: masterChainModel.count > 0
                             Layout.fillWidth: true; spacing: 8
                             Text { text: "Escalado"; color: Theme.textSecondary; font.pixelSize: 12
                                    Layout.preferredWidth: 90 }
@@ -1403,7 +1468,7 @@ Item {
                             }
                         }
                         RowLayout {
-                            visible: masterKind !== "none" && masterEscalation !== "manual"
+                            visible: masterChainModel.count > 0 && masterEscalation !== "manual"
                             Layout.fillWidth: true; spacing: 8
                             Text { text: "Auto tras N fallos"; color: Theme.textSecondary; font.pixelSize: 12
                                    Layout.preferredWidth: 130 }

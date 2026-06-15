@@ -20,7 +20,10 @@
 #include <QClipboard>
 #include "core/agent/OpencodeBackend.h"
 #include "core/agent/RawChatBackend.h"
+#include "core/voice/VoiceController.h"
+#include "core/voice/VoiceTypes.h"
 #include "core/agent/LlamaAgentBackend.h"
+#include "core/mail/MailClient.h"
 #include "core/agent/McpClient.h"
 #include "core/eval/EvalSuite.h"
 #include <QtConcurrent>
@@ -208,6 +211,7 @@ AppController::AppController(QObject *parent) : QObject(parent)
     m_agentTeacherUrl   = s.value(QStringLiteral("agent/teacherUrl")).toString();
     m_agentTeacherModel = s.value(QStringLiteral("agent/teacherModel")).toString();
     m_agentTeacherKey   = s.value(QStringLiteral("agent/teacherKey")).toString();
+    m_mailAutoSend      = s.value(QStringLiteral("agent/mailAutoSend"), false).toBool();
     m_gitAvailable      = !QStandardPaths::findExecutable(QStringLiteral("git")).isEmpty();
 
     killManagedOrphans();
@@ -1570,6 +1574,51 @@ void AppController::appendAgentEvent(const QString &source, const QString &text)
     emit agentLogChanged();
 }
 
+QVariantList AppController::buildMasterChain(const MasterConfig &mc)
+{
+    // Resuelve cada nivel de la cadena a un QVariantMap listo para el worker:
+    // - cli: cliPath resuelto en PATH.
+    // - http: key resuelta vía SecretStore (httpKeyRef es una referencia).
+    // - profile: se resuelve el backend del LaunchProfile referenciado a un http
+    //   (cloud → cloudBaseUrl/model/key; local → http://host:port).
+    QVariantList chain;
+    for (const MasterFallback &f : mc.fallbacks) {
+        QVariantMap e;
+        e[QStringLiteral("label")]      = f.label;
+        e[QStringLiteral("applyEdits")] = f.applyEdits;
+        e[QStringLiteral("timeoutSec")] = f.timeoutSec;
+        if (f.type == QLatin1String("cli")) {
+            e[QStringLiteral("type")]    = QStringLiteral("cli");
+            e[QStringLiteral("cliName")] = f.cliName;
+            e[QStringLiteral("cliPath")] = m_masterCli.resolvePath(f.cliName);
+        } else if (f.type == QLatin1String("profile")) {
+            const auto pctx = buildContext(f.profileId);
+            QString url, model, key;
+            if (pctx.backend.isCloud()) {
+                url   = pctx.backend.cloudBaseUrl.trimmed();
+                model = pctx.backend.cloudModel.trimmed();
+                key   = m_secrets.resolve(pctx.backend.cloudKeyRef.trimmed());
+            } else {
+                const QString host = pctx.backend.host.isEmpty()
+                    ? QStringLiteral("127.0.0.1") : pctx.backend.host;
+                url   = QStringLiteral("http://%1:%2").arg(host).arg(pctx.backend.port);
+                model = pctx.catalogModel.id;
+            }
+            e[QStringLiteral("type")]      = QStringLiteral("http");
+            e[QStringLiteral("httpUrl")]   = url;
+            e[QStringLiteral("httpModel")] = model;
+            e[QStringLiteral("httpKey")]   = key;
+        } else { // http
+            e[QStringLiteral("type")]      = QStringLiteral("http");
+            e[QStringLiteral("httpUrl")]   = f.httpUrl.trimmed();
+            e[QStringLiteral("httpModel")] = f.httpModel.trimmed();
+            e[QStringLiteral("httpKey")]   = m_secrets.resolve(f.httpKeyRef.trimmed());
+        }
+        chain.append(e);
+    }
+    return chain;
+}
+
 EffectiveProfileBuilder::Context AppController::buildContext(const QString &launchProfileId)
 {
     EffectiveProfileBuilder::Context ctx;
@@ -1899,6 +1948,8 @@ IAgentBackend *AppController::ensureAgentBackend(const QString &adapter)
     if (auto *cb = qobject_cast<LlamaAgentBackend *>(b)) {
         cb->setDisabledTools(m_agentDisabledTools);
         cb->setTeacherConfig(m_agentTeacherUrl, m_agentTeacherModel, m_agentTeacherKey);
+        cb->setMailAccounts(mailAccountsResolved());
+        cb->setMailAutoSend(m_mailAutoSend);
     }
     m_agentBackend = b;
     return b;
@@ -2220,9 +2271,27 @@ IAgentBackend *AppController::ensureChatBackend()
                 break;
             }
         }
+        const bool wasGenerating = m_chatGenerating;
         m_chatGenerating = generating;
         emit chatMessagesChanged();
         emit chatGeneratingChanged();
+        // Modo Charla: avisar "pensando" al empezar y hablar la respuesta al cerrar.
+        if (m_voice && m_charlaActive) {
+            if (generating && !wasGenerating)
+                m_voice->notifyThinking();
+            else if (!generating && wasGenerating) {
+                QString reply;
+                for (const QVariant &v : std::as_const(m_chatMessages)) {
+                    const QVariantMap mm = v.toMap();
+                    const QString role = mm.value(QStringLiteral("role")).toString();
+                    if (role == QLatin1String("assistant") || role == QLatin1String("ai")) {
+                        const QString c = mm.value(QStringLiteral("content")).toString();
+                        if (!c.trimmed().isEmpty()) reply = c;
+                    }
+                }
+                m_voice->speak(reply);
+            }
+        }
     });
     connect(b, &IAgentBackend::queueChanged, this, [this, b]() {
         m_chatQueuedCount = b->queuedCount();
@@ -2329,16 +2398,10 @@ void AppController::startAgent(const QString &launchProfileId)
         b->setAgentTuning(m_agentSystemPrompt, m_agentTemperature >= 0.0 ? m_agentTemperature : m_resolvedProfileTemperature);
         if (auto *cb = qobject_cast<LlamaAgentBackend *>(b)) {
             const MasterConfig &mc = ctx.launch.master;
-            if (mc.kind == QLatin1String("cli")) {
-                const QString cliPath = m_masterCli.resolvePath(mc.cliName);
-                cb->setMasterCli(mc.kind, mc.cliName, cliPath, mc.escalation,
-                                 mc.autoAfterFails, mc.applyEdits, mc.timeoutSec);
-            } else if (mc.kind == QLatin1String("http")) {
-                cb->setTeacherConfig(mc.httpUrl, mc.httpModel, mc.httpKey);
-                cb->setMasterCli(QStringLiteral("none"), {}, {}, mc.escalation,
-                                 mc.autoAfterFails, mc.applyEdits, mc.timeoutSec);
+            if (mc.isConfigured()) {
+                cb->setMasterChain(buildMasterChain(mc), mc.escalation, mc.autoAfterFails);
             }
-            // kind=="none": queda el fallback global de setTeacherConfig (ensureAgentBackend).
+            // cadena vacía: queda el fallback global de setTeacherConfig (ensureAgentBackend).
         }
         const QString agentCwd = m_agentCwdOverride.isEmpty()
             ? ctx.workspace.cwd.trimmed() : m_agentCwdOverride;
@@ -3009,6 +3072,144 @@ bool AppController::toggleMcpServer(const QString &scope, const QString &project
     mcp[name] = s;
     root[QStringLiteral("mcp")] = mcp;
     return ocWriteConfigObj(scope, projectDir, root);
+}
+
+// ───────────────────────── Cuentas de correo ─────────────────────────
+// Almacén: mismo config JSON global que MCP, bajo clave "mail". El password
+// NUNCA se serializa: va a SecretStore con ref "mail/<name>".
+static MailClient::Account mailAccountFromMap(const QVariantMap &m)
+{
+    MailClient::Account a;
+    a.name         = m.value(QStringLiteral("name")).toString();
+    a.email        = m.value(QStringLiteral("email")).toString();
+    a.displayName  = m.value(QStringLiteral("displayName")).toString();
+    a.provider     = m.value(QStringLiteral("provider")).toString();
+    a.smtpHost     = m.value(QStringLiteral("smtpHost")).toString();
+    a.smtpPort     = m.value(QStringLiteral("smtpPort")).toInt();
+    a.smtpSecurity = m.value(QStringLiteral("smtpSecurity")).toString();
+    a.recvProto    = m.value(QStringLiteral("recvProto")).toString();
+    a.recvHost     = m.value(QStringLiteral("recvHost")).toString();
+    a.recvPort     = m.value(QStringLiteral("recvPort")).toInt();
+    a.recvSsl      = m.value(QStringLiteral("recvSsl"), true).toBool();
+    a.user         = m.value(QStringLiteral("user")).toString();
+    return a;
+}
+
+QVariantList AppController::listMailAccounts() const
+{
+    QVariantList out;
+    const QJsonObject mail = ocReadConfigObj(QStringLiteral("global"), QString())
+                                 .value(QStringLiteral("mail")).toObject();
+    for (auto it = mail.begin(); it != mail.end(); ++it) {
+        const QJsonObject s = it.value().toObject();
+        QVariantMap m;
+        m[QStringLiteral("name")]         = it.key();
+        m[QStringLiteral("email")]        = s.value(QStringLiteral("email")).toString();
+        m[QStringLiteral("displayName")]  = s.value(QStringLiteral("displayName")).toString();
+        m[QStringLiteral("provider")]     = s.value(QStringLiteral("provider")).toString();
+        m[QStringLiteral("smtpHost")]     = s.value(QStringLiteral("smtpHost")).toString();
+        m[QStringLiteral("smtpPort")]     = s.value(QStringLiteral("smtpPort")).toInt();
+        m[QStringLiteral("smtpSecurity")] = s.value(QStringLiteral("smtpSecurity")).toString();
+        m[QStringLiteral("recvProto")]    = s.value(QStringLiteral("recvProto")).toString();
+        m[QStringLiteral("recvHost")]     = s.value(QStringLiteral("recvHost")).toString();
+        m[QStringLiteral("recvPort")]     = s.value(QStringLiteral("recvPort")).toInt();
+        m[QStringLiteral("recvSsl")]      = s.value(QStringLiteral("recvSsl")).toBool(true);
+        m[QStringLiteral("user")]         = s.value(QStringLiteral("user")).toString();
+        m[QStringLiteral("hasPassword")]  = m_secrets.has(QStringLiteral("mail/") + it.key());
+        out.append(m);
+    }
+    return out;
+}
+
+bool AppController::setMailAccount(const QString &name, const QVariantMap &def)
+{
+    const QString n = name.trimmed();
+    if (n.isEmpty()) return false;
+    QJsonObject root = ocReadConfigObj(QStringLiteral("global"), QString());
+    QJsonObject mail = root.value(QStringLiteral("mail")).toObject();
+
+    QJsonObject s;
+    s[QStringLiteral("email")]        = def.value(QStringLiteral("email")).toString();
+    s[QStringLiteral("displayName")]  = def.value(QStringLiteral("displayName")).toString();
+    s[QStringLiteral("provider")]     = def.value(QStringLiteral("provider")).toString();
+    s[QStringLiteral("smtpHost")]     = def.value(QStringLiteral("smtpHost")).toString();
+    s[QStringLiteral("smtpPort")]     = def.value(QStringLiteral("smtpPort")).toInt();
+    s[QStringLiteral("smtpSecurity")] = def.value(QStringLiteral("smtpSecurity")).toString();
+    s[QStringLiteral("recvProto")]    = def.value(QStringLiteral("recvProto")).toString();
+    s[QStringLiteral("recvHost")]     = def.value(QStringLiteral("recvHost")).toString();
+    s[QStringLiteral("recvPort")]     = def.value(QStringLiteral("recvPort")).toInt();
+    s[QStringLiteral("recvSsl")]      = def.value(QStringLiteral("recvSsl"), true).toBool();
+    s[QStringLiteral("user")]         = def.value(QStringLiteral("user")).toString();
+    mail[n] = s;
+    root[QStringLiteral("mail")] = mail;
+
+    // El password (si vino) va al SecretStore, no al JSON.
+    const QString pass = def.value(QStringLiteral("password")).toString();
+    if (!pass.isEmpty()) m_secrets.set(QStringLiteral("mail/") + n, pass);
+
+    const bool okw = ocWriteConfigObj(QStringLiteral("global"), QString(), root);
+    if (okw) pushMailAccountsToAgent();
+    return okw;
+}
+
+bool AppController::removeMailAccount(const QString &name)
+{
+    QJsonObject root = ocReadConfigObj(QStringLiteral("global"), QString());
+    QJsonObject mail = root.value(QStringLiteral("mail")).toObject();
+    if (!mail.contains(name)) return false;
+    mail.remove(name);
+    root[QStringLiteral("mail")] = mail;
+    m_secrets.remove(QStringLiteral("mail/") + name);
+    const bool okw = ocWriteConfigObj(QStringLiteral("global"), QString(), root);
+    if (okw) pushMailAccountsToAgent();
+    return okw;
+}
+
+QVariantList AppController::mailAccountsResolved() const
+{
+    QVariantList out = listMailAccounts();
+    for (QVariant &v : out) {
+        QVariantMap m = v.toMap();
+        m[QStringLiteral("password")] = m_secrets.resolve(
+            QStringLiteral("mail/") + m.value(QStringLiteral("name")).toString());
+        m.remove(QStringLiteral("hasPassword"));
+        v = m;
+    }
+    return out;
+}
+
+QString AppController::testMailAccount(const QString &name) const
+{
+    for (const QVariant &v : listMailAccounts()) {
+        const QVariantMap m = v.toMap();
+        if (m.value(QStringLiteral("name")).toString() != name) continue;
+        MailClient::Account a = mailAccountFromMap(m);
+        a.password = m_secrets.resolve(QStringLiteral("mail/") + name);
+        if (a.password.isEmpty())
+            return QStringLiteral("No hay contraseña guardada para esta cuenta.");
+        QString err;
+        if (MailClient::testAccount(a, &err)) return QString();
+        return err.isEmpty() ? QStringLiteral("Falló la prueba.") : err;
+    }
+    return QStringLiteral("Cuenta no encontrada.");
+}
+
+void AppController::setMailAutoSend(bool on)
+{
+    if (on == m_mailAutoSend) return;
+    m_mailAutoSend = on;
+    writeSetting(QStringLiteral("agent/mailAutoSend"), on);
+    if (LlamaAgentBackend *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
+        cb->setMailAutoSend(on);
+    emit mailAutoSendChanged();
+}
+
+void AppController::pushMailAccountsToAgent()
+{
+    if (LlamaAgentBackend *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend)) {
+        cb->setMailAccounts(mailAccountsResolved());
+        cb->setMailAutoSend(m_mailAutoSend);
+    }
 }
 
 // ───────────────────────── Integrations ──────────────────────────────
@@ -4346,6 +4547,7 @@ static const TrEntry k_tr[] = {
     {"nav.chat",      "Chat",           "Chat",         "聊天",       "Discussion",     "Chat",           "Chat"},
     {"nav.benchmark", "Benchmark",     "Benchmark",    "基准测试",   "Benchmark",      "Benchmark",      "Benchmark"},
     {"nav.research",  "Research",       "Research",     "研究",       "Recherche",      "Ricerca",        "Recherche"},
+    {"nav.charla",    "Charla",         "Talk",         "对话",       "Parler",         "Parla",          "Sprechen"},
     {"nav.settings",  "Configuración", "Settings",     "设置",       "Paramètres",     "Impostazioni",   "Einstellungen"},
     // Launch page
     {"launch.title",       "Lanzar",          "Launch",          "启动",       "Lancer",          "Avvia",               "Starten"},
@@ -4499,6 +4701,11 @@ static const TrEntry k_tr[] = {
     {"settings.light",      "Claro",           "Light",                 "浅色",           "Clair",             "Chiaro",               "Hell"},
     {"settings.oled",       "OLED",            "OLED",                  "OLED",                   "OLED",              "OLED",                 "OLED"},
     {"settings.language",   "Idioma",          "Language",              "语言",           "Langue",            "Lingua",               "Sprache"},
+    {"settings.system",     "Sistema",         "System",                "系统",           "Système",           "Sistema",              "System"},
+    {"settings.minimizeToTray", "Minimizar a la bandeja", "Minimize to tray", "最小化到托盘", "Réduire dans la barre", "Riduci a icona", "In Infobereich minimieren"},
+    {"settings.minimizeToTrayDesc", "Al cerrar, la app se oculta en los íconos de notificación en vez de cerrarse. Click derecho en el ícono para abrirla o salir.", "On close, the app hides in the notification tray instead of quitting. Right-click the icon to reopen or quit.", "关闭时，应用会隐藏到通知托盘而不是退出。右键单击图标可重新打开或退出。", "À la fermeture, l'application se réduit dans la zone de notification au lieu de quitter. Clic droit sur l'icône pour rouvrir ou quitter.", "Alla chiusura, l'app si nasconde nell'area di notifica invece di uscire. Clic destro sull'icona per riaprire o uscire.", "Beim Schließen wird die App im Infobereich versteckt statt beendet. Rechtsklick auf das Symbol zum Öffnen oder Beenden."},
+    {"tray.open",           "Abrir",           "Open",                  "打开",           "Ouvrir",            "Apri",                 "Öffnen"},
+    {"tray.quit",           "Salir",           "Quit",                  "退出",           "Quitter",           "Esci",                 "Beenden"},
 };
 
 const QHash<QString, QHash<QString, QString>> &AppController::translations()
@@ -7905,3 +8112,67 @@ void AppController::deleteResearchReport(const QString &id)
         f.write(QJsonDocument(kept).toJson(QJsonDocument::Indented));
     refreshResearchReports();
 }
+
+// ── Modo Charla (voz-a-voz) ──────────────────────────────────────────────────
+
+QVariantMap AppController::voiceConfig() const
+{
+    const QString raw = readSetting(QStringLiteral("voiceConfig")).toString();
+    const QJsonObject o = QJsonDocument::fromJson(raw.toUtf8()).object();
+    return VoiceConfig::fromJson(o).toJson().toVariantMap();
+}
+
+void AppController::setVoiceConfig(const QVariantMap &cfg)
+{
+    const VoiceConfig c = VoiceConfig::fromJson(QJsonObject::fromVariantMap(cfg));
+    writeSetting(QStringLiteral("voiceConfig"),
+                 QString::fromUtf8(QJsonDocument(c.toJson()).toJson(QJsonDocument::Compact)));
+    if (m_voice) applyVoiceConfig();
+}
+
+void AppController::ensureVoice()
+{
+    if (m_voice) return;
+    m_voice = new VoiceController(this);
+    connect(m_voice, &VoiceController::transcriptReady, this, [this](const QString &text) {
+        sendChatMessage(text);
+    });
+    connect(m_voice, &VoiceController::stateChanged, this, &AppController::voiceStateChanged);
+    connect(m_voice, &VoiceController::errorChanged, this, &AppController::voiceStateChanged);
+    connect(m_voice, &VoiceController::levelChanged, this, &AppController::voiceLevelChanged);
+}
+
+void AppController::applyVoiceConfig()
+{
+    if (!m_voice) return;
+    const QString raw = readSetting(QStringLiteral("voiceConfig")).toString();
+    const VoiceConfig c = VoiceConfig::fromJson(QJsonDocument::fromJson(raw.toUtf8()).object());
+    const QString sttKey = c.sttKeyRef.isEmpty() ? QString() : m_secrets.resolve(c.sttKeyRef);
+    const QString ttsKey = c.ttsKeyRef.isEmpty() ? QString() : m_secrets.resolve(c.ttsKeyRef);
+    m_voice->setConfig(c, sttKey, ttsKey);
+}
+
+void AppController::startCharla()
+{
+    ensureChatBackend();   // la voz reusa el backend de chat (sesiones/stream)
+    ensureVoice();
+    applyVoiceConfig();
+    m_charlaActive = true;
+    m_voice->start();
+}
+
+void AppController::stopCharla()
+{
+    m_charlaActive = false;
+    if (m_voice) m_voice->stop();
+}
+
+void AppController::charlaListen()
+{
+    if (m_voice) m_voice->startListening();
+}
+
+QString AppController::voiceState() const { return m_voice ? m_voice->stateStr() : QStringLiteral("idle"); }
+bool    AppController::voiceActive() const { return m_voice && m_voice->active(); }
+double  AppController::voiceLevel() const { return m_voice ? m_voice->level() : 0.0; }
+QString AppController::voiceError() const { return m_voice ? m_voice->lastError() : QString(); }

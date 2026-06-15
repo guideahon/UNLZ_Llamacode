@@ -9,7 +9,7 @@ set(CMAKE_AUTORCC ON)
 option(BUILD_TESTS "Build unit tests (LlamaCodeTests)" OFF)
 option(LC_USE_QTKEYCHAIN "Cifrar secretos vía QtKeychain (Secret Service / WinCred / macOS Keychain)" ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick Sql Concurrent Network Widgets)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick Sql Concurrent Network Widgets Multimedia)
 
 # --- QtKeychain: almacenamiento de secretos respaldado por el SO, multiplataforma.
 # Se intenta find_package (system/vcpkg); si no está y la opción está ON, se baja con
@@ -64,6 +64,12 @@ set(CORE_SOURCES
     src/core/agent/GraphStore.cpp
     src/core/agent/MasterCli.cpp
     src/core/agent/BrowserTeach.cpp
+    src/core/mail/MailClient.cpp
+    src/core/voice/VoiceTypes.cpp
+    src/core/voice/AudioCodec.cpp
+    src/core/voice/SttEngine.cpp
+    src/core/voice/TtsEngine.cpp
+    src/core/voice/VoiceController.cpp
     src/core/eval/EvalSuite.cpp
     src/core/tuner/AutoTuner.cpp
     src/core/tuner/TunerEngine.cpp
@@ -98,6 +104,12 @@ set(HEADERS
     src/core/agent/MemoryStore.h
     src/core/agent/GraphStore.h
     src/core/agent/BrowserTeach.h
+    src/core/mail/MailClient.h
+    src/core/voice/VoiceTypes.h
+    src/core/voice/AudioCodec.h
+    src/core/voice/SttEngine.h
+    src/core/voice/TtsEngine.h
+    src/core/voice/VoiceController.h
     src/core/eval/EvalSuite.h
     src/core/tuner/AutoTuner.h
     src/core/tuner/TunerEngine.h
@@ -119,6 +131,7 @@ target_link_libraries(llamacode_core PUBLIC
     Qt6::Concurrent
     Qt6::Network
     Qt6::Widgets
+    Qt6::Multimedia
 )
 if (MSVC)
     target_compile_options(llamacode_core PRIVATE /utf-8)
@@ -189,6 +202,7 @@ qt_add_qml_module(LlamaCode
         qml/pages/AgentPage.qml
         qml/pages/BenchmarkPage.qml
         qml/pages/ResearchPage.qml
+        qml/pages/CharlaPage.qml
         qml/pages/SettingsPage.qml
 )
 
@@ -216,6 +230,7 @@ target_link_libraries(LlamaCode
     Qt6::Concurrent
     Qt6::Network
     Qt6::Widgets
+    Qt6::Multimedia
 )
 
 set_target_properties(LlamaCode PROPERTIES
@@ -261,4 +276,6 @@ if (BUILD_TESTS)
     add_lc_test(test_backends_net       tests/test_backends_net.cpp)
     add_lc_test(test_appcontroller      tests/test_appcontroller.cpp)
     add_lc_test(test_mermaid            tests/test_mermaid.cpp)
+    add_lc_test(test_mail               tests/test_mail.cpp)
+    add_lc_test(test_voice              tests/test_voice.cpp)
 endif()

@@ -82,6 +82,7 @@ class AppController : public QObject
     Q_PROPERTY(QString agentTeacherUrl   READ agentTeacherUrl   WRITE setAgentTeacherUrl   NOTIFY agentTeacherChanged)
     Q_PROPERTY(QString agentTeacherModel READ agentTeacherModel WRITE setAgentTeacherModel NOTIFY agentTeacherChanged)
     Q_PROPERTY(QString agentTeacherKey   READ agentTeacherKey   WRITE setAgentTeacherKey   NOTIFY agentTeacherChanged)
+    Q_PROPERTY(bool mailAutoSend READ mailAutoSend WRITE setMailAutoSend NOTIFY mailAutoSendChanged)
     Q_PROPERTY(int agentContextUsed READ agentContextUsed NOTIFY agentContextChanged)
     Q_PROPERTY(int agentContextLimit READ agentContextLimit NOTIFY agentContextChanged)
     Q_PROPERTY(QString agentSystemPrompt READ agentSystemPrompt WRITE setAgentSystemPrompt NOTIFY agentTuningChanged)
@@ -109,6 +110,11 @@ class AppController : public QObject
     Q_PROPERTY(bool modelDownloadRunning READ modelDownloadRunning NOTIFY modelDownloadChanged)
     Q_PROPERTY(int modelDownloadProgress READ modelDownloadProgress NOTIFY modelDownloadChanged)
     Q_PROPERTY(QString modelDownloadStatus READ modelDownloadStatus NOTIFY modelDownloadChanged)
+    // ── Modo Charla (voz-a-voz) ──
+    Q_PROPERTY(QString voiceState READ voiceState NOTIFY voiceStateChanged)
+    Q_PROPERTY(bool    voiceActive READ voiceActive NOTIFY voiceStateChanged)
+    Q_PROPERTY(double  voiceLevel READ voiceLevel NOTIFY voiceLevelChanged)
+    Q_PROPERTY(QString voiceError READ voiceError NOTIFY voiceStateChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -385,6 +391,18 @@ public:
     Q_INVOKABLE bool toggleMcpServer(const QString &scope, const QString &projectDir,
                                      const QString &name, bool enabled);
 
+    // ── Cuentas de correo (globales). El password va a SecretStore (ref
+    // "mail/<name>"), nunca al JSON. listMailAccounts NO incluye el password.
+    Q_INVOKABLE QVariantList listMailAccounts() const;
+    Q_INVOKABLE bool setMailAccount(const QString &name, const QVariantMap &def);
+    Q_INVOKABLE bool removeMailAccount(const QString &name);
+    // Prueba la cuenta (login SMTP + recepción). "" = OK; si no, mensaje de error.
+    Q_INVOKABLE QString testMailAccount(const QString &name) const;
+    bool mailAutoSend() const { return m_mailAutoSend; }
+    void setMailAutoSend(bool on);
+    // Cuentas con el password resuelto (para inyectar al backend del agente).
+    QVariantList mailAccountsResolved() const;
+
     // ── Integrations (registro unificado: MCP global + API services) ──
     // Lista agregada de conexiones externas. Cada item: {id,type,name,enabled,
     // summary,config{}}. type = "mcp" | "api_service".
@@ -459,7 +477,21 @@ public:
     Q_INVOKABLE void downloadRecommendedModel(const QString &repo, const QString &fileName);
     Q_INVOKABLE void openModelRecommendation(const QString &repo);
 
+    // ── Modo Charla (voz-a-voz) ──
+    QString voiceState() const;
+    bool    voiceActive() const;
+    double  voiceLevel() const;
+    QString voiceError() const;
+    // Config persistida (settings "voiceConfig"); el setter aplica al controller vivo.
+    Q_INVOKABLE QVariantMap voiceConfig() const;
+    Q_INVOKABLE void setVoiceConfig(const QVariantMap &cfg);
+    Q_INVOKABLE void startCharla();   // arranca la sesión de voz (usa el backend de chat)
+    Q_INVOKABLE void stopCharla();
+    Q_INVOKABLE void charlaListen();  // fuerza escucha (corta el TTS si suena)
+
 signals:
+    void voiceStateChanged();
+    void voiceLevelChanged();
     // Un perfil cloud necesita su API key y no se pudo resolver (ni env var ni store):
     // la UI debe pedirla y llamar setSecret(keyRef, value) antes de reintentar.
     void cloudSecretRequired(const QString &launchProfileId, const QString &keyRef);
@@ -511,6 +543,7 @@ signals:
     void agentThinkingChanged();
     void agentToolsChanged();
     void agentTeacherChanged();
+    void mailAutoSendChanged();
     void agentContextChanged();
     void agentTuningChanged();
     void benchmarkRunningChanged();
@@ -542,6 +575,9 @@ private:
     void appendFileLog(const QString &path, const QString &line) const;
     void finishSmokeTest(bool passed, const QString &output);
     EffectiveProfileBuilder::Context buildContext(const QString &launchProfileId);
+    // Resuelve la cadena de fallbacks del maestro (keys/cliPath/profile→http) a
+    // una QVariantList lista para el worker del agente.
+    QVariantList buildMasterChain(const MasterConfig &mc);
 
     BinaryRegistry    m_binaries;
     ModelCatalog      m_catalog;
@@ -625,6 +661,13 @@ private:
     IAgentBackend      *m_agentBackend = nullptr;
     // Backend de chat directo (raw), separado del modo Agente.
     IAgentBackend      *m_chatBackend = nullptr;
+    // Modo Charla (voz-a-voz): orquestador STT→chat→TTS. Reusa m_chatBackend.
+    class VoiceController *m_voice = nullptr;
+    bool m_charlaActive = false;
+    bool m_chatWasGenerating = false;
+    void ensureVoice();                 // crea + configura el controller (lazy)
+    void applyVoiceConfig();            // empuja config + keys resueltas al controller
+    QString voiceConfigPath() const;
     // Chat session state
     QString       m_chatProjectIdOverride;
     QString       m_chatProjectNameOverride;
@@ -673,6 +716,7 @@ private:
     QString   m_agentTeacherKey;
     MasterCli m_masterCli;                      // detección de CLIs maestro (claude/codex)
     SecretStore m_secrets;                       // API keys cloud (fuera del repo)
+    bool        m_mailAutoSend = false;          // permitir email_send sin aprobación
     int       m_agentContextUsed = 0;
     int       m_agentContextLimit = -1;
     QString   m_agentSystemPrompt;
@@ -686,6 +730,9 @@ private:
 #endif
     void createJobObject();
     void assignToJobObject(qint64 pid);
+    // Reenvía las cuentas de correo (password resuelto) + flag auto-send al
+    // backend del agente activo, si lo hay.
+    void pushMailAccountsToAgent();
     void killManagedOrphans();
     void writeServiceState(const QString &role, qint64 pid, const QVariantMap &extra = {});
     void ensurePiConfig(const QString &openaiBaseUrl);

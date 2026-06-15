@@ -70,6 +70,12 @@ public:
     // Se relanzan en start(). Sus tools se inyectan con prefijo mcp__<server>__<tool>.
     void setMcpServers(const QVariantList &servers);
 
+    // Cuentas de correo (con password resuelto) para las tools email_*. Se
+    // reenvían al worker. mailAutoSend=true permite que email_send NO pida
+    // aprobación (default false: enviar correo es acción externa irreversible).
+    void setMailAccounts(const QVariantList &accounts);
+    void setMailAutoSend(bool on) { m_mailAutoSend = on; }
+
     // Diff unificado simple (prefijo/sufijo común; líneas +/-/ ).
     static QString makeDiff(const QString &oldText, const QString &newText);
 
@@ -91,11 +97,17 @@ public:
     void setMasterCli(const QString &kind, const QString &cliName, const QString &cliPath,
                       const QString &escalation, int autoAfterFails,
                       bool applyEdits, int timeoutSec);
+    // Cadena de fallbacks del maestro (resuelta por AppController: keys y cliPath
+    // ya resueltos). Se reenvía al worker. Tiene prioridad sobre setMasterCli.
+    void setMasterChain(const QVariantList &chain, const QString &escalation,
+                        int autoAfterFails);
     // Escalado manual: el usuario pide pasar el problema actual al maestro.
     // Envía un turno que instruye al agente a usar ask_teacher. Devuelve false si
     // no hay maestro configurado.
     bool escalateToMaster(const QString &problem);
-    bool masterConfigured() const { return m_masterKind != QLatin1String("none"); }
+    bool masterConfigured() const {
+        return !m_masterChain.isEmpty() || m_masterKind != QLatin1String("none");
+    }
 
     // Memoria por proyecto: ruta del archivo de memoria dentro de un cwd.
     static QString memoryFilePath(const QString &cwd);
@@ -221,14 +233,17 @@ private:
     int     m_masterAutoAfterFails = 3;
     bool    m_masterApplyEdits = true;
     int     m_masterTimeoutS = 300;
+    QVariantList m_masterChain;      // cadena de fallbacks resuelta (ver setMasterChain)
     QSet<QString> m_escalatedSigs;   // firmas ya escaladas al maestro (anti-recursión)
     bool masterAutoEnabled() const {
-        return m_masterKind != QLatin1String("none")
+        return (!m_masterChain.isEmpty() || m_masterKind != QLatin1String("none"))
             && (m_masterEscalation == QLatin1String("auto")
                 || m_masterEscalation == QLatin1String("both"));
     }
 
     QVariantList m_mcpConfig;        // config de servers MCP (de AppController)
+    QVariantList m_mailAccounts;     // cuentas de correo (password resuelto)
+    bool         m_mailAutoSend = false; // permitir email_send sin aprobación
     QVariantList m_mcpTools;         // cache de tool-defs MCP del worker {server,name,description,schema}
 
     // Worker thread para ejecución de tools (nativas + MCP).

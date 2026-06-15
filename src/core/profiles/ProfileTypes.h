@@ -2,7 +2,9 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
+#include <QList>
 #include <QJsonObject>
+#include <QJsonArray>
 
 struct BackendProfile {
     QString id;
@@ -95,21 +97,48 @@ struct WorkspaceProfile {
     static QString generateId();
 };
 
-// Config del "maestro" (supervisor): modelo más capaz al que el agente local
-// escala un sub-problema que no resuelve. Vive por LaunchProfile; si kind=="none"
-// se usa el fallback global (Ajustes). Ver tool ask_teacher.
+// Un nivel de la cadena de fallbacks del maestro. El agente local escala el
+// problema al primero; si ese también falla, al siguiente, y así hasta agotar
+// la lista (ver tool ask_teacher). Ordenados de primero a último.
+struct MasterFallback {
+    QString type = "http";           // profile | http | cli
+    QString label;                   // nombre opcional para la UI
+    // type==profile: referencia a otro LaunchProfile del mismo LlamaCode.
+    QString profileId;
+    // type==http: endpoint OpenAI-compatible. httpKeyRef es una *referencia*
+    // a SecretStore (nunca la key en claro en el JSON del perfil).
+    QString httpUrl;
+    QString httpModel;
+    QString httpKeyRef;
+    // type==cli: claude | codex.
+    QString cliName;
+    // Overrides por nivel.
+    bool    applyEdits = true;       // CLI edita archivos directo vs sólo plan
+    int     timeoutSec = 300;
+
+    QJsonObject toJson() const;
+    static MasterFallback fromJson(const QJsonObject &obj);
+};
+
+// Config del "maestro" (supervisor): cadena de modelos/CLIs más capaces a los
+// que el agente local escala un sub-problema que no resuelve. Vive por
+// LaunchProfile; si la cadena está vacía se usa el fallback global (Ajustes).
+// Los campos legacy (kind/cliName/http*) se migran a un fallback único al leer.
 struct MasterConfig {
+    QList<MasterFallback> fallbacks;  // cadena ordenada (primero → último)
+    QString escalation = "manual";   // manual | auto | both
+    int     autoAfterFails = 3;      // gatillo auto: N fallos de la misma tool/firma
+
+    // --- Legacy (un solo maestro). Se mantienen para migración/lectura vieja. ---
     QString kind = "none";           // none | http | cli
     QString cliName;                 // claude | codex   (kind==cli)
     QString httpUrl;                 // endpoint OpenAI-compat (kind==http)
     QString httpModel;
     QString httpKey;
-    QString escalation = "manual";   // manual | auto | both
-    int     autoAfterFails = 3;      // gatillo auto: N fallos de la misma tool/firma
-    bool    applyEdits = true;       // CLI edita archivos directo vs sólo devolver plan
+    bool    applyEdits = true;
     int     timeoutSec = 300;
 
-    bool isConfigured() const { return kind != QLatin1String("none"); }
+    bool isConfigured() const { return !fallbacks.isEmpty(); }
 
     QJsonObject toJson() const;
     static MasterConfig fromJson(const QJsonObject &obj);

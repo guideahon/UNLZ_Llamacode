@@ -179,6 +179,10 @@ void LlamaAgentBackend::start(const AgentContext &ctx)
                               Q_ARG(QString, m_masterKind), Q_ARG(QString, m_masterCliName),
                               Q_ARG(QString, m_masterCliPath), Q_ARG(bool, m_masterApplyEdits),
                               Q_ARG(int, m_masterTimeoutS));
+    QMetaObject::invokeMethod(m_worker, "setMasterChain", Qt::QueuedConnection,
+                              Q_ARG(QVariantList, m_masterChain));
+    QMetaObject::invokeMethod(m_worker, "setMailAccounts", Qt::QueuedConnection,
+                              Q_ARG(QVariantList, m_mailAccounts));
     QMetaObject::invokeMethod(m_worker, "initServers", Qt::QueuedConnection,
                               Q_ARG(QVariantList, m_mcpConfig), Q_ARG(QString, m_cwd));
     emit runningChanged();
@@ -1545,7 +1549,12 @@ void LlamaAgentBackend::processPendingCalls()
     const bool autoRead = (m_approvalMode == QLatin1String("ask") && kind == QLatin1String("read"));
     const bool always   = m_alwaysAllowed.contains(kind);
 
-    if (!forceAsk && (autoAll || autoRead || always)) {
+    // email_send es acción externa irreversible: gateada por defecto en CUALQUIER
+    // modo (incluso auto/super), salvo que el usuario active "auto-enviar".
+    const bool emailGated = (kind == QLatin1String("email") && !m_mailAutoSend);
+    const bool emailAuto  = (kind == QLatin1String("email") && m_mailAutoSend);
+
+    if (!forceAsk && !emailGated && (autoAll || autoRead || always || emailAuto)) {
         emit logAppended(QStringLiteral("[tool] auto-approving %1\n").arg(name));
         approveAndContinue(call.value(QStringLiteral("id")).toString(), QStringLiteral("once"));
         return;
@@ -1557,6 +1566,10 @@ void LlamaAgentBackend::processPendingCalls()
     QString detail = args.value(QStringLiteral("command")).toString();
     if (detail.isEmpty()) detail = args.value(QStringLiteral("path")).toString();
     if (detail.isEmpty()) detail = args.value(QStringLiteral("pattern")).toString();
+    if (name == QLatin1String("email_send"))
+        detail = QStringLiteral("a: %1 · asunto: %2")
+                     .arg(args.value(QStringLiteral("to")).toString(),
+                          args.value(QStringLiteral("subject")).toString());
     QString diff;
     if (name == QLatin1String("write_file") || name == QLatin1String("edit_file")) {
         const QString rel = args.value(QStringLiteral("path")).toString();
@@ -2174,6 +2187,7 @@ QString LlamaAgentBackend::toolKind(const QString &name)
     if (name == QLatin1String("task")) return QStringLiteral("task");
     if (name == QLatin1String("write_file") || name == QLatin1String("edit_file"))
         return QStringLiteral("write");
+    if (name == QLatin1String("email_send")) return QStringLiteral("email");
     return QStringLiteral("read");
 }
 
@@ -2405,7 +2419,43 @@ QJsonArray LlamaAgentBackend::toolSchemas()
                           "navegación nueva/ad-hoc usá las tools del MCP Playwright."),
            QJsonObject{
                {QStringLiteral("name"), strProp(QStringLiteral("Nombre del skill (ver browser_skill_list)."))}},
-           QJsonArray{QStringLiteral("name")})
+           QJsonArray{QStringLiteral("name")}),
+        fn(QStringLiteral("email_accounts"),
+           QStringLiteral("Lista las cuentas de correo configuradas por el usuario (nombre + "
+                          "dirección, sin contraseñas). Usalo para saber qué cuentas hay antes "
+                          "de email_send/email_list si hay varias."),
+           QJsonObject{},
+           QJsonArray{}),
+        fn(QStringLiteral("email_send"),
+           QStringLiteral("Envía un correo (SMTP). Por defecto REQUIERE aprobación del usuario "
+                          "(es una acción externa irreversible). Pasá destinatario(s), asunto y "
+                          "cuerpo (texto plano). 'account' es opcional: si no, usa la cuenta por "
+                          "defecto. Múltiples destinatarios separados por coma."),
+           QJsonObject{
+               {QStringLiteral("to"), strProp(QStringLiteral("Destinatario(s), separados por coma."))},
+               {QStringLiteral("subject"), strProp(QStringLiteral("Asunto del correo."))},
+               {QStringLiteral("body"), strProp(QStringLiteral("Cuerpo del mensaje (texto plano)."))},
+               {QStringLiteral("cc"), strProp(QStringLiteral("Copia (CC), opcional."))},
+               {QStringLiteral("account"), strProp(QStringLiteral("Nombre/email de la cuenta (opcional)."))}},
+           QJsonArray{QStringLiteral("to"), QStringLiteral("subject"), QStringLiteral("body")}),
+        fn(QStringLiteral("email_list"),
+           QStringLiteral("Lista los correos recientes de la bandeja (IMAP/POP3): devuelve "
+                          "uid, fecha, remitente y asunto de cada uno. Usá el uid con email_read "
+                          "para leer el cuerpo. 'account' opcional (default: primera cuenta)."),
+           QJsonObject{
+               {QStringLiteral("folder"), strProp(QStringLiteral("Carpeta IMAP (default 'INBOX')."))},
+               {QStringLiteral("limit"), intProp(QStringLiteral("Cantidad de correos (default 10)."))},
+               {QStringLiteral("unread_only"), boolProp(QStringLiteral("Solo no leídos (IMAP). Default false."))},
+               {QStringLiteral("account"), strProp(QStringLiteral("Nombre/email de la cuenta (opcional)."))}},
+           QJsonArray{}),
+        fn(QStringLiteral("email_read"),
+           QStringLiteral("Lee el cuerpo completo de un correo por su uid (obtenido con "
+                          "email_list). 'account'/'folder' opcionales."),
+           QJsonObject{
+               {QStringLiteral("uid"), strProp(QStringLiteral("UID del correo (ver email_list)."))},
+               {QStringLiteral("folder"), strProp(QStringLiteral("Carpeta IMAP (default 'INBOX')."))},
+               {QStringLiteral("account"), strProp(QStringLiteral("Nombre/email de la cuenta (opcional)."))}},
+           QJsonArray{QStringLiteral("uid")})
     };
 }
 
@@ -2441,6 +2491,10 @@ QVariantList LlamaAgentBackend::toolCatalog()
         mk("task",      "Multi-Agente", "Delega una subtarea a un sub-agente en worktree.", 180),
         mk("browser_skill_list", "Browser", "Lista skills de browser grabados (teach).", 70),
         mk("browser_skill_replay", "Browser", "Reproduce un skill de browser grabado (Playwright).", 100),
+        mk("email_accounts", "Correo", "Lista las cuentas de correo configuradas.", 60),
+        mk("email_send", "Correo", "Envía un correo (SMTP). Requiere aprobación por defecto.", 150),
+        mk("email_list", "Correo", "Lista correos recientes (IMAP/POP3).", 130),
+        mk("email_read", "Correo", "Lee el cuerpo de un correo por uid.", 100),
     };
 }
 
@@ -2475,6 +2529,17 @@ void LlamaAgentBackend::setMasterCli(const QString &kind, const QString &cliName
                                   Q_ARG(int, m_masterTimeoutS));
 }
 
+void LlamaAgentBackend::setMasterChain(const QVariantList &chain, const QString &escalation,
+                                       int autoAfterFails)
+{
+    m_masterChain = chain;
+    m_masterEscalation = escalation.isEmpty() ? QStringLiteral("manual") : escalation;
+    m_masterAutoAfterFails = autoAfterFails > 0 ? autoAfterFails : 3;
+    if (m_running && m_worker)
+        QMetaObject::invokeMethod(m_worker, "setMasterChain", Qt::QueuedConnection,
+                                  Q_ARG(QVariantList, m_masterChain));
+}
+
 bool LlamaAgentBackend::escalateToMaster(const QString &problem)
 {
     if (!masterConfigured()) return false;
@@ -2496,6 +2561,14 @@ void LlamaAgentBackend::setMcpServers(const QVariantList &servers)
     if (m_running && m_worker)
         QMetaObject::invokeMethod(m_worker, "initServers", Qt::QueuedConnection,
                                   Q_ARG(QVariantList, m_mcpConfig), Q_ARG(QString, m_cwd));
+}
+
+void LlamaAgentBackend::setMailAccounts(const QVariantList &accounts)
+{
+    m_mailAccounts = accounts;
+    if (m_running && m_worker)
+        QMetaObject::invokeMethod(m_worker, "setMailAccounts", Qt::QueuedConnection,
+                                  Q_ARG(QVariantList, m_mailAccounts));
 }
 
 void LlamaAgentBackend::ensureWorker()

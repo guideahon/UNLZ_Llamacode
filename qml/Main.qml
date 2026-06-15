@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Qt.labs.platform as Platform
 import LlamaCode 1.0
 
 ApplicationWindow {
@@ -21,6 +22,20 @@ ApplicationWindow {
     property color titleBarColor: Theme.titleBg
     property int resizeHandleSize: 8
     property bool restoringWindowState: true
+    // Minimizar a la bandeja de notificación al cerrar (en vez de salir).
+    property bool minimizeToTray: Boolean(App.readSetting("window/minimizeToTray", false))
+    // Bandera para forzar salida real desde el menú del tray.
+    property bool forceQuit: false
+
+    function showFromTray() {
+        if (Boolean(App.readSetting("window/maximized", false)))
+            window.showMaximized()
+        else
+            window.showNormal()
+        window.show()
+        window.raise()
+        window.requestActivate()
+    }
 
     function saveWindowState() {
         if (restoringWindowState)
@@ -166,6 +181,7 @@ ApplicationWindow {
                     AgentPage       {}
                     ResearchPage    {}
                     BenchmarkPage   {}
+                    CharlaPage      {}
                     SettingsPage    {}
                 }
             }
@@ -603,7 +619,38 @@ ApplicationWindow {
         if (App.needsSetup) setupPopup.open()
     }
 
-    onClosing: saveWindowState()
+    onClosing: function(close) {
+        saveWindowState()
+        if (window.minimizeToTray && !window.forceQuit) {
+            close.accepted = false
+            window.hide()
+        }
+    }
+
+    // Ícono en la bandeja de notificación. Visible sólo con el toggle activo.
+    // Click izquierdo o doble click restaura; botón derecho da menú Abrir/Salir.
+    Platform.SystemTrayIcon {
+        id: trayIcon
+        visible: window.minimizeToTray
+        icon.source: "qrc:/assets/app_icon.ico"
+        tooltip: "UNLZ_Llamacode"
+        onActivated: function(reason) {
+            if (reason === Platform.SystemTrayIcon.Trigger
+                    || reason === Platform.SystemTrayIcon.DoubleClick)
+                window.showFromTray()
+        }
+        menu: Platform.Menu {
+            Platform.MenuItem {
+                text: (App.langV, App.l("tray.open"))
+                onTriggered: window.showFromTray()
+            }
+            Platform.MenuItem { separator: true }
+            Platform.MenuItem {
+                text: (App.langV, App.l("tray.quit"))
+                onTriggered: { window.forceQuit = true; Qt.quit() }
+            }
+        }
+    }
 
     onXChanged: saveWindowState()
     onYChanged: saveWindowState()
