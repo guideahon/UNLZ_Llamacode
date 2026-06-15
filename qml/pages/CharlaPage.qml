@@ -281,10 +281,15 @@ Item {
                         }
                     }
 
-                    Text { text: "Reconocimiento de voz (STT)"; color: Theme.textPrimary; Layout.leftMargin: 24; font { pixelSize: 15; bold: true } }
+                    Text {
+                        text: "Reconocimiento de voz (STT) — endpoint manual"
+                        color: Theme.textPrimary; Layout.leftMargin: 24; font { pixelSize: 15; bold: true }
+                        visible: (page.cfg.sttManagedEngine || "") === ""
+                    }
                     GridLayout {
                         columns: 2; columnSpacing: 12; rowSpacing: 8
                         Layout.leftMargin: 24; Layout.rightMargin: 24; Layout.fillWidth: true
+                        visible: (page.cfg.sttManagedEngine || "") === ""
 
                         Text { text: "Proveedor"; color: Theme.textSecondary }
                         LcComboBox {
@@ -381,10 +386,15 @@ Item {
                         }
                     }
 
-                    Text { text: "Síntesis de voz (TTS) — endpoint HTTP"; color: Theme.textPrimary; Layout.leftMargin: 24; font { pixelSize: 15; bold: true } }
+                    Text {
+                        text: "Síntesis de voz (TTS) — endpoint HTTP"
+                        color: Theme.textPrimary; Layout.leftMargin: 24; font { pixelSize: 15; bold: true }
+                        visible: page.cfg.ttsMode !== "piper"
+                    }
                     GridLayout {
                         columns: 2; columnSpacing: 12; rowSpacing: 8
                         Layout.leftMargin: 24; Layout.rightMargin: 24; Layout.fillWidth: true
+                        visible: page.cfg.ttsMode !== "piper"
 
                         Text { text: "Proveedor"; color: Theme.textSecondary }
                         LcComboBox {
