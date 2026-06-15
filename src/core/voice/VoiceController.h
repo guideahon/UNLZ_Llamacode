@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QByteArray>
 #include <QPointer>
+#include <QVariantList>
 
 class QAudioSource;
 class QIODevice;
@@ -33,6 +34,10 @@ public:
     ~VoiceController() override;
 
     void setConfig(const VoiceConfig &cfg, const QString &sttKey, const QString &ttsKey);
+    // Dispositivo de entrada por id (QAudioDevice::id() como string utf8). "" = default.
+    void setInputDevice(const QString &id);
+    // Lista de micrófonos: [{id,name,isDefault}].
+    static QVariantList inputDevices();
 
     QString stateStr() const;
     bool active() const { return m_state != Idle && m_state != Error; }
@@ -51,6 +56,8 @@ public slots:
     void start();          // arranca la sesión de charla (entra en Listening)
     void stop();           // corta todo y vuelve a Idle
     void startListening(); // fuerza escucha (corta TTS si suena)
+    void micTest();        // captura solo para ver nivel (sin STT/chat); probar micrófono
+    void stopMicTest();
     void speak(const QString &text);   // habla un texto (lo invoca AppController al cerrar turno)
     void notifyThinking();             // el LLM empezó a generar
 
@@ -91,6 +98,8 @@ private:
     int   m_silenceMs = 0;           // silencio continuo acumulado (ms)
     double m_peak = 0.0;             // máximo RMS visto en el turno (¿hubo voz?)
     bool  m_monitorOnly = false;     // true durante Speaking (barge-in): no acumula
+    bool  m_testMode = false;        // micTest: captura para nivel, no VAD/STT
+    QString m_deviceId;              // micrófono elegido ("" = default del sistema)
 
     QMediaPlayer *m_player = nullptr;
     QAudioOutput *m_audioOut = nullptr;

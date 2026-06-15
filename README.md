@@ -35,6 +35,8 @@
 - [Diseño Multi-llama.cpp](#diseño-multi-llamacpp) · [Multi-GGUF roots](#diseño-multi-gguf-roots) · [Multi-perfiles](#diseño-multi-perfiles-compuestos)
 - [Cookbook de modelos (hardware-fit)](#cookbook-de-modelos-recomendaciones-hardware-fit)
 - [Chat integrado](#chat-integrado) · [Harness de Agente](#harness-de-agente-opencode) · [Lanzamiento del servidor](#lanzamiento-del-servidor-launchpage)
+- [Backends cloud + secretos](#backends-cloud--secretos-cifrados) · [Modo Charla (voz)](#modo-charla-voz-a-voz) · [Memoria/RAG](#memoria-rag-y-verificación) · [Maestro/supervisor](#maestro--supervisor-escalado)
+- [Correo](#cuentas-de-correo) · [Browser (Playwright)](#automatización-de-browser-playwright) · [Adjuntos/visión](#adjuntos-documentos--visión) · [Watchdog + VRAM](#robustez-del-server-watchdog--vram) · [Otras capacidades](#otras-capacidades)
 - [Process Lifecycle](#process-lifecycle) · [Stack técnico](#stack-técnico) · [Build](#build) · [Estructura del repo](#estructura-del-repo)
 - [Fases](#fases) · [Tasks (macros + scheduler)](#tasks-macros-configurables--scheduler-cron) · [Benchmarking](#benchmarking) · [Auto-tuning](#auto-tuning-de-parámetros) · [Seguridad operativa](#seguridad-operativa)
 - [Agradecimientos](#agradecimientos)
@@ -288,6 +290,100 @@ Pegar un comando de terminal (e.g. `llama-server --model ... --ctx-size 8192 --n
 - **Resume automático**: retoma la última sesión al reiniciar el agente
 - **Títulos auto-generados**: actualización en tiempo real vía `session.updated` SSE
 
+## Backends cloud + secretos cifrados
+
+Aunque el foco es 100% local, cada perfil puede apuntar a un **endpoint OpenAI-compat
+externo** (OpenAI, OpenRouter, Groq, DeepSeek, etc.) en vez de a un `llama-server`
+propio. `BackendProfile.kind = "cloud"` no lanza proceso ni binario: el chat/agente
+pegan directo al `cloudBaseUrl` con el modelo configurado.
+
+- **SecretStore**: las API keys **nunca** se serializan en los JSON del repo. El
+  perfil guarda una **referencia** (`cloudKeyRef`) y el valor se resuelve en runtime
+  vía variable de entorno o store cifrado en disco — **QtKeychain** (Secret Service /
+  WinCred / macOS Keychain) y, si no está disponible, fallback **DPAPI** en Windows.
+- Aplica igual a los maestros HTTP, cuentas de correo y proveedores de voz.
+
+## Modo Charla (voz-a-voz)
+
+Hablar con la IA y escuchar la respuesta, manos libres. Sección **🎙 Charla** en la
+NavBar (reusa el backend de chat: sesiones e historial incluidos).
+
+- **STT y TTS** van por endpoints **OpenAI-compat** (`/v1/audio/transcriptions`,
+  `/v1/audio/speech`). Una sola ruta de código: **local** (whisper.cpp server,
+  openedai-speech, piper-http en localhost, sin key) o **cloud** (URL remota +
+  keyRef). Configurable por separado para STT y TTS.
+- **Captura** PCM16 mono 16 kHz (`QAudioSource`) con **VAD por energía RMS** (fin de
+  turno por silencio configurable), **selección de micrófono** y **medidor de nivel**
+  en vivo. Botón *Probar micrófono* para validar entrada sin servidor.
+- **Barge-in**: interrumpir el TTS al detectar voz nueva. Máquina de estados
+  `escuchando → transcribiendo → pensando → hablando` con auto-escucha opcional.
+
+## Memoria, RAG y verificación
+
+El agente nativo no solo lee archivos: mantiene memoria y conocimiento estructurado.
+
+- **MemoryStore por capas**: hechos durables extraídos de las conversaciones
+  (consolidación en background al dejar una sesión) + memoria por proyecto en archivo.
+- **GraphStore**: grafo de entidades/relaciones para conocimiento estructurado.
+- **Tools**: `hybrid_search` (búsqueda híbrida léxica+semántica), `verify_claims`
+  (chequeo de afirmaciones), memoria por capas. RAG sobre el material del proyecto.
+
+## Maestro / supervisor (escalado)
+
+Cuando el modelo local se traba, el agente puede **escalar** el sub-problema a un
+modelo o CLI más capaz. Config por `LaunchProfile` (o fallback global).
+
+- **Cadena de fallbacks** ordenada: tipo `profile` (otro perfil del propio
+  LlamaCode), `http` (endpoint OpenAI-compat con keyRef) o `cli` (`claude-code` /
+  `codex` detectados en el sistema).
+- Escalado **manual** (botón), **auto** (tras N fallos de la misma firma de tool) o
+  **ambos**, con anti-recursión por firma. Tool `ask_teacher` para el agente.
+
+## Cuentas de correo
+
+Cliente minimalista SMTP (enviar) + IMAP/POP3 (recibir) sobre sockets, con tools
+`email_*` para el agente. Presets por proveedor (Gmail/Outlook/custom). El password
+va a SecretStore (`mail/<name>`), nunca al JSON. `email_send` pide aprobación salvo
+que se active *auto-send* (enviar correo es acción externa irreversible).
+
+## Automatización de browser (Playwright)
+
+Toggle global + override por perfil (`browserAutomation` inherit/on/off) que inyecta
+el **MCP de Playwright** en el set de tools del agente. **Modo teach**: el usuario
+graba acciones con Playwright codegen y se guardan como **skills reproducibles** que
+las Tasks pueden reejecutar.
+
+## Adjuntos (documentos + visión)
+
+`DocumentExtractor` convierte adjuntos **pdf/office → markdown** vía sidecar
+**markitdown** (con caché por md5), para inyectarlos al contexto del chat/agente. Con
+un modelo de visión (server lanzado con `--mmproj`) también acepta **imágenes**.
+
+## Robustez del server (watchdog + VRAM)
+
+- **Watchdog**: auto-restart de `llama-server` ante crash (con tope de reintentos);
+  `serverState` = `stopped|running|restarting|failed`.
+- **Medidor de VRAM/stats en vivo**: poll async de `nvidia-smi` mientras el server
+  corre (`serverStats`), para ver el consumo real.
+- **Diagnóstico del log**: detecta por regex OOM, colisión de puerto, modelo cargado,
+  etc., y los emite como eventos con nivel.
+
+## Otras capacidades
+
+- **Router mode (hot-swap)**: un único `llama-server` con varios modelos cargados vía
+  preset `.ini`; el chat/agente conmutan por el campo `model` del request.
+- **GPU power limit**: fija el límite de potencia (W) por GPU vía `nvidia-smi`
+  (en Windows se relanza elevado), global o por perfil.
+- **Deep Research**: investigación multi-página con reportes persistidos.
+- **Integrations**: registro unificado de **MCP Tool Servers** + **API services**
+  (endpoint + key), con test de conexión.
+- **ControlApi / headless**: toda feature es controlable por API local (target
+  traversal), con variantes sin diálogo para automatización.
+- **EvalSuite**: evaluación reproducible de modelos (importable como benchmark custom).
+- **Mermaid**: render de diagramas en el chat (sidecar mermaid-cli).
+- **Multi-idioma**: UI en español, inglés, chino, francés, italiano y alemán.
+- **Export/Import/Wipe** de datos de usuario por categorías.
+
 ## Lanzamiento del servidor (`LaunchPage`)
 
 - **Vista previa del comando** con botón *Copiar*.
@@ -305,7 +401,8 @@ Pegar un comando de terminal (e.g. `llama-server --model ... --ctx-size 8192 --n
 ## Stack técnico
 
 - **Qt 6.8.3** (`msvc2022_64`)
-- **Qt modules**: Core, Quick, Sql, Concurrent, Network, Widgets
+- **Qt modules**: Core, Quick, Sql, Concurrent, Network, Widgets, Multimedia
+- **Secretos**: QtKeychain (Secret Service / WinCred / Keychain) con fallback DPAPI
 - **Compilador**: MSVC 2022 (VS BuildTools)
 - **CMake 3.21+**, generator: Visual Studio 17 2022 (multi-config)
 - **QML theme**: Catppuccin Mocha
@@ -375,6 +472,7 @@ LlamaCode/
 5. **P4** ✅ Chat integrado streaming + historial persistente + proyectos
 6. **P5** ✅ Built-in coding agent nativo (`LlamaAgentBackend`): loop ReAct contra `llama-server`, tools (read/write/edit/grep/glob/list_dir/run_shell/web_fetch/task), MCP stdio, aprobaciones, plan mode, checkpoint/rollback, subagents paralelos en git worktrees, permisos por patrón, @-mentions, imágenes (visión)
 7. **P6** ✅ Tasks (macros semánticas configurables) + scheduler cron in-app, con auto ciclo de vida del agente
+8. **P7** ✅ Backends cloud + secretos cifrados, modo Charla (voz-a-voz), correo, browser (Playwright/teach), memoria/RAG, maestro/supervisor, watchdog + VRAM, router hot-swap, headless ControlApi
 
 ## Tasks (macros configurables + scheduler cron)
 
@@ -530,6 +628,9 @@ Código, datos y diseño tomados de otros proyectos:
 | **markitdown** | Sidecar de extracción de documentos (pdf/office → markdown) en `DocumentExtractor` | https://github.com/microsoft/markitdown |
 | **Odysseus cookbook** | Base del catálogo hardware-fit `assets/hwfit/hf_models.json` (~900 modelos) | https://github.com/TheBlokeAI/odysseus-cookbook |
 | **Artificial Analysis** | Scores de calidad bundled `assets/benchmarks/aa_intelligence.json` (Intelligence Index) | https://artificialanalysis.ai |
+| **Playwright (MCP)** | Automatización de browser + codegen (modo teach) | https://github.com/microsoft/playwright-mcp |
+| **API de audio OpenAI** | Contrato `/v1/audio/transcriptions` y `/v1/audio/speech` del modo Charla (whisper.cpp, openedai-speech, piper) | https://platform.openai.com/docs/api-reference/audio |
+| **QtKeychain** | Cifrado de secretos respaldado por el SO | https://github.com/frankosterfeld/qtkeychain |
 | **Catppuccin (Mocha)** | Paleta del theme QML | https://github.com/catppuccin/catppuccin |
 
 > Al sumar código/datos de otro repo, agregar la fila correspondiente acá.

@@ -35,6 +35,8 @@
 - [Multi-llama.cpp design](#multi-llamacpp-design) · [Multi-GGUF roots](#multi-gguf-roots-design) · [Composable profiles](#composable-multi-profile-design)
 - [Model cookbook (hardware-fit)](#model-cookbook-hardware-fit-recommendations)
 - [Integrated chat](#integrated-chat) · [Agent harness](#agent-harness-opencode) · [Server launch](#server-launch-launchpage)
+- [Cloud backends + secrets](#cloud-backends--encrypted-secrets) · [Talk mode (voice)](#talk-mode-voice-to-voice) · [Memory/RAG](#memory-rag-and-verification) · [Master/supervisor](#master--supervisor-escalation)
+- [Mail](#mail-accounts) · [Browser (Playwright)](#browser-automation-playwright) · [Attachments/vision](#attachments-documents--vision) · [Watchdog + VRAM](#server-robustness-watchdog--vram) · [Other capabilities](#other-capabilities)
 - [Process lifecycle](#process-lifecycle) · [Tech stack](#tech-stack) · [Build](#build) · [Repo layout](#repo-layout)
 - [Phases](#phases) · [Tasks (macros + scheduler)](#tasks-configurable-macros--cron-scheduler) · [Benchmarking](#benchmarking) · [Auto-tuning](#parameter-auto-tuning) · [Operational security](#operational-security)
 - [Acknowledgements](#acknowledgements)
@@ -288,6 +290,101 @@ Paste a terminal command (e.g. `llama-server --model ... --ctx-size 8192 --n-gpu
 - **Automatic resume**: resumes the last session when the agent restarts
 - **Auto-generated titles**: real-time update via `session.updated` SSE
 
+## Cloud backends + encrypted secrets
+
+Although the focus is 100% local, each profile can point to an **external
+OpenAI-compatible endpoint** (OpenAI, OpenRouter, Groq, DeepSeek, etc.) instead of a
+local `llama-server`. `BackendProfile.kind = "cloud"` spawns no process or binary:
+chat/agent hit the `cloudBaseUrl` directly with the configured model.
+
+- **SecretStore**: API keys are **never** serialized into the repo's JSON. The
+  profile stores a **reference** (`cloudKeyRef`) and the value is resolved at runtime
+  from an environment variable or an on-disk encrypted store — **QtKeychain** (Secret
+  Service / WinCred / macOS Keychain) with a **DPAPI** fallback on Windows.
+- Applies equally to HTTP masters, mail accounts and voice providers.
+
+## Talk mode (voice-to-voice)
+
+Speak to the AI and hear the answer, hands-free. A **🎙 Talk** section in the NavBar
+(reuses the chat backend: sessions and history included).
+
+- **STT and TTS** go through **OpenAI-compat** endpoints (`/v1/audio/transcriptions`,
+  `/v1/audio/speech`). A single code path: **local** (whisper.cpp server,
+  openedai-speech, piper-http on localhost, no key) or **cloud** (remote URL +
+  keyRef). Configurable independently for STT and TTS.
+- **Capture** PCM16 mono 16 kHz (`QAudioSource`) with **energy-RMS VAD** (configurable
+  end-of-turn by silence), **microphone selection** and a live **level meter**. A
+  *Test microphone* button validates input with no server.
+- **Barge-in**: interrupt TTS when new speech is detected. State machine
+  `listening → transcribing → thinking → speaking` with optional auto-listen.
+
+## Memory, RAG and verification
+
+The native agent doesn't just read files: it keeps memory and structured knowledge.
+
+- **Layered MemoryStore**: durable facts extracted from conversations (background
+  consolidation when leaving a session) + per-project memory in a file.
+- **GraphStore**: entity/relation graph for structured knowledge.
+- **Tools**: `hybrid_search` (lexical+semantic search), `verify_claims` (claim
+  checking), layered memory. RAG over the project material.
+
+## Master / supervisor (escalation)
+
+When the local model gets stuck, the agent can **escalate** the sub-problem to a more
+capable model or CLI. Configured per `LaunchProfile` (or a global fallback).
+
+- **Ordered fallback chain**: type `profile` (another of LlamaCode's own profiles),
+  `http` (OpenAI-compat endpoint with keyRef) or `cli` (`claude-code` / `codex`
+  detected on the system).
+- Escalation **manual** (button), **auto** (after N failures of the same tool
+  signature) or **both**, with per-signature anti-recursion. `ask_teacher` tool for
+  the agent.
+
+## Mail accounts
+
+A minimal SMTP (send) + IMAP/POP3 (receive) client over sockets, with `email_*` tools
+for the agent. Per-provider presets (Gmail/Outlook/custom). The password goes to
+SecretStore (`mail/<name>`), never to JSON. `email_send` requires approval unless
+*auto-send* is enabled (sending mail is an irreversible external action).
+
+## Browser automation (Playwright)
+
+A global toggle + per-profile override (`browserAutomation` inherit/on/off) that
+injects the **Playwright MCP** into the agent's tool set. **Teach mode**: the user
+records actions with Playwright codegen and they're saved as **replayable skills**
+that Tasks can re-run.
+
+## Attachments (documents + vision)
+
+`DocumentExtractor` converts **pdf/office → markdown** attachments via the
+**markitdown** sidecar (with md5 caching) to inject them into the chat/agent context.
+With a vision model (server launched with `--mmproj`) it also accepts **images**.
+
+## Server robustness (watchdog + VRAM)
+
+- **Watchdog**: auto-restart of `llama-server` on crash (with a retry cap);
+  `serverState` = `stopped|running|restarting|failed`.
+- **Live VRAM/stats meter**: async `nvidia-smi` poll while the server runs
+  (`serverStats`) to see real usage.
+- **Log diagnostics**: regex detection of OOM, port collision, model loaded, etc.,
+  emitted as leveled events.
+
+## Other capabilities
+
+- **Router mode (hot-swap)**: a single `llama-server` with several models loaded via
+  an `.ini` preset; chat/agent switch by the request's `model` field.
+- **GPU power limit**: set the per-GPU power limit (W) via `nvidia-smi` (relaunched
+  elevated on Windows), globally or per profile.
+- **Deep Research**: multi-page research with persisted reports.
+- **Integrations**: unified registry of **MCP Tool Servers** + **API services**
+  (endpoint + key), with connection testing.
+- **ControlApi / headless**: every feature is controllable via a local API (target
+  traversal), with dialog-free variants for automation.
+- **EvalSuite**: reproducible model evaluation (importable as a custom benchmark).
+- **Mermaid**: diagram rendering in chat (mermaid-cli sidecar).
+- **Multi-language**: UI in Spanish, English, Chinese, French, Italian and German.
+- **Export/Import/Wipe** of user data by category.
+
 ## Server launch (`LaunchPage`)
 
 - **Command preview** with a *Copy* button.
@@ -305,7 +402,8 @@ Paste a terminal command (e.g. `llama-server --model ... --ctx-size 8192 --n-gpu
 ## Tech stack
 
 - **Qt 6.8.3** (`msvc2022_64`)
-- **Qt modules**: Core, Quick, Sql, Concurrent, Network, Widgets
+- **Qt modules**: Core, Quick, Sql, Concurrent, Network, Widgets, Multimedia
+- **Secrets**: QtKeychain (Secret Service / WinCred / Keychain) with a DPAPI fallback
 - **Compiler**: MSVC 2022 (VS BuildTools)
 - **CMake 3.21+**, generator: Visual Studio 17 2022 (multi-config)
 - **QML theme**: Catppuccin Mocha
@@ -375,6 +473,7 @@ LlamaCode/
 5. **P4** ✅ Integrated streaming chat + persistent history + projects
 6. **P5** ✅ Built-in native coding agent (`LlamaAgentBackend`): ReAct loop against `llama-server`, tools (read/write/edit/grep/glob/list_dir/run_shell/web_fetch/task), MCP stdio, approvals, plan mode, checkpoint/rollback, parallel subagents in git worktrees, per-pattern permissions, @-mentions, images (vision)
 7. **P6** ✅ Tasks (configurable semantic macros) + in-app cron scheduler, with automatic agent lifecycle
+8. **P7** ✅ Cloud backends + encrypted secrets, Talk mode (voice-to-voice), mail, browser (Playwright/teach), memory/RAG, master/supervisor, watchdog + VRAM, router hot-swap, headless ControlApi
 
 ## Tasks (configurable macros + cron scheduler)
 
@@ -530,6 +629,9 @@ Code, data and design taken from other projects:
 | **markitdown** | Document extraction sidecar (pdf/office → markdown) in `DocumentExtractor` | https://github.com/microsoft/markitdown |
 | **Odysseus cookbook** | Base of the hardware-fit catalog `assets/hwfit/hf_models.json` (~900 models) | https://github.com/TheBlokeAI/odysseus-cookbook |
 | **Artificial Analysis** | Bundled quality scores `assets/benchmarks/aa_intelligence.json` (Intelligence Index) | https://artificialanalysis.ai |
+| **Playwright (MCP)** | Browser automation + codegen (teach mode) | https://github.com/microsoft/playwright-mcp |
+| **OpenAI audio API** | `/v1/audio/transcriptions` and `/v1/audio/speech` contract for Talk mode (whisper.cpp, openedai-speech, piper) | https://platform.openai.com/docs/api-reference/audio |
+| **QtKeychain** | OS-backed secret encryption | https://github.com/frankosterfeld/qtkeychain |
 | **Catppuccin (Mocha)** | QML theme palette | https://github.com/catppuccin/catppuccin |
 
 > When adding code/data from another repo, add the corresponding row here.

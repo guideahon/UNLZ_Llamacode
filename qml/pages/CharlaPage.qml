@@ -10,6 +10,7 @@ Item {
     id: page
 
     property var cfg: ({})
+    property bool testing: false
     function reload() { cfg = App.voiceConfig() }
     function save() { App.setVoiceConfig(cfg) }
     Component.onCompleted: reload()
@@ -91,20 +92,83 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                 }
 
+                // Medidor de nivel de micrófono (siempre visible).
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "Nivel de entrada"; color: Theme.textMuted; font.pixelSize: 11 }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 12; radius: 6
+                        color: Theme.inputBg
+                        border.color: Theme.borderColor
+                        Rectangle {
+                            anchors { left: parent.left; top: parent.top; bottom: parent.bottom; margins: 2 }
+                            width: Math.max(0, Math.min(1, App.voiceLevel * 6)) * (parent.width - 4)
+                            radius: 5
+                            color: App.voiceLevel > 0.03 ? "#3bbf6e" : Theme.accent
+                            Behavior on width { NumberAnimation { duration: 70 } }
+                        }
+                    }
+                }
+
+                // Selección de micrófono.
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "Micrófono"; color: Theme.textMuted; font.pixelSize: 11 }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        LcComboBox {
+                            id: micCombo
+                            Layout.fillWidth: true
+                            property var devs: App.audioInputDevices()
+                            textRole: "name"
+                            model: devs
+                            Component.onCompleted: {
+                                var cur = App.voiceInputDevice()
+                                for (var i = 0; i < devs.length; ++i)
+                                    if (devs[i].id === cur) { currentIndex = i; break }
+                            }
+                            onActivated: if (devs[currentIndex]) App.setVoiceInputDevice(devs[currentIndex].id)
+                        }
+                        LcButton {
+                            text: "↻"
+                            secondary: true
+                            onClicked: { micCombo.devs = App.audioInputDevices(); micCombo.model = micCombo.devs }
+                        }
+                    }
+                }
+
                 RowLayout {
                     Layout.alignment: Qt.AlignHCenter
                     spacing: 12
                     LcButton {
-                        text: App.voiceActive ? "Detener" : "Iniciar charla"
-                        danger: App.voiceActive
-                        onClicked: App.voiceActive ? App.stopCharla() : App.startCharla()
+                        text: (App.voiceActive && !page.testing) ? "Detener" : "Iniciar charla"
+                        danger: App.voiceActive && !page.testing
+                        enabled: !page.testing
+                        onClicked: {
+                            if (App.voiceActive) App.stopCharla()
+                            else App.startCharla()
+                        }
                     }
                     LcButton {
-                        text: "Hablar ahora"
+                        text: page.testing ? "Detener prueba" : "Probar micrófono"
                         secondary: true
-                        enabled: App.voiceActive
-                        onClicked: App.charlaListen()
+                        enabled: !App.voiceActive || page.testing
+                        onClicked: {
+                            if (page.testing) { App.stopMicTest(); page.testing = false }
+                            else { App.startMicTest(); page.testing = true }
+                        }
                     }
+                }
+                LcButton {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Hablar ahora"
+                    secondary: true
+                    visible: App.voiceActive && !page.testing
+                    onClicked: App.charlaListen()
                 }
 
                 Item { Layout.fillHeight: true }

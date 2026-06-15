@@ -507,6 +507,14 @@ public:
     Q_INVOKABLE void startCharla();   // arranca la sesión de voz (usa el backend de chat)
     Q_INVOKABLE void stopCharla();
     Q_INVOKABLE void charlaListen();  // fuerza escucha (corta el TTS si suena)
+    // Micrófonos disponibles: [{id,name,isDefault}].
+    Q_INVOKABLE QVariantList audioInputDevices() const;
+    // Micrófono elegido (persistido en setting "voiceInputDevice"; "" = default).
+    Q_INVOKABLE QString voiceInputDevice() const;
+    Q_INVOKABLE void setVoiceInputDevice(const QString &id);
+    // Prueba de micrófono: captura y muestra nivel sin STT/chat (ver voiceLevel).
+    Q_INVOKABLE void startMicTest();
+    Q_INVOKABLE void stopMicTest();
 
 signals:
     void voiceStateChanged();

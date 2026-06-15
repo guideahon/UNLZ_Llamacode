@@ -32,6 +32,26 @@ void VoiceController::setConfig(const VoiceConfig &cfg, const QString &sttKey, c
     m_tts.setConfig(cfg, ttsKey);
 }
 
+void VoiceController::setInputDevice(const QString &id)
+{
+    m_deviceId = id;
+}
+
+QVariantList VoiceController::inputDevices()
+{
+    QVariantList out;
+    const QAudioDevice def = QMediaDevices::defaultAudioInput();
+    const auto devs = QMediaDevices::audioInputs();
+    for (const QAudioDevice &d : devs) {
+        QVariantMap m;
+        m["id"]   = QString::fromUtf8(d.id());
+        m["name"] = d.description();
+        m["isDefault"] = (d.id() == def.id());
+        out.append(m);
+    }
+    return out;
+}
+
 QString VoiceController::stateStr() const
 {
     switch (m_state) {
@@ -81,6 +101,7 @@ void VoiceController::stop()
     teardownPlayback();
     m_stt.cancel();
     m_tts.cancel();
+    m_testMode = false;
     setState(Idle);
 }
 
@@ -88,8 +109,24 @@ void VoiceController::startListening()
 {
     teardownPlayback();            // barge-in: cortar cualquier TTS sonando
     m_tts.cancel();
+    m_testMode = false;
     beginCapture();
     if (m_state != Error) setState(Listening);
+}
+
+void VoiceController::micTest()
+{
+    m_lastError.clear();
+    emit errorChanged();
+    teardownPlayback();
+    beginCapture();
+    m_testMode = true;
+    if (m_state != Error) setState(Listening);
+}
+
+void VoiceController::stopMicTest()
+{
+    if (m_testMode) stop();
 }
 
 // ── Captura de micrófono + VAD ───────────────────────────────────────────────
@@ -107,10 +144,19 @@ void VoiceController::beginCapture()
     fmt.setChannelCount(1);
     fmt.setSampleFormat(QAudioFormat::Int16);
 
-    const QAudioDevice dev = QMediaDevices::defaultAudioInput();
-    if (dev.isNull()) { fail(QStringLiteral("no hay micrófono")); return; }
-
+    QAudioDevice dev = QMediaDevices::defaultAudioInput();
+    if (!m_deviceId.isEmpty()) {
+        const auto devs = QMediaDevices::audioInputs();
+        for (const QAudioDevice &d : devs)
+            if (QString::fromUtf8(d.id()) == m_deviceId) { dev = d; break; }
+    }
+    if (dev.isNull()) { fail(QStringLiteral("no hay micrófono disponible")); return; }
+    // Pedimos siempre 16k/mono/Int16 (lo que espera STT); el backend resamplea.
     m_source = new QAudioSource(dev, fmt, this);
+    connect(m_source, &QAudioSource::stateChanged, this, [this](QAudio::State st) {
+        if (st == QAudio::StoppedState && m_source && m_source->error() != QAudio::NoError)
+            fail(QStringLiteral("micrófono: error de captura"));
+    });
     m_input = m_source->start();
     if (!m_input) { fail(QStringLiteral("no se pudo abrir el micrófono")); return; }
     connect(m_input, &QIODevice::readyRead, this, &VoiceController::onAudioReady);
@@ -145,6 +191,9 @@ void VoiceController::onAudioReady()
     emit levelChanged();
 
     const int chunkMs = int((chunk.size() / 2) * 1000.0 / m_sampleRate);
+
+    // Modo prueba de micrófono: solo nivel, sin VAD ni STT.
+    if (m_testMode) return;
 
     // Modo monitor (durante Speaking): solo detectar barge-in, no acumular.
     if (m_monitorOnly) {

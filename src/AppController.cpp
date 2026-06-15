@@ -8257,6 +8257,35 @@ void AppController::applyVoiceConfig()
     const QString sttKey = c.sttKeyRef.isEmpty() ? QString() : m_secrets.resolve(c.sttKeyRef);
     const QString ttsKey = c.ttsKeyRef.isEmpty() ? QString() : m_secrets.resolve(c.ttsKeyRef);
     m_voice->setConfig(c, sttKey, ttsKey);
+    m_voice->setInputDevice(voiceInputDevice());
+}
+
+QVariantList AppController::audioInputDevices() const
+{
+    return VoiceController::inputDevices();
+}
+
+QString AppController::voiceInputDevice() const
+{
+    return readSetting(QStringLiteral("voiceInputDevice")).toString();
+}
+
+void AppController::setVoiceInputDevice(const QString &id)
+{
+    writeSetting(QStringLiteral("voiceInputDevice"), id);
+    if (m_voice) m_voice->setInputDevice(id);
+}
+
+void AppController::startMicTest()
+{
+    ensureVoice();
+    applyVoiceConfig();
+    m_voice->micTest();
+}
+
+void AppController::stopMicTest()
+{
+    if (m_voice) m_voice->stopMicTest();
 }
 
 void AppController::startCharla()
