@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QCryptographicHash>
@@ -201,6 +202,83 @@ QString query(const QString &cwd, const QString &name, int depth)
         return QStringLiteral("[entidad '%1' sin relaciones]").arg(nm);
     return QStringLiteral("Vecindario de '%1' (depth=%2):\n").arg(nm).arg(depth)
            + lines.join(QLatin1Char('\n'));
+}
+
+QString decide(const QString &cwd, const QString &topic, const QString &chosen,
+               const Rejected &rejected, const QString &reason)
+{
+    const QString tp = topic.trimmed(), ch = chosen.trimmed();
+    if (tp.isEmpty() || ch.isEmpty())
+        return QStringLiteral("[graph decide: 'topic' y 'chosen' requeridos]");
+
+    const QString path = jsonlPath(cwd);
+    QDir().mkpath(QFileInfo(path).absolutePath());
+
+    // id estable por tema: re-decidir el mismo tema crea una entrada nueva
+    // (el log es append-only/inmutable), pero comparten prefijo para agrupar.
+    const QByteArray h = QCryptographicHash::hash(
+        (norm(tp) + QLatin1Char('|') + QDateTime::currentDateTime().toString(Qt::ISODate)).toUtf8(),
+        QCryptographicHash::Sha1);
+    const QString id = QStringLiteral("d_") + QString::fromLatin1(h.toHex().left(8));
+
+    QJsonArray rej;
+    for (const auto &r : rejected) {
+        if (r.first.trimmed().isEmpty()) continue;
+        rej.append(QJsonObject{
+            {QStringLiteral("alt"), r.first.trimmed()},
+            {QStringLiteral("reason"), r.second.trimmed()}});
+    }
+
+    appendObj(path, QJsonObject{
+        {QStringLiteral("kind"), QStringLiteral("decision")},
+        {QStringLiteral("id"), id},
+        {QStringLiteral("topic"), tp},
+        {QStringLiteral("chosen"), ch},
+        {QStringLiteral("reason"), reason.trimmed()},
+        {QStringLiteral("rejected"), rej},
+        {QStringLiteral("ts"), QDateTime::currentDateTime().toString(Qt::ISODate)}});
+    return QStringLiteral("[decisión registrada · id=%1 '%2' → %3 (%4 rechazada/s)]")
+        .arg(id, tp, ch).arg(rej.size());
+}
+
+QString decisions(const QString &cwd, const QString &topic)
+{
+    QFile f(jsonlPath(cwd));
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QStringLiteral("[sin decisiones registradas]");
+
+    const QString filt = norm(topic);
+    QStringList blocks;
+    while (!f.atEnd()) {
+        const QByteArray l = f.readLine().trimmed();
+        if (l.isEmpty()) continue;
+        const QJsonObject o = QJsonDocument::fromJson(l).object();
+        if (o.value(QStringLiteral("kind")).toString() != QLatin1String("decision"))
+            continue;
+        const QString tp = o.value(QStringLiteral("topic")).toString();
+        if (!filt.isEmpty() && !norm(tp).contains(filt)) continue;
+
+        QString b = QStringLiteral("### %1\n- elegido: %2")
+            .arg(tp, o.value(QStringLiteral("chosen")).toString());
+        const QString rs = o.value(QStringLiteral("reason")).toString();
+        if (!rs.isEmpty()) b += QStringLiteral("\n- motivo: %1").arg(rs);
+        const QJsonArray rej = o.value(QStringLiteral("rejected")).toArray();
+        for (const QJsonValue &v : rej) {
+            const QJsonObject ro = v.toObject();
+            const QString rr = ro.value(QStringLiteral("reason")).toString();
+            b += QStringLiteral("\n- ✗ rechazado: %1%2")
+                .arg(ro.value(QStringLiteral("alt")).toString(),
+                     rr.isEmpty() ? QString() : QStringLiteral(" — ") + rr);
+        }
+        b += QStringLiteral("\n- ts: %1").arg(o.value(QStringLiteral("ts")).toString());
+        blocks << b;
+    }
+    f.close();
+
+    if (blocks.isEmpty())
+        return filt.isEmpty() ? QStringLiteral("[sin decisiones registradas]")
+                              : QStringLiteral("[sin decisiones para '%1']").arg(topic.trimmed());
+    return QStringLiteral("Decisiones (%1):\n").arg(blocks.size()) + blocks.join(QStringLiteral("\n\n"));
 }
 
 }  // namespace GraphStore

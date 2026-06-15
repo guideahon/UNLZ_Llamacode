@@ -35,4 +35,13 @@ QString recall(const QString &cwd, const QString &query, const QString &scope, i
 QString forget(const QString &cwd, const QString &query, const QString &scope,
                const QString &mode);
 
+// PODA anti-bloat (penaliza el peso, no sólo premia guardar). Inspirado en el
+// gate MDL de "Self-Revising Discovery Systems": un hecho se conserva sólo si su
+// VALOR (confianza · recencia · tipo) compensa su COSTO (largo en chars) y no es
+// redundante con otro mejor. Marca stale (default) o borra (mode='delete') los
+// hechos de menor valor por encima de 'maxKeep' y los casi-duplicados. Con
+// dryRun=true sólo reporta sin tocar nada. scope opcional acota la capa.
+QString prune(const QString &cwd, const QString &scope, int maxKeep,
+              const QString &mode, bool dryRun);
+
 }  // namespace MemoryStore

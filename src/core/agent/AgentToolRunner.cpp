@@ -1332,6 +1332,15 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
             if (ok) *ok = true;
             return res;
         }
+        if (action == QLatin1String("prune")) {
+            // Poda anti-bloat: evicta hechos de bajo valor / redundantes.
+            const int maxKeep = args.value(QStringLiteral("max_keep")).toInt();
+            const QString mode = args.value(QStringLiteral("mode")).toString();
+            const bool dryRun = args.value(QStringLiteral("dry_run")).toBool(false);
+            const QString res = MemoryStore::prune(cwd, scope, maxKeep, mode, dryRun);
+            if (ok) *ok = true;
+            return res;
+        }
         // recall (default): hechos estructurados (rankeados por query/scope si hay).
         const QString query = args.value(QStringLiteral("query")).toString();
         int k = args.value(QStringLiteral("k")).toInt();
@@ -1365,6 +1374,31 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
             const QString res = GraphStore::query(
                 cwd, args.value(QStringLiteral("name")).toString(),
                 args.value(QStringLiteral("depth")).toInt());
+            if (ok) *ok = true;
+            return res;
+        }
+        if (action == QLatin1String("decide")) {
+            // 'rejected' acepta array de objetos {alt,reason} o de strings sueltos.
+            GraphStore::Rejected rejected;
+            for (const QJsonValue &v : args.value(QStringLiteral("rejected")).toArray()) {
+                if (v.isObject()) {
+                    const QJsonObject ro = v.toObject();
+                    rejected.append({ro.value(QStringLiteral("alt")).toString(),
+                                     ro.value(QStringLiteral("reason")).toString()});
+                } else {
+                    rejected.append({v.toString(), QString()});
+                }
+            }
+            const QString res = GraphStore::decide(
+                cwd, args.value(QStringLiteral("topic")).toString(),
+                args.value(QStringLiteral("chosen")).toString(), rejected,
+                args.value(QStringLiteral("reason")).toString());
+            if (ok) *ok = true;
+            return res;
+        }
+        if (action == QLatin1String("decisions")) {
+            const QString res = GraphStore::decisions(
+                cwd, args.value(QStringLiteral("topic")).toString());
             if (ok) *ok = true;
             return res;
         }

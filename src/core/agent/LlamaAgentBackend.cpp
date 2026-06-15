@@ -1483,11 +1483,15 @@ void LlamaAgentBackend::processPendingCalls()
         const QString a = args.value(QStringLiteral("action")).toString().toLower();
         if (a == QLatin1String("save") || a == QLatin1String("forget"))
             kind = QStringLiteral("write");
+        // prune muta salvo dry_run (que sólo reporta).
+        if (a == QLatin1String("prune") && !args.value(QStringLiteral("dry_run")).toBool(false))
+            kind = QStringLiteral("write");
     }
-    // graph: 'query' (o sin action que cae en link... ) — mutan salvo query.
+    // graph: 'query'/'decisions' sólo leen; el resto (link/add_entity/decide) muta.
     if (name == QLatin1String("graph")) {
         const QString a = args.value(QStringLiteral("action")).toString().toLower();
-        if (a != QLatin1String("query")) kind = QStringLiteral("write");
+        if (a != QLatin1String("query") && a != QLatin1String("decisions"))
+            kind = QStringLiteral("write");
     }
 
     // PLAN MODE: bloquear cualquier tool que mute (write/shell/mcp). Las read
@@ -2358,17 +2362,25 @@ QJsonArray LlamaAgentBackend::toolSchemas()
                           "type='preference|decision|fact|bug'. En recall/forget pasá 'query' para "
                           "matchear por keywords y/o 'scope' para filtrar la capa. Usala para "
                           "preferencias del usuario, decisiones de diseño y datos no obvios del repo; "
-                          "'forget' cuando un hecho quedó desactualizado (memoria stale es peor que nada)."),
+                          "'forget' cuando un hecho quedó desactualizado (memoria stale es peor que nada). "
+                          "action='prune' poda anti-bloat: evicta los hechos de menor valor "
+                          "(confianza·recencia·tipo vs largo) y los casi-duplicados, dejando hasta "
+                          "'max_keep'. Usalo cuando la memoria crezca demasiado; con dry_run=true "
+                          "primero para ver qué se iría."),
            QJsonObject{
-               {QStringLiteral("action"), strProp(QStringLiteral("'save' | 'recall' (default) | 'forget'."))},
+               {QStringLiteral("action"), strProp(QStringLiteral("'save' | 'recall' (default) | 'forget' | 'prune'."))},
                {QStringLiteral("content"), strProp(QStringLiteral("Hecho a guardar (sólo action='save')."))},
                {QStringLiteral("scope"), strProp(QStringLiteral("Capa: 'session'|'project'|'personal' (default 'project')."))},
                {QStringLiteral("type"), strProp(QStringLiteral("'preference'|'decision'|'fact'|'bug' (sólo save)."))},
                {QStringLiteral("query"), strProp(QStringLiteral("Keywords: rankea en recall, selecciona en forget."))},
                {QStringLiteral("source"), strProp(QStringLiteral("Provenance: de dónde salió el hecho (ej. 'user', archivo). Sólo save."))},
-               {QStringLiteral("mode"), strProp(QStringLiteral("forget: 'stale' (default, conserva historial) o 'delete'."))},
+               {QStringLiteral("mode"), strProp(QStringLiteral("forget/prune: 'stale' (default, conserva historial) o 'delete'."))},
                {QStringLiteral("confidence"), QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
-                   {QStringLiteral("description"), QStringLiteral("Confianza 0..1 (sólo save, default 0.8).")}}}},
+                   {QStringLiteral("description"), QStringLiteral("Confianza 0..1 (sólo save, default 0.8).")}}},
+               {QStringLiteral("max_keep"), QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
+                   {QStringLiteral("description"), QStringLiteral("prune: máximo de hechos a conservar por capa (default 50).")}}},
+               {QStringLiteral("dry_run"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
+                   {QStringLiteral("description"), QStringLiteral("prune: si true, sólo reporta qué evictaría sin tocar nada.")}}}},
            QJsonArray{}),
         fn(QStringLiteral("graph"),
            QStringLiteral("KNOWLEDGE GRAPH del proyecto (entidades + relaciones tipadas, persiste "
@@ -2377,16 +2389,35 @@ QJsonArray LlamaAgentBackend::toolSchemas()
                           "entidades); 'add_entity' crea una entidad con etype; 'query' devuelve el "
                           "vecindario de una entidad (depth=1 directos, 2 incluye vecinos de vecinos). "
                           "etype='file|module|decision|bug|person|concept'. Usalo para mapear qué "
-                          "módulo depende de cuál, qué decisión causó qué bug, quién pidió qué."),
+                          "módulo depende de cuál, qué decisión causó qué bug, quién pidió qué. "
+                          "action='decide' registra una decisión (topic+chosen+reason) conservando las "
+                          "alternativas RECHAZADAS con su motivo (audit trail, no se borran); "
+                          "'decisions' devuelve ese log (topic vacío = todas). Registrá las decisiones "
+                          "de diseño no triviales con sus rechazos para no re-evaluarlas después."),
            QJsonObject{
-               {QStringLiteral("action"), strProp(QStringLiteral("'link' (default) | 'add_entity' | 'query'."))},
+               {QStringLiteral("action"), strProp(QStringLiteral("'link' (default) | 'add_entity' | 'query' | 'decide' | 'decisions'."))},
                {QStringLiteral("subj"), strProp(QStringLiteral("Entidad origen (sólo link)."))},
                {QStringLiteral("pred"), strProp(QStringLiteral("Predicado/relación, ej. 'depende_de' (sólo link)."))},
                {QStringLiteral("obj"), strProp(QStringLiteral("Entidad destino (sólo link)."))},
                {QStringLiteral("name"), strProp(QStringLiteral("Nombre de entidad (add_entity y query)."))},
                {QStringLiteral("etype"), strProp(QStringLiteral("Tipo de entidad (sólo add_entity)."))},
                {QStringLiteral("depth"), QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
-                   {QStringLiteral("description"), QStringLiteral("Saltos en query: 1 (default) o 2.")}}}},
+                   {QStringLiteral("description"), QStringLiteral("Saltos en query: 1 (default) o 2.")}}},
+               {QStringLiteral("topic"), strProp(QStringLiteral("Tema de la decisión (decide; filtro substring en decisions)."))},
+               {QStringLiteral("chosen"), strProp(QStringLiteral("Opción elegida (sólo decide)."))},
+               {QStringLiteral("reason"), strProp(QStringLiteral("Motivo de la elección (sólo decide)."))},
+               {QStringLiteral("rejected"), QJsonObject{
+                   {QStringLiteral("type"), QStringLiteral("array")},
+                   {QStringLiteral("description"), QStringLiteral("Alternativas rechazadas (sólo decide). Array de objetos {alt, reason} o de strings.")},
+                   {QStringLiteral("items"), QJsonObject{
+                       {QStringLiteral("type"), QStringLiteral("object")},
+                       {QStringLiteral("properties"), QJsonObject{
+                           {QStringLiteral("alt"), strProp(QStringLiteral("La alternativa descartada."))},
+                           {QStringLiteral("reason"), strProp(QStringLiteral("Por qué se descartó."))}
+                       }}
+                   }}
+               }}
+           },
            QJsonArray{}),
         fn(QStringLiteral("ask_teacher"),
            QStringLiteral("Consultá a un modelo MÁS capaz (endpoint aparte) una sub-pregunta difícil: "
