@@ -684,6 +684,10 @@ private:
     bool      m_serverStopping = false;
     bool      m_serverReady    = false;
     bool      m_serverHasVision = false;
+    bool      m_serverGpuRequested = false;
+    bool      m_serverGpuDeviceSeen = false;
+    bool      m_serverCpuDeviceSeen = false;
+    bool      m_serverGpuFallbackWarned = false;
     bool      m_gitAvailable = false;
     QProcess *m_gitInstallProc = nullptr;
     QTimer   *m_stopKillTimer  = nullptr;

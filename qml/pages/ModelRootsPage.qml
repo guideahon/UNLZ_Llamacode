@@ -293,7 +293,7 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true
                     visible: App.modelDownloadQueue.length > 0
-                    Layout.preferredHeight: visible ? 74 : 0
+                    Layout.preferredHeight: visible ? 94 : 0
                     spacing: 6
 
                     RowLayout {
@@ -315,15 +315,15 @@ Item {
                     ListView {
                         id: downloadQueueList
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 46
+                        Layout.preferredHeight: 66
                         clip: true
                         orientation: ListView.Horizontal
                         spacing: 8
                         model: App.modelDownloadQueue
 
                         delegate: Rectangle {
-                            width: Math.min(520, Math.max(360, downloadQueueList.width * 0.32))
-                            height: 46
+                            width: Math.max(280, Math.min(downloadQueueList.width - 8, Math.max(460, downloadQueueList.width * 0.36)))
+                            height: 64
                             radius: 7
                             color: (modelData.active ?? false) ? Theme.inputBg : Theme.surfaceBg
                             border.color: (modelData.active ?? false) ? Theme.accent : Theme.borderColor
@@ -335,8 +335,8 @@ Item {
                             readonly property bool movable: !active && state !== "done"
 
                             ColumnLayout {
-                                anchors { fill: parent; margins: 7 }
-                                spacing: 4
+                                anchors { fill: parent; margins: 8 }
+                                spacing: 6
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
@@ -360,8 +360,10 @@ Item {
                                 }
                                 RowLayout {
                                     Layout.fillWidth: true
+                                    spacing: 5
                                     Rectangle {
                                         Layout.fillWidth: true
+                                        Layout.minimumWidth: 80
                                         Layout.preferredHeight: 6
                                         radius: 3
                                         color: Theme.baseBg
@@ -377,12 +379,14 @@ Item {
                                         text: progress + "%"
                                         color: Theme.textMuted
                                         font.pixelSize: 10
+                                        Layout.preferredWidth: 30
+                                        horizontalAlignment: Text.AlignRight
                                     }
                                     LcButton {
                                         text: paused || state === "error" ? "▶" : "Ⅱ"
                                         secondary: true
-                                        implicitWidth: 30
-                                        implicitHeight: 22
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 24
                                         visible: state !== "done"
                                         onClicked: paused || state === "error"
                                                    ? App.resumeModelDownload(modelData.id ?? "")
@@ -391,8 +395,8 @@ Item {
                                     LcButton {
                                         text: "↑"
                                         secondary: true
-                                        implicitWidth: 26
-                                        implicitHeight: 22
+                                        Layout.preferredWidth: 26
+                                        Layout.preferredHeight: 24
                                         enabled: movable && index > 0
                                         visible: state !== "done"
                                         onClicked: App.moveModelDownload(modelData.id ?? "", -1)
@@ -400,8 +404,8 @@ Item {
                                     LcButton {
                                         text: "↓"
                                         secondary: true
-                                        implicitWidth: 26
-                                        implicitHeight: 22
+                                        Layout.preferredWidth: 26
+                                        Layout.preferredHeight: 24
                                         enabled: movable && index < App.modelDownloadQueue.length - 1
                                         visible: state !== "done"
                                         onClicked: App.moveModelDownload(modelData.id ?? "", 1)
@@ -409,8 +413,8 @@ Item {
                                     LcButton {
                                         text: "✕"
                                         secondary: true
-                                        implicitWidth: 28
-                                        implicitHeight: 22
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 24
                                         onClicked: App.cancelModelDownload(modelData.id ?? "")
                                     }
                                 }

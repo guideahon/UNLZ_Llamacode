@@ -71,6 +71,22 @@ static QString stripThinkForContext(const QString &s)
     return out.trimmed();
 }
 
+// Cuando "Pensar" está apagado, algunos modelos igual streamean tags <think>
+// dentro de content. La UI y el historial deben quedarse sólo con la respuesta.
+static QString stripThinkForOutput(const QString &s)
+{
+    QString out = s;
+    out.remove(QRegularExpression(QStringLiteral("<think>[\\s\\S]*?</think>"),
+                                  QRegularExpression::CaseInsensitiveOption));
+    out.remove(QRegularExpression(QStringLiteral("<think>[\\s\\S]*$"),
+                                  QRegularExpression::CaseInsensitiveOption));
+    out.remove(QRegularExpression(QStringLiteral("^[\\s\\S]*?</think>"),
+                                  QRegularExpression::CaseInsensitiveOption));
+    out.remove(QRegularExpression(QStringLiteral("</?think>"),
+                                  QRegularExpression::CaseInsensitiveOption));
+    return out.trimmed();
+}
+
 static const QString kMcpPrefix = QStringLiteral("mcp__");
 
 // Data-URI base64 si el archivo es imagen soportada por mmproj; "" si no.
@@ -634,6 +650,11 @@ QString LlamaAgentBackend::buildSystemPrompt() const
         base += QStringLiteral("\n\n--- Memoria del proyecto ---\n") + mem;
     if (!m_systemExtra.trimmed().isEmpty())
         base += QStringLiteral("\n\n--- Instrucciones del agente ---\n") + m_systemExtra.trimmed();
+    if (!m_thinkingEnabled)
+        base += QStringLiteral(
+            "\n\nRAZONAMIENTO INTERNO: no muestres razonamiento interno. "
+            "Respondé sólo con la respuesta final. No emitas etiquetas "
+            "<think> ni </think>.");
     return base;
 }
 
@@ -654,6 +675,13 @@ void LlamaAgentBackend::setAgentTuning(const QString &systemExtra, double temper
 void LlamaAgentBackend::setThinkingEnabled(bool enabled)
 {
     m_thinkingEnabled = enabled;
+    if (!m_apiMessages.isEmpty()) {
+        QJsonObject sys = m_apiMessages.first().toObject();
+        if (sys.value(QStringLiteral("role")).toString() == QLatin1String("system")) {
+            sys[QStringLiteral("content")] = buildSystemPrompt();
+            m_apiMessages.replace(0, sys);
+        }
+    }
 }
 
 // Glob → regex anclada (mismo criterio que el worker: ** = recursivo).
@@ -785,12 +813,15 @@ void LlamaAgentBackend::sendMessage(const QString &text)
 
     // Contenido para la API: si hay adjuntos, mensaje multimodal (texto + imágenes
     // inline + docs de texto inlineados); si no, string plano.
+    const QString apiText = m_thinkingEnabled
+        ? trimmed
+        : trimmed + QStringLiteral("\n\n/no_think");
     if (attachments.isEmpty()) {
         m_apiMessages.append(QJsonObject{
             {QStringLiteral("role"), QStringLiteral("user")},
-            {QStringLiteral("content"), trimmed}});
+            {QStringLiteral("content"), apiText}});
     } else {
-        QString textPart = trimmed;
+        QString textPart = apiText;
         QJsonArray images;
         for (const QString &p : attachments) {
             // Los @-mentions vienen relativos al cwd; el picker, absolutos.
@@ -1198,7 +1229,8 @@ void LlamaAgentBackend::handleStreamData()
         const QJsonArray choices = obj.value(QStringLiteral("choices")).toArray();
         if (choices.isEmpty()) continue;
         const QJsonObject delta = choices.first().toObject().value(QStringLiteral("delta")).toObject();
-        m_streamReason  += delta.value(QStringLiteral("reasoning_content")).toString();
+        if (m_thinkingEnabled)
+            m_streamReason += delta.value(QStringLiteral("reasoning_content")).toString();
         m_streamContent += delta.value(QStringLiteral("content")).toString();
 
         const QJsonArray tcs = delta.value(QStringLiteral("tool_calls")).toArray();
@@ -1227,15 +1259,15 @@ void LlamaAgentBackend::handleStreamData()
         const bool toolStreaming = !m_streamToolCalls.isEmpty();
 
         // Abrir una burbuja nueva si la anterior se cerró tras una tool.
-        if ((!m_streamContent.isEmpty() || !m_streamReason.isEmpty() || toolStreaming)
+        if ((!m_streamContent.isEmpty() || (m_thinkingEnabled && !m_streamReason.isEmpty()) || toolStreaming)
             && m_curAsstIdx < 0)
             ensureAssistantBubble();
 
         // Mostrar en vivo: base + <think>razonamiento</think> + respuesta.
         QString full = m_streamBase;
-        if (!m_streamReason.isEmpty())
+        if (m_thinkingEnabled && !m_streamReason.isEmpty())
             full += QStringLiteral("<think>") + m_streamReason + QStringLiteral("</think>\n");
-        full += m_streamContent;
+        full += m_thinkingEnabled ? m_streamContent : stripThinkForOutput(m_streamContent);
         // Indicador transitorio mientras se generan args de tool (sin texto aún).
         // Se limpia en handleStreamFinished antes de cerrar/finalizar el bubble,
         // así no queda pegado en el chat ni envenena m_streamContent.
@@ -1288,9 +1320,9 @@ void LlamaAgentBackend::handleStreamFinished(bool ok, const QString &err)
     // no descarte una burbuja que en realidad está vacía (sólo tool_calls).
     if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
         QString clean = m_streamBase;
-        if (!m_streamReason.isEmpty())
+        if (m_thinkingEnabled && !m_streamReason.isEmpty())
             clean += QStringLiteral("<think>") + m_streamReason + QStringLiteral("</think>\n");
-        clean += m_streamContent;
+        clean += m_thinkingEnabled ? m_streamContent : stripThinkForOutput(m_streamContent);
         QVariantMap m = m_messages[m_curAsstIdx].toMap();
         m[QStringLiteral("content")] = clean;
         m_messages[m_curAsstIdx] = m;

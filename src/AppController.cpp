@@ -652,6 +652,13 @@ void AppController::startServer(const QString &launchProfileId)
     const QString binaryPath = m_effectiveProfile["binaryPath"].toString();
     QStringList args = m_effectiveProfile["effectiveArgs"].toStringList();
     const QVariantMap envMap = m_effectiveProfile["effectiveEnv"].toMap();
+    m_serverGpuRequested = false;
+    const int nglIdx = args.indexOf(QStringLiteral("--n-gpu-layers"));
+    if (nglIdx >= 0 && nglIdx + 1 < args.size())
+        m_serverGpuRequested = args[nglIdx + 1].toInt() != 0;
+    m_serverGpuDeviceSeen = false;
+    m_serverCpuDeviceSeen = false;
+    m_serverGpuFallbackWarned = false;
 
     // Diagnóstico temprano del binario: existe, es archivo y es ejecutable.
     {
@@ -1318,7 +1325,12 @@ try {
     $rel = Invoke-RestMethod -Uri $api -Headers $headers
     $tag = [string]$rel.tag_name
     $assets = @($rel.assets)
-    $pick = $assets | Where-Object { $_.name -match 'bin-win-cuda.*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1
+    $pick = $null
+    $hasNvidia = $false
+    try { $null = Get-Command nvidia-smi -ErrorAction Stop; $hasNvidia = $true } catch {}
+    if ($hasNvidia) {
+        $pick = $assets | Where-Object { $_.name -match 'bin-win-cuda.*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1
+    }
     if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'bin-win-(avx2|cpu|openblas).*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1 }
     if (-not $pick) { $pick = $assets | Where-Object { $_.name -match 'win.*x64.*\.zip$' -and $_.name -notmatch '^cudart-' } | Select-Object -First 1 }
     if (-not $pick) { throw 'No suitable Windows x64 binary asset found in latest release.' }
@@ -1340,6 +1352,20 @@ try {
     }
     Write-Output 'STATUS: Extrayendo binarios...'
     Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+    if ($pick.name -match 'cuda-([0-9.]+)-x64\.zip$') {
+        $cudaVer = $Matches[1]
+        $rtRx = '^cudart-.*cuda-' + [regex]::Escape($cudaVer) + '-x64\.zip$'
+        $cudart = $assets | Where-Object { $_.name -match $rtRx } | Select-Object -First 1
+        if ($cudart) {
+            Write-Output ('STATUS: Descargando runtime CUDA ' + $cudart.name + ' ...')
+            $rtZip = Join-Path $runDir $cudart.name
+            Invoke-WebRequest -Uri $cudart.browser_download_url -Headers $headers -OutFile $rtZip
+            Write-Output 'STATUS: Extrayendo runtime CUDA...'
+            Expand-Archive -LiteralPath $rtZip -DestinationPath $extract -Force
+        } else {
+            Write-Output ('STATUS: No encontré runtime CUDA separado para ' + $cudaVer + '; continúo.')
+        }
+    }
     $exe = Get-ChildItem -Path $extract -Recurse -Filter 'llama-server.exe' | Select-Object -First 1
     if (-not $exe) { throw 'llama-server.exe not found after extraction.' }
     Write-Output 'STATUS: Registrando binario en LlamaCode...'
@@ -1439,7 +1465,9 @@ try {
                 const QString name = releaseTag.isEmpty()
                     ? QStringLiteral("llama-server (official latest)")
                     : QStringLiteral("llama-server (official %1)").arg(releaseTag);
-                const QString id = m_binaries.add(installedPath, name, "official", "cuda", tag);
+                QString backend = BinaryRegistry::detectBackend(installedPath);
+                if (backend.isEmpty()) backend = QStringLiteral("cpu");
+                const QString id = m_binaries.add(installedPath, name, "official", backend, tag);
                 if (!id.isEmpty()) {
                     ok = true;
                     message = "Official llama.cpp binary installed and registered.";
@@ -1627,6 +1655,29 @@ void AppController::appendServerEvent(const QString &source, const QString &text
 
 void AppController::detectServerLogPatterns(const QString &text)
 {
+    const QString lower = text.toLower();
+    if (lower.contains(QStringLiteral("- cuda")) ||
+        lower.contains(QStringLiteral("- vulkan")) ||
+        lower.contains(QStringLiteral("- hip")) ||
+        lower.contains(QStringLiteral("- sycl")) ||
+        lower.contains(QStringLiteral("- opencl")) ||
+        lower.contains(QStringLiteral("- metal"))) {
+        m_serverGpuDeviceSeen = true;
+    }
+    if (lower.contains(QStringLiteral("- cpu")))
+        m_serverCpuDeviceSeen = true;
+    if (m_serverGpuRequested && m_serverCpuDeviceSeen && !m_serverGpuDeviceSeen
+        && !m_serverGpuFallbackWarned
+        && (lower.contains(QStringLiteral("common_params_fit_impl"))
+            || lower.contains(QStringLiteral("system_info:")))) {
+        m_serverGpuFallbackWarned = true;
+        const QString msg = QStringLiteral(
+            "El perfil pidió GPU layers, pero llama.cpp sólo reportó CPU en device_info. "
+            "Reinstalá el binario latest CUDA o revisá que el runtime CUDA esté junto a llama-server.exe.");
+        appendServerEvent(QStringLiteral("diag"), QStringLiteral("[warn] %1").arg(msg));
+        emit serverDiagnostic(QStringLiteral("warn"), msg);
+    }
+
     // Patrones (regex, case-insensitive). level → señal serverDiagnostic.
     struct Pat { const char *rx; const char *level; const char *msg; };
     static const Pat pats[] = {
