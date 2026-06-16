@@ -641,5 +641,6 @@ Código, datos y diseño tomados de otros proyectos:
 | **API de audio OpenAI** | Contrato `/v1/audio/transcriptions` y `/v1/audio/speech` del modo Charla (whisper.cpp, openedai-speech, piper) | https://platform.openai.com/docs/api-reference/audio |
 | **QtKeychain** | Cifrado de secretos respaldado por el SO | https://github.com/frankosterfeld/qtkeychain |
 | **Catppuccin (Mocha)** | Paleta del theme QML | https://github.com/catppuccin/catppuccin |
+| **archex** | Ideas de pipeline de code-context en `hybrid_search`: empaquetado por presupuesto de tokens + expansión por dep-graph (vecinos vía imports/includes) | https://github.com/Mathews-Tom/archex |
 
 > Al sumar código/datos de otro repo, agregar la fila correspondiente acá.

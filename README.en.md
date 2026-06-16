@@ -638,5 +638,6 @@ Code, data and design taken from other projects:
 | **OpenAI audio API** | `/v1/audio/transcriptions` and `/v1/audio/speech` contract for Talk mode (whisper.cpp, openedai-speech, piper) | https://platform.openai.com/docs/api-reference/audio |
 | **QtKeychain** | OS-backed secret encryption | https://github.com/frankosterfeld/qtkeychain |
 | **Catppuccin (Mocha)** | QML theme palette | https://github.com/catppuccin/catppuccin |
+| **archex** | Code-context pipeline ideas in `hybrid_search`: token-budget packing + dep-graph expansion (neighbors via imports/includes) | https://github.com/Mathews-Tom/archex |
 
 > When adding code/data from another repo, add the corresponding row here.
