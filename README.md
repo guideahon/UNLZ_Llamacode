@@ -311,6 +311,8 @@ Pegar un comando de terminal (e.g. `llama-server --model ... --ctx-size 8192 --n
   cuando el servidor está listo. Es independiente del toggle de Agente /
   Benchmark / Research y envía `reasoning_budget=0` /
   `chat_template_kwargs.enable_thinking=false` salvo que el usuario lo active.
+  Si el modelo emite `<think>` igualmente, Chat descarta ese bloque en streaming
+  y no lo guarda en el historial.
 - **Indicador "⏳ Procesando..."** mientras espera, cursor `▌` durante generación
 - **Stop de generación** con guardado de lo recibido
 

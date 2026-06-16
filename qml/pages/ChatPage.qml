@@ -742,6 +742,21 @@ Item {
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
+                    CheckBox {
+                        id: chatThinkingCheck
+                        visible: App.serverRunning && App.serverReady
+                        text: "Pensar"
+                        checked: App.chatThinkingEnabled
+                        enabled: !App.chatGenerating
+                        onToggled: App.chatThinkingEnabled = checked
+                        contentItem: Text {
+                            text: chatThinkingCheck.text
+                            color: Theme.textPrimary
+                            font.pixelSize: 12
+                            leftPadding: chatThinkingCheck.indicator.width + 6
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
                 }
             }
 
@@ -1261,22 +1276,6 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
-
-                        CheckBox {
-                            id: thinkingToggle
-                            text: "Pensar"
-                            visible: App.serverRunning && App.serverReady
-                            checked: App.chatThinkingEnabled
-                            enabled: !App.chatGenerating && App.serverRunning && App.serverReady
-                            onToggled: App.chatThinkingEnabled = checked
-                            contentItem: Text {
-                                text: parent.text
-                                color: Theme.textSecondary
-                                leftPadding: parent.indicator.width + 6
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 12
-                            }
-                        }
 
                         LcButton {
                             text: "📎"

@@ -32,6 +32,34 @@ static QString stripThinkForContext(const QString &s)
     return out.trimmed();
 }
 
+// Para display/historial cuando el usuario desactiva "Pensar": durante streaming
+// puede llegar un bloque <think> incompleto, así que se descarta desde la apertura
+// hasta que aparezca el cierre. Si el modelo mandó el bloque completo, queda sólo
+// la respuesta final.
+static QString stripThinkForOutput(const QString &s)
+{
+    QString out = s;
+    out.remove(QRegularExpression(QStringLiteral("<think>[\\s\\S]*?</think>"),
+                                  QRegularExpression::CaseInsensitiveOption));
+    const QRegularExpression openRe(QStringLiteral("<think\\b[^>]*>"),
+                                    QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpression closeRe(QStringLiteral("</think>"),
+                                     QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch open = openRe.match(out);
+    while (open.hasMatch()) {
+        const QRegularExpressionMatch close = closeRe.match(out, open.capturedEnd());
+        if (!close.hasMatch()) {
+            out.truncate(open.capturedStart());
+            break;
+        }
+        out.remove(open.capturedStart(), close.capturedEnd() - open.capturedStart());
+        open = openRe.match(out);
+    }
+    out.remove(closeRe);
+    out.remove(openRe);
+    return out.trimmed();
+}
+
 // Devuelve un data URI base64 si el archivo es imagen soportada por mmproj; "" si no.
 static QString imageDataUri(const QString &path)
 {
@@ -341,6 +369,13 @@ void RawChatBackend::sendMessage(const QString &text)
     emit messagesChanged();
 
     QJsonArray reqMsgs;
+    if (!m_thinkingEnabled) {
+        reqMsgs.append(QJsonObject{
+            {QStringLiteral("role"), QStringLiteral("system")},
+            {QStringLiteral("content"),
+             QStringLiteral("Responde solo con la respuesta final. No incluyas razonamiento interno ni etiquetas <think> o </think>.")}
+        });
+    }
     int lastUserIdx = -1;
     for (int i = 0; i < m_messages.size(); ++i) {
         if (m_messages[i].toMap().value(QStringLiteral("role")).toString() == QLatin1String("user"))
@@ -353,11 +388,12 @@ void RawChatBackend::sendMessage(const QString &text)
             && role != QLatin1String("system")) {
             continue;
         }
-        Q_UNUSED(lastUserIdx)
         const QStringList atts = m.value(QStringLiteral("attachments")).toStringList();
         if (role == QLatin1String("user") && !atts.isEmpty()) {
             // Mensaje multimodal: texto + documentos inline + imágenes (mmproj).
             QString textPart = m.value(QStringLiteral("rawText")).toString();
+            if (!m_thinkingEnabled && i == lastUserIdx)
+                textPart += QStringLiteral("\n\n/no_think");
             QJsonArray images;
             for (const QString &path : atts) {
                 const QString uri = imageDataUri(path);
@@ -393,6 +429,8 @@ void RawChatBackend::sendMessage(const QString &text)
         QString content = m.value(QStringLiteral("content")).toString();
         if (role == QLatin1String("assistant"))
             content = stripThinkForContext(content);
+        else if (!m_thinkingEnabled && role == QLatin1String("user") && i == lastUserIdx)
+            content += QStringLiteral("\n\n/no_think");
         if (content.trimmed().isEmpty()) continue;
         reqMsgs.append(QJsonObject{
             {QStringLiteral("role"), role},
@@ -439,13 +477,14 @@ void RawChatBackend::sendMessage(const QString &text)
             const QString reasoning = delta.value(QStringLiteral("reasoning_content")).toString();
             const QString chunk = delta.value(QStringLiteral("content")).toString();
             if (reasoning.isEmpty() && chunk.isEmpty()) continue;
-            m_reasonBuf += reasoning;
+            if (m_thinkingEnabled)
+                m_reasonBuf += reasoning;
             m_answerBuf += chunk;
             // El thinking (reasoning_content) se envuelve en <think> para que la UI lo muestre.
             QString full;
-            if (!m_reasonBuf.isEmpty())
+            if (m_thinkingEnabled && !m_reasonBuf.isEmpty())
                 full = QStringLiteral("<think>") + m_reasonBuf + QStringLiteral("</think>\n");
-            full += m_answerBuf;
+            full += m_thinkingEnabled ? m_answerBuf : stripThinkForOutput(m_answerBuf);
             if (m_curAsstIdx >= 0 && m_curAsstIdx < m_messages.size()) {
                 QVariantMap asst = m_messages[m_curAsstIdx].toMap();
                 asst[QStringLiteral("content")] = full;
@@ -485,6 +524,8 @@ void RawChatBackend::sendMessage(const QString &text)
             asst[QStringLiteral("typing")] = false;
             if (!ok && asst.value(QStringLiteral("content")).toString().isEmpty())
                 asst[QStringLiteral("content")] = QStringLiteral("[error: %1]").arg(err);
+            if (!m_thinkingEnabled)
+                asst[QStringLiteral("content")] = stripThinkForOutput(asst.value(QStringLiteral("content")).toString());
             const qint64 doneAt = QDateTime::currentMSecsSinceEpoch();
             const qint64 startedAt = static_cast<qint64>(asst.value(QStringLiteral("createdAt")).toDouble());
             const qint64 elapsedMs = qMax<qint64>(0, doneAt - startedAt);
