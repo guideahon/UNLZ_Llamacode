@@ -44,7 +44,7 @@
 - [Backends cloud + secretos](#backends-cloud--secretos-cifrados) · [Modo Charla (voz)](#modo-charla-voz-a-voz) · [Memoria/RAG](#memoria-rag-y-verificación) · [Maestro/supervisor](#maestro--supervisor-escalado)
 - [Correo](#cuentas-de-correo) · [Browser (Playwright)](#automatización-de-browser-playwright) · [Adjuntos/visión](#adjuntos-documentos--visión) · [Watchdog + VRAM](#robustez-del-server-watchdog--vram) · [Otras capacidades](#otras-capacidades)
 - [Process Lifecycle](#process-lifecycle) · [Stack técnico](#stack-técnico) · [Build](#build) · [Estructura del repo](#estructura-del-repo)
-- [Fases](#fases) · [Tasks (macros + scheduler)](#tasks-macros-configurables--scheduler-cron) · [Benchmarking](#benchmarking) · [Auto-tuning](#auto-tuning-de-parámetros) · [Seguridad operativa](#seguridad-operativa)
+- [Fases](#fases) · [Tasks (macros + scheduler)](#tasks-macros-configurables--scheduler-cron) · [Benchmarking](#benchmarking) · [Auto-tuning](#auto-tuning-de-parámetros) · [Seguridad operativa](#seguridad-operativa) · [Operativa GitHub](#operativa-github)
 - [Agradecimientos](#agradecimientos)
 
 ## Instalación ultra-rápida (banco de pruebas aislado)
@@ -621,6 +621,12 @@ Detalle completo en [`docs/tuner.md`](docs/tuner.md).
 - Escrituras fuera de workspace: bloqueadas por defecto.
 - Comandos shell con allowlist/denylist por `WorkspaceProfile`.
 - Subprocesos tagged con env vars para auditoría y control de ciclo de vida.
+
+## Operativa GitHub
+
+- La cuenta corporativa se usa para trabajo en DDS.
+- Para `UNLZ_Llamacode`, usar la cuenta `guideahon`.
+- Los pushes de este repo deben enviarse al fork `guideahon/UNLZ_Llamacode`.
 
 ## Agradecimientos
 
