@@ -107,7 +107,7 @@ Item {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 210
+            Layout.preferredHeight: (App.modelDownloadRunning || App.modelDownloadStatus.length > 0) ? 242 : 210
             color: Theme.baseBg
             border.color: Theme.borderColor
             border.width: 0
@@ -229,12 +229,23 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     visible: App.modelDownloadRunning || App.modelDownloadStatus.length > 0
+                    Layout.preferredHeight: visible ? 26 : 0
                     spacing: 8
                     ProgressBar {
                         Layout.preferredWidth: 140
+                        Layout.preferredHeight: 8
                         from: 0
                         to: 100
                         value: App.modelDownloadProgress
+                        background: Rectangle { color: Theme.inputBg; radius: 4 }
+                        contentItem: Item {
+                            Rectangle {
+                                width: parent.width * (App.modelDownloadProgress / 100)
+                                height: parent.height
+                                radius: 4
+                                color: Theme.accent
+                            }
+                        }
                     }
                     Text {
                         Layout.fillWidth: true
