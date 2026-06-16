@@ -77,7 +77,9 @@ Instala automáticamente:
   fontconfig…).
 
 Clona en `%USERPROFILE%\LlamaCode` / `~/LlamaCode` y al terminar lanza la app
-(salvo `LC_NORUN=1`).
+(salvo `LC_NORUN=1`). En Windows también crea un acceso directo por usuario en
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\LlamaCode.lnk`, para que aparezca
+al buscar "LlamaCode" desde el menú Inicio.
 
 Variables opcionales (setear antes de correr):
 

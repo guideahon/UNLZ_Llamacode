@@ -55,6 +55,33 @@ function Get-MissingQtComponents {
     return $missing
 }
 
+function New-LlamaCodeShortcut {
+    param(
+        [Parameter(Mandatory = $true)][string]$ShortcutPath,
+        [Parameter(Mandatory = $true)][string]$TargetPath,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [string]$IconPath
+    )
+
+    $shortcutDir = Split-Path -Parent $ShortcutPath
+    if ($shortcutDir -and -not (Test-Path $shortcutDir)) {
+        New-Item -ItemType Directory -Force -Path $shortcutDir | Out-Null
+    }
+
+    $wsh = New-Object -ComObject WScript.Shell
+    $shortcut = $wsh.CreateShortcut($ShortcutPath)
+    $shortcut.TargetPath = $TargetPath
+    $shortcut.Arguments = ''
+    $shortcut.WorkingDirectory = $WorkingDirectory
+    $shortcut.Description = 'UNLZ LlamaCode'
+    if ($IconPath -and (Test-Path $IconPath)) {
+        $shortcut.IconLocation = "$IconPath,0"
+    } else {
+        $shortcut.IconLocation = "$TargetPath,0"
+    }
+    $shortcut.Save()
+}
+
 Write-Host ""
 Write-Host "=== LlamaCode bootstrap (Windows) ===" -ForegroundColor Magenta
 Write-Host "Target: $Dir  branch=$Branch  config=$Config"
@@ -168,8 +195,25 @@ if (Test-Path $LabsSrc) {
     Copy-Item -Recurse -Force $LabsSrc (Join-Path $ExeDir 'qml\Qt\labs\settings')
 }
 
+# Make the app discoverable from Windows Start search. The project-root shortcut
+# is convenient for manual inspection; the Start Menu shortcut is what Windows
+# indexes as an installed app for the current user.
+$ShortcutName = if ($Config -ieq 'Debug') { 'LlamaCode-Debug' } else { 'LlamaCode' }
+$IconRel = if ($Config -ieq 'Debug') { 'assets\debug_icon.ico' } else { 'assets\app_icon.ico' }
+$IconPath = Join-Path $Dir $IconRel
+$ProjectShortcut = Join-Path $Dir "$ShortcutName.lnk"
+$StartMenuDir = [Environment]::GetFolderPath('Programs')
+if ([string]::IsNullOrWhiteSpace($StartMenuDir)) {
+    $StartMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+}
+$StartMenuShortcut = Join-Path $StartMenuDir "$ShortcutName.lnk"
+Info "Creating shortcuts..."
+New-LlamaCodeShortcut -ShortcutPath $ProjectShortcut -TargetPath $ExePath -WorkingDirectory $ExeDir -IconPath $IconPath
+New-LlamaCodeShortcut -ShortcutPath $StartMenuShortcut -TargetPath $ExePath -WorkingDirectory $ExeDir -IconPath $IconPath
+
 Write-Host ""
 Ok "Done. Binary: $ExePath"
+Ok "Start Menu shortcut: $StartMenuShortcut"
 Write-Host ""
 
 if (-not $env:LC_NORUN) {

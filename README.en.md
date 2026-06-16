@@ -76,7 +76,9 @@ It automatically installs:
   fontconfig…).
 
 Clones into `%USERPROFILE%\LlamaCode` / `~/LlamaCode` and launches the app when
-done (unless `LC_NORUN=1`).
+done (unless `LC_NORUN=1`). On Windows it also creates a per-user shortcut at
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\LlamaCode.lnk`, so searching
+"LlamaCode" from the Start menu can find it.
 
 Optional variables (set before running):
 
