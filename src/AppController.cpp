@@ -5093,18 +5093,17 @@ static double quantBpp(const QString &quant)
     return 0.58;
 }
 
-// Footprint = weights + KV cache + compute/MTP overhead.
-//  - weights: full param count (MoE stores all experts in memory, only routes a
-//    subset per token) at the quant's bytes-per-param.
-//  - KV cache: scales with the FULL model (every layer caches K/V regardless of
-//    MoE routing), the real context window, NOT a token 4k stub. Constant
-//    ~1.5e-5 GB/token/B ≈ fp16 KV for a GQA-era model (Llama3-8B @32k ≈ 4 GB).
-//  - overhead: llama.cpp compute graph + MTP/draft buffers (~5% of weights + 0.7 GB).
+// Prefer the catalog's measured/curated runtime footprint when present. The
+// synthetic fallback is intentionally conservative, but it must not overrule the
+// catalog and falsely mark common 7B/8B Q4 GGUF models as spilling out of 8 GB VRAM.
 static double estimateCatalogMemoryGb(const QJsonObject &model, double paramsB, const QString &quant, int ctx)
 {
-    Q_UNUSED(model)
+    const double catalogRecommendedGb = model.value(QStringLiteral("recommended_ram_gb")).toDouble();
+    if (catalogRecommendedGb > 0)
+        return catalogRecommendedGb;
+
     const double weightsGb = paramsB * quantBpp(quant);
-    const double kvGb = 1.5e-5 * paramsB * qMax(2048, ctx);
+    const double kvGb = 7.5e-6 * paramsB * qMax(2048, ctx);
     const double overheadGb = 0.7 + weightsGb * 0.05;
     return weightsGb + kvGb + overheadGb;
 }
