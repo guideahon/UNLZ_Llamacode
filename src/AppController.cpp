@@ -5192,6 +5192,15 @@ static double quantQualityPenalty(const QString &quant)
     return 0.0;
 }
 
+static double catalogPopularityScore(const QJsonObject &model)
+{
+    const double downloads = qMax(0.0, model.value(QStringLiteral("hf_downloads")).toDouble());
+    const double likes = qMax(0.0, model.value(QStringLiteral("hf_likes")).toDouble());
+    const double downloadScore = qMin(70.0, std::log10(downloads + 1.0) * 11.0);
+    const double likeScore = qMin(30.0, std::log10(likes + 1.0) * 12.0);
+    return qBound(0.0, downloadScore + likeScore, 100.0);
+}
+
 // Newer family gets a quality boost — ported from Odysseus _architecture_bonus.
 static int architectureBonus(const QString &name, const QString &arch)
 {
@@ -5210,7 +5219,7 @@ static int architectureBonus(const QString &name, const QString &arch)
 // are penalised in a general scan so they don't dominate.
 static int catalogScore(const QJsonObject &model, double paramsB, double requiredGb, double ramGb, double vramGb,
                         const QString &quant, const QString &caps, int ctx, const QString &runMode, double tps,
-                        double benchmarkQuality)
+                        double benchmarkQuality, double cookbookPriority)
 {
     // ── quality ──
     // Prefer a real benchmark (Artificial Analysis Intelligence Index, remapped
@@ -5278,7 +5287,15 @@ static int catalogScore(const QJsonObject &model, double paramsB, double require
                           : ctx >= 4096  ? 50
                           : 30;
 
-    double composite = quality * 0.60 + speedScore * 0.15 + fitScore * 0.15 + ctxScore * 0.10;
+    const double popularityScore = catalogPopularityScore(model);
+    const double sourceScore = cookbookPriority >= 0 ? cookbookPriority : popularityScore;
+    double composite = quality * 0.55
+                     + speedScore * 0.15
+                     + fitScore * 0.15
+                     + ctxScore * 0.10
+                     + sourceScore * 0.05;
+    if (cookbookPriority >= 0)
+        composite += qMin(6.0, cookbookPriority / 18.0);
     if (vramGb >= 7.0 && paramsB >= 7.0 && paramsB <= 10.0)
         composite += 5.0; // 7B/8B Q4 is the useful sweet spot for 8 GB NVIDIA cards.
     else if (vramGb >= 7.0 && paramsB < 4.0)
@@ -5447,8 +5464,11 @@ void AppController::rebuildModelRecommendations()
             const double tps = runMode == QLatin1String("no_fit")
                 ? 0.0
                 : catalogSpeedTps(gpuName, activeB, requiredGb, runMode, gpuFraction);
-            const double benchQuality = m_benchmarkQuality.value(benchmarkKey(name), -1.0);
-            const int score = catalogScore(m, paramsB, requiredGb, ramGb, vramGb, quant, caps, ctx, runMode, tps, benchQuality);
+            const QString qualityKey = benchmarkKey(name);
+            const double benchQuality = m_benchmarkQuality.value(qualityKey, -1.0);
+            const double cookbookPriority = m_cookbookPriority.value(qualityKey, -1.0);
+            const int score = catalogScore(m, paramsB, requiredGb, ramGb, vramGb, quant, caps, ctx, runMode, tps,
+                                           benchQuality, cookbookPriority);
 
             QVariantMap row;
             row[QStringLiteral("name")] = name;
@@ -5480,6 +5500,7 @@ void AppController::rebuildModelRecommendations()
                 .arg(qRound(m.value(QStringLiteral("hf_downloads")).toDouble()));
             row[QStringLiteral("fit")] = fit;
             row[QStringLiteral("score")] = score;
+            row[QStringLiteral("sourcePriority")] = cookbookPriority;
             row[QStringLiteral("downloadable")] = !repo.isEmpty() && !fileName.isEmpty();
             row[QStringLiteral("downloadUrl")] = (!repo.isEmpty() && !fileName.isEmpty())
                 ? QStringLiteral("https://huggingface.co/%1/resolve/main/%2?download=true")
@@ -5556,6 +5577,7 @@ QString AppController::benchmarkCachePath() const
 void AppController::loadBenchmarkScores()
 {
     m_benchmarkQuality.clear();
+    m_cookbookPriority.clear();
 
     const auto ingest = [this](const QByteArray &bytes) {
         const QJsonObject root = QJsonDocument::fromJson(bytes).object();
@@ -5578,11 +5600,24 @@ void AppController::loadBenchmarkScores()
             m_benchmarkQuality.insert(benchmarkKey(name), qBound(0.0, idx * (100.0 / 70.0), 100.0));
         }
     };
+    const auto ingestPriority = [this](const QByteArray &bytes) {
+        const QJsonObject root = QJsonDocument::fromJson(bytes).object();
+        const QJsonObject models = root.value(QStringLiteral("models")).toObject();
+        for (auto it = models.begin(); it != models.end(); ++it) {
+            const double q = it.value().toDouble(-1);
+            if (q >= 0)
+                m_cookbookPriority.insert(it.key().trimmed().toLower(), q);
+        }
+    };
 
     // Bundled table first (offline floor)…
     QFile bundled(QStringLiteral(":/assets/benchmarks/aa_intelligence.json"));
     if (bundled.open(QIODevice::ReadOnly))
         ingest(bundled.readAll());
+
+    QFile localPriorities(QStringLiteral(":/assets/benchmarks/local_cookbook_priorities.json"));
+    if (localPriorities.open(QIODevice::ReadOnly))
+        ingestPriority(localPriorities.readAll());
 
     // …then overlay the fetched cache when present (fresher data wins).
     QFile cache(benchmarkCachePath());

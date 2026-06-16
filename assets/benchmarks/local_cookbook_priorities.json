@@ -1,0 +1,39 @@
+{
+  "_source": "Curated local-cookbook priorities",
+  "_as_of": "2026-06-16",
+  "_note": "Scores are 0-100 cookbook-priority hints, not raw benchmark results. They are used as a bounded boost on top of local hardware fit, quality, speed, context, and Hugging Face popularity. Keys must match benchmarkKey() normalization.",
+  "_sources": [
+    {
+      "label": "WhatLLM Best Local LLM",
+      "url": "https://whatllm.org/best-local-llm",
+      "reason": "Hardware-tier local picks and use-case guidance."
+    },
+    {
+      "label": "WhatLLM Best AI Models local category",
+      "url": "https://whatllm.org/best-ai-models?category=local",
+      "reason": "Live open-weight/local ranking based on Artificial Analysis."
+    },
+    {
+      "label": "Hugging Face trending leaderboard spaces",
+      "url": "https://huggingface.co/spaces?sort=trending&search=leader",
+      "reason": "Leaderboard ecosystem signal for open, small, and low-bit model evaluation."
+    }
+  ],
+  "models": {
+    "gemma 3n e4b": 92,
+    "qwen2.5 7b": 95,
+    "qwen2.5 coder 7b": 96,
+    "meta llama 3.1 8b": 88,
+    "meta llama 3 8b": 86,
+    "qwen3 8b": 90,
+    "deepseek r1 qwen 7b": 90,
+    "qwen2.5 coder 32b": 98,
+    "mistral small 24b": 90,
+    "llama 3.3 70b": 95,
+    "qwen2.5 72b": 94,
+    "qwen3.5 27b": 93,
+    "qwen3.6 27b": 96,
+    "qwen3.6 35b a3b": 97,
+    "qwen3 235b a22b": 98
+  }
+}

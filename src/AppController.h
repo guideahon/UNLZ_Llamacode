@@ -901,6 +901,7 @@ private:
     // Model quality benchmarks (Artificial Analysis Intelligence Index).
     // Bundled table is the offline fallback; a weekly live fetch overlays it.
     QHash<QString, double> m_benchmarkQuality;
+    QHash<QString, double> m_cookbookPriority;
     bool m_benchmarkLoaded = false;
     QNetworkReply *m_benchmarkFetchReply = nullptr;
     QString benchmarkCachePath() const;       // writable cache for fetched data

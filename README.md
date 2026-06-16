@@ -228,27 +228,28 @@ Entidad `CatalogModel`: `id`, `rootId`, `absolutePath`, `fileName`, `sizeBytes`,
 
 ## Cookbook de modelos (recomendaciones hardware-fit)
 
-`ModelRootsPage` recomienda qué modelos descargar según el hardware detectado (RAM / VRAM / GPU vía `nvidia-smi`), usando el catálogo `assets/hwfit/hf_models.json` (~900 modelos, basado en el cookbook de Odysseus).
+`ModelRootsPage` recomienda qué modelos descargar según el hardware detectado (RAM / VRAM / GPU vía `nvidia-smi`), usando el catálogo `assets/hwfit/hf_models.json` (~900 modelos, basado en el cookbook de Odysseus) y señales de ranking externas embebidas para el modo offline.
 
 ### Scoring
 
-Cada modelo recibe un score `0–100` que combina, ponderado al caso de uso *general* (calidad 0.45 / velocidad 0.30 / fit 0.15 / contexto 0.10):
+Cada modelo recibe un score `0–100` que combina, ponderado al caso de uso *general* (calidad 0.55 / velocidad 0.15 / fit 0.15 / contexto 0.10 / fuentes 0.05):
 
 - **Calidad** — preferentemente un **benchmark real** (Artificial Analysis *Intelligence Index*, remapeado a 0–100); si no hay match, heurística por params + familia + bonus de arquitectura (qwen3.6 +9, qwen3.5 +8, qwen3-next +6, …) con penalización por tier de quant. Modelos coder se penalizan en el scan general para no dominar.
 - **Velocidad** — t/s estimados según ancho de banda de la GPU y params activos (MoE-aware). En `partial_offload` la velocidad es un blend armónico GPU/CPU según la fracción residente en VRAM.
 - **Fit** — ratio memoria requerida vs. presupuesto.
 - **Contexto** — target moderno: 32k=100, 16k=85, 8k=70, 4k=50 (no se premia el stub de 4k).
+- **Fuentes externas** — prioridad acotada desde `assets/benchmarks/local_cookbook_priorities.json` (WhatLLM local/open-weight + leaderboards HF relevantes) o, si no hay match, popularidad Hugging Face (`hf_downloads` + `hf_likes`) como desempate suave.
 
 Desempate por versión (Qwen3.6 > Qwen3.5).
 
 ### Estimación de memoria (`estimateCatalogMemoryGb`)
 
-Footprint = **pesos + KV cache + overhead**, dimensionado a un contexto realista, no a 4k:
+El estimador usa primero el footprint curado del catálogo (`recommended_ram_gb`) cuando existe, porque representa el tamaño operativo esperado del GGUF recomendado. Si falta ese dato, usa un fallback sintético:
 
-- **Pesos** — params **totales** (MoE guarda todos los expertos en memoria, sólo rutea un subset por token) × bytes-por-param del quant.
-- **KV cache** — escala con el modelo **completo** (todas las capas cachean K/V sin importar el ruteo MoE) y el **contexto real de sizing**, no un stub de 4k. Constante `1.5e-5 GB/token/B` ≈ KV fp16 de un modelo era-GQA (Llama3-8B @32k ≈ 4 GB).
+- **Pesos** — params totales × bytes-por-param del quant.
+- **KV cache** — escala con params y contexto real de sizing; constante conservadora `7.5e-6 GB/token/B`.
 - **Overhead** — compute graph de llama.cpp + buffers MTP/draft (`0.7 GB + 5%` de los pesos).
-- **Contexto de sizing** (`sizingContext`) — target 32k, capeado por el ctx máx del modelo, piso 8k. Evita subestimar el costo de KV con defaults chicos.
+- **Contexto de sizing** (`sizingContext`) — target 32k, capeado por el ctx máx del modelo, piso 8k.
 
 ### Modos de ejecución (run mode / fit)
 
@@ -266,6 +267,7 @@ Calculado contra VRAM (`nvidia-smi`) y RAM del sistema (90% utilizable como head
 - **Tabla bundled** `assets/benchmarks/aa_intelligence.json` — piso offline, sin dependencias de red.
 - **Refresco semanal**: si la caché (`AppLocalData/LlamaCode/benchmarks/`) tiene >7 días, hace un fetch en background y la sobrescribe; ante cualquier fallo de red/JSON, queda la bundled.
 - **Matching**: `benchmarkKey()` normaliza el nombre del catálogo (saca provider, quant/formato, GGUF, `-4bit`, `instruct`/`it`/`base`…) para mapear contra la tabla.
+- **Prioridades de cookbook local** `assets/benchmarks/local_cookbook_priorities.json` — hints curados desde WhatLLM (local/self-host y open-weight) y Hugging Face Spaces de leaderboards trending. No reemplazan el fit local: sólo agregan un boost acotado cuando el modelo también entra bien en el hardware.
 
 ## Diseño Multi-perfiles compuestos
 
