@@ -213,6 +213,8 @@ AppController::AppController(QObject *parent) : QObject(parent)
     m_agentThinkingEnabled = s.value(QStringLiteral("thinking/enabled"),
                                      s.value(QStringLiteral("agent/thinkingEnabled"), false)).toBool();
     m_chatThinkingEnabled = s.value(QStringLiteral("chat/thinkingEnabledV2"), false).toBool();
+    m_launchThinkingEnabled = s.value(QStringLiteral("thinking/serverEnabled"),
+                                      m_agentThinkingEnabled).toBool();
     m_mermaidEnabled = s.value(QStringLiteral("chat/mermaidEnabled"), true).toBool();
     m_browserAutomationEnabled = s.value(QStringLiteral("browser/automationEnabled"), false).toBool();
     m_browserMcpCommand = s.value(QStringLiteral("browser/mcpCommand"),
@@ -1246,7 +1248,7 @@ void AppController::computeEffectiveProfilePreview(const QString &launchProfileI
 
     ctx.launch.extraArgs = overrides.value("extraArgs").toStringList();
     ctx.reasoningEnabled = overrides.value(QStringLiteral("thinkingEnabled"),
-                                           m_agentThinkingEnabled).toBool();
+                                           m_launchThinkingEnabled).toBool();
 
     const EffectiveProfile ep = EffectiveProfileBuilder::build(ctx);
 
@@ -1808,7 +1810,7 @@ EffectiveProfileBuilder::Context AppController::buildContext(const QString &laun
     ctx.catalogModel = m_catalog.findById(ctx.model.modelId);
     ctx.mmprojModel = m_catalog.findById(ctx.model.mmprojId);
     ctx.draftModel = m_catalog.findById(ctx.model.draftModelId);
-    ctx.reasoningEnabled = m_agentThinkingEnabled;
+    ctx.reasoningEnabled = m_launchThinkingEnabled;
     return ctx;
 }
 
@@ -2308,19 +2310,99 @@ void AppController::setThinkingEnabled(bool enabled)
 {
     if (enabled == m_agentThinkingEnabled) return;
     m_agentThinkingEnabled = enabled;
+    m_launchThinkingEnabled = enabled;
     writeSetting(QStringLiteral("thinking/enabled"), enabled);
     writeSetting(QStringLiteral("agent/thinkingEnabled"), enabled);
+    writeSetting(QStringLiteral("thinking/serverEnabled"), enabled);
     if (auto *cb = qobject_cast<LlamaAgentBackend *>(m_agentBackend))
         cb->setThinkingEnabled(enabled);
     if (serverRunning()) {
         const QString msg = enabled
-            ? QStringLiteral("Pensar activado: reiniciá el servidor para aplicar el modo de reasoning compatible con este binario/modelo.")
-            : QStringLiteral("Pensar desactivado: reiniciá el servidor para aplicar el apagado de reasoning compatible con este binario/modelo.");
+            ? QStringLiteral("Pensar activado: el cambio duro de reasoning se aplica al reiniciar el modelo.")
+            : QStringLiteral("Pensar desactivado: el cambio duro de reasoning se aplica al reiniciar el modelo.");
         appendServerEvent(QStringLiteral("lifecycle"), msg);
-        emit serverError(msg);
     }
     emit agentThinkingChanged();
     emit thinkingChanged();
+}
+
+void AppController::applyThinkingChange(bool enabled,
+                                        const QString &surface,
+                                        const QString &restartMode)
+{
+    const QString s = surface.trimmed().toLower();
+    const QString mode = restartMode.trimmed().toLower();
+    const bool withAgent = (s == QLatin1String("agent"))
+                           || agentRunning()
+                           || m_agentStarting
+                           || !m_activeAgentAdapter.isEmpty();
+
+    if (s == QLatin1String("chat"))
+        setChatThinkingEnabled(enabled);
+    else
+        setThinkingEnabled(enabled);
+
+    if (mode == QLatin1String("now")) {
+        restartActiveLaunchForThinking(withAgent, true);
+    } else if (mode == QLatin1String("after-response")) {
+        const bool busy = (s == QLatin1String("chat")) ? m_chatGenerating
+                                                       : (m_agentStreamingIndex >= 0);
+        if (!busy) {
+            restartActiveLaunchForThinking(withAgent, false);
+            return;
+        }
+        m_restartThinkingAfterResponse = true;
+        m_restartThinkingWithAgent = withAgent;
+        appendServerEvent(QStringLiteral("lifecycle"),
+                          QStringLiteral("Reinicio del modelo programado al terminar la respuesta actual."));
+    }
+}
+
+void AppController::restartActiveLaunchForThinking(bool withAgent, bool cancelActiveGeneration)
+{
+    const QString launchId = m_activeLaunchId;
+    if (launchId.isEmpty()) {
+        emit serverError(QStringLiteral("No hay un perfil activo para reiniciar el modelo."));
+        return;
+    }
+
+    m_restartThinkingAfterResponse = false;
+    if (cancelActiveGeneration) {
+        if (m_chatGenerating)
+            stopChatGeneration();
+        if (m_agentStreamingIndex >= 0)
+            cancelAgentGeneration();
+    }
+
+    if (withAgent && (agentRunning() || m_agentStarting || !m_activeAgentAdapter.isEmpty()))
+        stopAgent();
+
+    auto startAgain = [this, launchId, withAgent]() {
+        appendServerEvent(QStringLiteral("lifecycle"),
+                          QStringLiteral("Reiniciando modelo para aplicar thinking=%1.")
+                              .arg(m_launchThinkingEnabled ? QStringLiteral("on")
+                                                           : QStringLiteral("off")));
+        if (withAgent)
+            startServerAndAgent(launchId);
+        else
+            startServer(launchId);
+    };
+
+    if (!serverRunning()) {
+        QTimer::singleShot(0, this, startAgain);
+        return;
+    }
+
+    auto *conn = new QMetaObject::Connection;
+    *conn = connect(this, &AppController::serverRunningChanged, this,
+                    [this, conn, startAgain]() {
+        if (serverRunning() || m_serverStopping)
+            return;
+        disconnect(*conn);
+        delete conn;
+        QTimer::singleShot(0, this, startAgain);
+    });
+    stopServer();
 }
 
 void AppController::setAgentTeacherUrl(const QString &url)
@@ -2481,6 +2563,8 @@ IAgentBackend *AppController::ensureChatBackend()
                 m_voice->speak(reply);
             }
         }
+        if (!generating && wasGenerating && m_restartThinkingAfterResponse)
+            restartActiveLaunchForThinking(m_restartThinkingWithAgent, false);
     });
     connect(b, &IAgentBackend::streamingText, this, [this](int idx, const QString &content) {
         m_chatStreamingIndex = idx;
@@ -2949,6 +3033,8 @@ void AppController::onAgentTurnFinished()
         stopAgent();
         stopServer();
     }
+    if (m_restartThinkingAfterResponse)
+        restartActiveLaunchForThinking(m_restartThinkingWithAgent, false);
 }
 
 void AppController::setTasksSchedulerEnabled(bool on)
@@ -4709,10 +4795,18 @@ void AppController::setChatThinkingEnabled(bool enabled)
 {
     if (enabled == m_chatThinkingEnabled) return;
     m_chatThinkingEnabled = enabled;
+    m_launchThinkingEnabled = enabled;
     writeSetting(QStringLiteral("chat/thinkingEnabledV2"), enabled);
+    writeSetting(QStringLiteral("thinking/serverEnabled"), enabled);
     if (auto *raw = qobject_cast<RawChatBackend *>(m_chatBackend))
         raw->setThinkingEnabled(enabled);
     emit chatThinkingChanged();
+    if (serverRunning()) {
+        appendServerEvent(QStringLiteral("lifecycle"),
+                          enabled
+                              ? QStringLiteral("Pensar en chat activado: el cambio duro se aplica al reiniciar el modelo.")
+                              : QStringLiteral("Pensar en chat desactivado: el cambio duro se aplica al reiniciar el modelo."));
+    }
 }
 
 // ── Managed-process lifecycle ─────────────────────────────────────────────────

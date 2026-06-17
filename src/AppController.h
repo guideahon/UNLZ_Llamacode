@@ -269,6 +269,9 @@ public:
     Q_INVOKABLE void startServer(const QString &launchProfileId);
     Q_INVOKABLE void startServerAndAgent(const QString &launchProfileId);
     Q_INVOKABLE void stopServer();
+    Q_INVOKABLE void applyThinkingChange(bool enabled,
+                                         const QString &surface,
+                                         const QString &restartMode);
     Q_INVOKABLE void computeEffectiveProfile(const QString &launchProfileId);
     Q_INVOKABLE QVariantMap launchPortStatus(const QString &launchProfileId);
     Q_INVOKABLE bool setLaunchBackendPort(const QString &launchProfileId, int port);
@@ -803,6 +806,10 @@ private:
     QVariantMap m_agentPendingTool;   // tool esperando aprobación ({} si ninguna)
     QString   m_agentApprovalMode = QStringLiteral("ask");  // auto | ask | manual | super
     bool      m_agentThinkingEnabled = false;   // razonamiento agente/benchmark/research
+    bool      m_launchThinkingEnabled = false;  // razonamiento duro del próximo llama-server
+    bool      m_restartThinkingAfterResponse = false;
+    bool      m_restartThinkingWithAgent = false;
+    void      restartActiveLaunchForThinking(bool withAgent, bool cancelActiveGeneration);
     // Automatización de browser (MCP Playwright). Toggle global; cada LaunchProfile
     // puede forzar on/off con browserAutomation ("inherit"|"on"|"off").
     bool      m_browserAutomationEnabled = false;

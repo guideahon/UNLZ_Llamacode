@@ -248,6 +248,90 @@ Item {
         }
     }
 
+    Dialog {
+        id: thinkingRestartDialog
+        modal: true
+        parent: Overlay.overlay
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        width: Math.min(560, root.width - 48)
+        closePolicy: Popup.CloseOnEscape
+
+        property bool targetEnabled: false
+        readonly property bool responseActive: App.agentStreamingIndex >= 0
+
+        background: Rectangle {
+            color: Theme.popupBg; radius: 12
+            border.color: Theme.popupBorderColor; border.width: 1
+        }
+        Overlay.modal: Rectangle { color: Theme.overlayColor }
+
+        header: Rectangle {
+            color: Theme.popupHeaderBg; height: 50; radius: 12
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.popupHeaderBorder }
+            Text {
+                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                text: "Cambiar pensamiento"
+                font { pixelSize: 14; bold: true }
+                color: Theme.textPrimary
+            }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 14
+            Text {
+                Layout.fillWidth: true
+                text: "¿Desea reiniciar el modelo para cambiar la profundidad del pensamiento?"
+                color: Theme.textPrimary
+                wrapMode: Text.WordWrap
+                font.pixelSize: 14
+            }
+            Text {
+                Layout.fillWidth: true
+                text: thinkingRestartDialog.targetEnabled
+                      ? "Pensar quedará activado. El cambio duro se aplica al relanzar llama-server."
+                      : "Pensar quedará desactivado. El cambio duro se aplica al relanzar llama-server."
+                color: Theme.textSecondary
+                wrapMode: Text.WordWrap
+                font.pixelSize: 12
+            }
+        }
+
+        footer: Rectangle {
+            color: Theme.popupHeaderBg; height: 58; radius: 12
+            Rectangle { anchors.top: parent.top; width: parent.width; height: 12; color: Theme.popupHeaderBg }
+            Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.popupHeaderBorder }
+            Row {
+                anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                spacing: 10
+                LcButton {
+                    text: "No reiniciar"; secondary: true
+                    onClicked: {
+                        App.applyThinkingChange(thinkingRestartDialog.targetEnabled, "agent", "none")
+                        thinkingRestartDialog.close()
+                    }
+                }
+                LcButton {
+                    text: "Reiniciar luego de esta respuesta"; secondary: true
+                    enabled: thinkingRestartDialog.responseActive && App.serverRunning
+                    onClicked: {
+                        App.applyThinkingChange(thinkingRestartDialog.targetEnabled, "agent", "after-response")
+                        thinkingRestartDialog.close()
+                    }
+                }
+                LcButton {
+                    text: "Reiniciar ahora sin esperar"
+                    enabled: App.serverRunning
+                    onClicked: {
+                        App.applyThinkingChange(thinkingRestartDialog.targetEnabled, "agent", "now")
+                        thinkingRestartDialog.close()
+                    }
+                }
+            }
+        }
+    }
+
     // La página vive en un StackLayout (no se recrea): al mostrarse, sincronizar
     // con el perfil que se lanzó en "Lanzar" (App.activeLaunchId) y re-resolver
     // el harness por si cambió en Perfiles.
@@ -570,8 +654,12 @@ Item {
                     id: agentThinkingCheck
                     visible: resolvedAdapter === "llamaagent"
                     text: "Pensar"
+                    checkable: false
                     checked: App.thinkingEnabled
-                    onToggled: App.thinkingEnabled = checked
+                    onClicked: {
+                        thinkingRestartDialog.targetEnabled = !App.thinkingEnabled
+                        thinkingRestartDialog.open()
+                    }
                     contentItem: Text {
                         text: agentThinkingCheck.text
                         color: Theme.textPrimary; font.pixelSize: 12
