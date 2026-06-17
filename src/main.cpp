@@ -177,10 +177,14 @@ int main(int argc, char *argv[])
         // setWindowIcon de la app no siempre llega al botón de taskbar.
         win->setIcon(appIcon);
         if (win->isVisible()) {
+            win->setIcon(appIcon);
             splash.close();
         } else {
-            QObject::connect(win, &QWindow::visibleChanged, &splash, [&splash](bool v) {
-                if (v) splash.close();
+            QObject::connect(win, &QWindow::visibleChanged, &splash, [win, appIcon, &splash](bool v) {
+                if (!v)
+                    return;
+                win->setIcon(appIcon);
+                splash.close();
             });
         }
     } else {

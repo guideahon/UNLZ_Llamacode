@@ -7,7 +7,6 @@ import LlamaCode 1.0
 ApplicationWindow {
     id: window
     title: "UNLZ_Llamacode"
-    icon.source: AppIconSource
     width: 1200
     height: 760
     minimumWidth: 900
