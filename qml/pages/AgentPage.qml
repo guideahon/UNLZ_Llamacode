@@ -1597,7 +1597,19 @@ Item {
                     onContentHeightChanged: if (followBottom) bottomTimer.restart()
                     // Sólo re-pegar al fondo si el usuario YA estaba abajo. Si subió
                     // a leer, un mensaje/token nuevo no lo arrastra de vuelta.
-                    onCountChanged: if (followBottom) bottomTimer.restart()
+                    onCountChanged: {
+                        // Si el modelo se vacía durante un cambio de backend/sesión,
+                        // descartar el offset del historial anterior. De lo contrario
+                        // un contentY grande puede quedar fuera del nuevo contenido y
+                        // dejar el viewport completamente negro.
+                        if (count === 0) {
+                            agentWheelAnim.stop()
+                            contentY = 0
+                            followBottom = true
+                            return
+                        }
+                        if (followBottom) bottomTimer.restart()
+                    }
                     onModelChanged: { followBottom = true; bottomTimer.restart() }
 
                     Timer {

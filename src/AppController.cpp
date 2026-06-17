@@ -2782,10 +2782,13 @@ void AppController::startAgent(const QString &launchProfileId)
         m_agentCwdOverride.clear();
         m_activeAgentAdapter = adapter;
         m_agentInTerminal    = false;
-        m_agentMessages.clear();
         m_currentAssistantIdx = -1;
-        emit agentMessagesChanged();
         b->start(c);
+        // start() restaura la sesión de forma síncrona. No vaciar antes el mirror:
+        // ese estado intermedio deja al ListView con el contentY de un historial
+        // largo pero sin delegates, y puede terminar mostrando un viewport negro.
+        m_agentMessages = b->messages();
+        emit agentMessagesChanged();
         return;
     }
 
@@ -2873,10 +2876,10 @@ void AppController::startAgent(const QString &launchProfileId)
         m_agentCwdOverride.clear();
         m_activeAgentAdapter = adapter;
         m_agentInTerminal    = false;
-        m_agentMessages.clear();
         m_currentAssistantIdx = -1;
-        emit agentMessagesChanged();
         b->start(c);
+        m_agentMessages = b->messages();
+        emit agentMessagesChanged();
         return;
     }
 
