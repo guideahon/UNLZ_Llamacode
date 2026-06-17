@@ -558,6 +558,13 @@ build.bat Debug      REM solo Debug
 build.bat Release    REM solo Release
 ```
 
+Para subir la versión de la app y del flag de actualización:
+
+```bat
+bump-version.bat 0.1.2
+bump-version.bat 0.1.2 --summary "Resumen corto" --changelog "Cambio A|Cambio B"
+```
+
 Salidas:
 
 | Config | Binario | Acceso directo | Icono |
