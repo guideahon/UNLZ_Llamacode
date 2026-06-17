@@ -550,12 +550,12 @@ un modelo de visión (server lanzado con `--mmproj`) también acepta **imágenes
 
 ### Rápido (recomendado)
 
-`build.bat` mata procesos colgados, configura, compila, despliega el runtime Qt (`windeployqt`) y regenera los accesos directos. Acepta config:
+`build.bat` mata procesos colgados, configura, compila, despliega el runtime Qt (`windeployqt`) y regenera los accesos directos. Acepta config y la opción `NOPAUSE` para ejecución automatizada:
 
 ```bat
-build.bat            REM Debug + Release (default)
-build.bat Debug      REM solo Debug
-build.bat Release    REM solo Release
+build.bat Both NOPAUSE     REM Debug + Release, recomendado para entregar cambios
+build.bat Debug NOPAUSE    REM solo Debug
+build.bat Release NOPAUSE  REM solo Release
 ```
 
 Para subir la versión de la app y del flag de actualización:
