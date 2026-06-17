@@ -57,6 +57,7 @@
 #include <QTextStream>
 #include <QThread>
 #include <QTimer>
+#include <QVersionNumber>
 #include <algorithm>
 #include <cmath>
 
@@ -89,6 +90,15 @@ int nextAvailablePort(const QString &host, int requestedPort)
             return port;
     }
     return 0;
+}
+
+QJsonObject readBundledUpdateFlag()
+{
+    QFile f(QStringLiteral(":/assets/update/latest.json"));
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    return doc.object();
 }
 }
 
@@ -4065,6 +4075,98 @@ void AppController::writeSetting(const QString &key, const QVariant &value)
 {
     QSettings s;
     s.setValue(key, value);
+}
+
+void AppController::checkForUpdates()
+{
+    if (m_updateReply)
+        return;
+
+    const QUrl url(QStringLiteral("https://raw.githubusercontent.com/guideahon/UNLZ_Llamacode/main/assets/update/latest.json"));
+    QNetworkRequest req(url);
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    if (!m_nam)
+        m_nam = new QNetworkAccessManager(this);
+    m_updateReply = m_nam->get(req);
+    connect(m_updateReply, &QNetworkReply::finished, this, [this]() {
+        QPointer<QNetworkReply> reply = m_updateReply;
+        m_updateReply = nullptr;
+
+        QJsonObject flag;
+        if (reply && reply->error() == QNetworkReply::NoError) {
+            flag = QJsonDocument::fromJson(reply->readAll()).object();
+        }
+        if (reply)
+            reply->deleteLater();
+        if (flag.isEmpty())
+            flag = readBundledUpdateFlag();
+        applyUpdateFlag(flag);
+    });
+}
+
+void AppController::applyUpdateFlag(const QJsonObject &flag)
+{
+    QVariantMap info;
+    const QString latest = flag.value(QStringLiteral("version")).toString().trimmed();
+    const bool flagged = flag.value(QStringLiteral("newVersion")).toBool(false);
+    const QVersionNumber currentV = QVersionNumber::fromString(version());
+    const QVersionNumber latestV = QVersionNumber::fromString(latest);
+    const bool newer = flagged && !latest.isEmpty()
+        && QVersionNumber::compare(latestV, currentV) > 0;
+
+    QSettings s;
+    const QString skipUntil = s.value(QStringLiteral("updates/skipUntilVersion")).toString();
+    if (!newer || skipUntil == latest) {
+        if (m_updateAvailable || !m_updateInfo.isEmpty()) {
+            m_updateAvailable = false;
+            m_updateInfo.clear();
+            emit updateCheckChanged();
+        }
+        return;
+    }
+
+    info[QStringLiteral("version")] = latest;
+    info[QStringLiteral("title")] = flag.value(QStringLiteral("title")).toString(QStringLiteral("Nueva version disponible"));
+    info[QStringLiteral("summary")] = flag.value(QStringLiteral("summary")).toString();
+    info[QStringLiteral("updateUrl")] = flag.value(QStringLiteral("updateUrl")).toString();
+    QVariantList changelog;
+    const QJsonArray arr = flag.value(QStringLiteral("changelog")).toArray();
+    for (const QJsonValue &v : arr) {
+        const QString item = v.toString().trimmed();
+        if (!item.isEmpty())
+            changelog.append(item);
+    }
+    info[QStringLiteral("changelog")] = changelog;
+
+    m_updateAvailable = true;
+    m_updateInfo = info;
+    emit updateCheckChanged();
+}
+
+void AppController::handleUpdateDecision(const QString &decision)
+{
+    const QString versionToUpdate = m_updateInfo.value(QStringLiteral("version")).toString();
+    if (decision == QLatin1String("skipVersion")) {
+        writeSetting(QStringLiteral("updates/skipUntilVersion"), versionToUpdate);
+    } else if (decision == QLatin1String("updateNow")) {
+        writeSetting(QStringLiteral("updates/skipUntilVersion"), QString());
+        QString scriptUrl = m_updateInfo.value(QStringLiteral("updateUrl")).toString();
+        if (scriptUrl.isEmpty())
+            scriptUrl = QStringLiteral("https://raw.githubusercontent.com/guideahon/UNLZ_Llamacode/main/scripts/bootstrap.ps1");
+#ifdef Q_OS_WIN
+        QProcess::startDetached(QStringLiteral("powershell"),
+                                {QStringLiteral("-NoProfile"),
+                                 QStringLiteral("-ExecutionPolicy"), QStringLiteral("Bypass"),
+                                 QStringLiteral("-Command"),
+                                 QStringLiteral("irm '%1' | iex").arg(scriptUrl)});
+#else
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/guideahon/UNLZ_Llamacode")));
+#endif
+    }
+
+    m_updateAvailable = false;
+    m_updateInfo.clear();
+    emit updateCheckChanged();
 }
 
 QJsonObject AppController::exportFileSet(const QString &root, const QStringList &relativePaths) const
@@ -8979,9 +9081,21 @@ namespace {
 // Espacio de búsqueda por defecto: flags ampliamente soportados por llama-server.
 // cache-type-k/v marcados como qualityRisk: el gate de calidad impide que el
 // optimizador colapse al quant más bajo solo por velocidad.
-QVector<TunableParam> buildTuneParams(bool hasDraft = false)
+QVector<TunableParam> buildTuneParams(bool hasDraft = false, bool cpuOnly = false)
 {
     using tuner::ParamSpec;
+    if (cpuOnly) {
+        return {
+            {ParamSpec::categorical("ngl", {"0"}), "-ngl", false},
+            {ParamSpec::categorical("threads", {"2", "4", "8", "12", "16"}), "--threads", false},
+            {ParamSpec::categorical("batch", {"128", "256", "512", "1024"}), "-b", false},
+            {ParamSpec::categorical("ubatch", {"64", "128", "256", "512"}), "-ub", false},
+            {ParamSpec::categorical("cache-type-k", {"f16", "q8_0", "q4_0"}, true),
+             "--cache-type-k", false},
+            {ParamSpec::categorical("cache-type-v", {"f16", "q8_0", "q4_0"}, true),
+             "--cache-type-v", false},
+        };
+    }
     QVector<TunableParam> params = {
         {ParamSpec::categorical("ngl", {"0", "20", "40", "99"}), "-ngl", false},
         {ParamSpec::categorical("batch", {"256", "512", "1024", "2048"}), "-b", false},
@@ -9005,6 +9119,31 @@ QVector<TunableParam> buildTuneParams(bool hasDraft = false)
     return params;
 }
 
+QString siblingToolPath(const QString &binaryPath, const QString &baseName)
+{
+    const QFileInfo info(binaryPath);
+#ifdef Q_OS_WIN
+    const QString exe = baseName + QStringLiteral(".exe");
+#else
+    const QString exe = baseName;
+#endif
+    const QString p = info.absoluteDir().absoluteFilePath(exe);
+    return QFileInfo::exists(p) ? p : QString();
+}
+
+QString defaultPerplexityCorpusPath()
+{
+    const QStringList candidates = {
+        QCoreApplication::applicationDirPath() + QStringLiteral("/Moby Dick.txt"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/assets/benchmarks/perplexity.txt"),
+        QDir::current().absoluteFilePath(QStringLiteral("assets/benchmarks/perplexity.txt")),
+        QDir::current().absoluteFilePath(QStringLiteral("README.md")),
+    };
+    for (const QString &p : candidates)
+        if (QFileInfo::exists(p)) return p;
+    return QString();
+}
+
 // Quita flags (y su valor adyacente, salvo switches) de una lista de args.
 QStringList stripFlags(const QStringList &args, const QSet<QString> &valueFlags,
                        const QSet<QString> &switchFlags)
@@ -9022,7 +9161,7 @@ QStringList stripFlags(const QStringList &args, const QSet<QString> &valueFlags,
 }  // namespace
 
 void AppController::startAutoTune(const QString &launchProfileId, int maxTrials,
-                                  double qualityGate, int nPredict)
+                                  double qualityGate, int nPredict, const QString &mode)
 {
     if (m_autoTuneRunning) {
         emit serverError(QStringLiteral("Auto-tune ya en curso."));
@@ -9043,15 +9182,19 @@ void AppController::startAutoTune(const QString &launchProfileId, int maxTrials,
     const QStringList effArgs = m_effectiveProfile.value(QStringLiteral("effectiveArgs")).toStringList();
     const QVariantMap effEnv = m_effectiveProfile.value(QStringLiteral("effectiveEnv")).toMap();
 
-    const bool hasDraft = effArgs.contains(QStringLiteral("--draft-model"))
-                          || effArgs.contains(QStringLiteral("-md"));
-    QVector<TunableParam> params = buildTuneParams(hasDraft);
+    const QString normalizedMode = mode.trimmed().toLower();
+    const bool cpuOnly = normalizedMode == QLatin1String("cpu")
+                         || normalizedMode == QLatin1String("cpu_only");
+    const bool hasDraft = !cpuOnly && (effArgs.contains(QStringLiteral("--draft-model"))
+                          || effArgs.contains(QStringLiteral("-md")));
+    QVector<TunableParam> params = buildTuneParams(hasDraft, cpuOnly);
 
     // baseArgs = args efectivos menos host/port y menos los flags que vamos a
     // afinar (con sus aliases), para no duplicarlos.
     const QSet<QString> valueFlags = {
         QStringLiteral("--host"), QStringLiteral("--port"),
         QStringLiteral("-ngl"), QStringLiteral("--n-gpu-layers"), QStringLiteral("--gpu-layers"),
+        QStringLiteral("--threads"),
         QStringLiteral("-b"), QStringLiteral("--batch-size"),
         QStringLiteral("-ub"), QStringLiteral("--ubatch-size"),
         QStringLiteral("--cache-type-k"), QStringLiteral("-ctk"),
@@ -9076,6 +9219,11 @@ void AppController::startAutoTune(const QString &launchProfileId, int maxTrials,
     job.nPredict = nPredict > 0 ? nPredict : 256;
     job.acceptance = {QStringLiteral("def is_prime"), QStringLiteral("return")};
     job.params = params;
+    job.cpuOnly = cpuOnly;
+    job.perplexityBinaryPath = siblingToolPath(binaryPath, QStringLiteral("llama-perplexity"));
+    job.perplexityCorpusPath = defaultPerplexityCorpusPath();
+    job.usePerplexityGate = !job.perplexityBinaryPath.isEmpty() && !job.perplexityCorpusPath.isEmpty();
+    job.perplexityThresholdPct = 3.0;
     job.settings.maxTrials = qMax(1, maxTrials);
     job.settings.startupTrials = qMax(1, qMin(8, job.settings.maxTrials / 2));
     job.settings.qualityGate = qualityGate;
@@ -9084,7 +9232,10 @@ void AppController::startAutoTune(const QString &launchProfileId, int maxTrials,
     m_autoTuneLaunchId = launchProfileId;
     m_autoTuneRunning = true;
     m_autoTuneProgress = 0;
-    m_autoTuneStatus = QStringLiteral("Iniciando auto-tune (%1 trials)…").arg(job.settings.maxTrials);
+    m_autoTuneStatus = QStringLiteral("Iniciando auto-tune%1 (%2 trials)%3…")
+                           .arg(cpuOnly ? QStringLiteral(" CPU") : QString())
+                           .arg(job.settings.maxTrials)
+                           .arg(job.usePerplexityGate ? QStringLiteral(" + PPL") : QString());
     emit autoTuneChanged();
 
     m_tuneThread = new QThread(this);
@@ -9148,10 +9299,12 @@ void AppController::onAutoTuneFinished(bool ok, const QStringList &bestArgs,
 
         const QSet<QString> valueFlags = {
             QStringLiteral("-ngl"), QStringLiteral("--n-gpu-layers"), QStringLiteral("--gpu-layers"),
+            QStringLiteral("--threads"),
             QStringLiteral("-b"), QStringLiteral("--batch-size"),
             QStringLiteral("-ub"), QStringLiteral("--ubatch-size"),
             QStringLiteral("--cache-type-k"), QStringLiteral("-ctk"),
             QStringLiteral("--cache-type-v"), QStringLiteral("-ctv"),
+            QStringLiteral("--spec-draft-n-max"),
         };
         const QSet<QString> switchFlags = {
             QStringLiteral("--flash-attn"), QStringLiteral("-fa"),

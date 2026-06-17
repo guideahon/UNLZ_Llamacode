@@ -23,7 +23,7 @@ Nuevo LaunchProfile "-tuned"  (el original queda intacto)
 | Archivo | Rol |
 |---------|-----|
 | `src/core/tuner/AutoTuner.{h,cpp}` | Optimizador TPE-lite (C++ puro, sin Qt). Parzen discreto por parámetro + gate de calidad. Evaluación inyectada por callback. |
-| `src/core/tuner/TunerEngine.{h,cpp}` | Integración real: compone argv, lanza `llama-server`, espera `/health`, mide tok/s vía `/completion`, califica con substrings. |
+| `src/core/tuner/TunerEngine.{h,cpp}` | Integración real: compone argv, lanza `llama-server`, espera `/health`, mide tok/s vía `/completion`, califica con substrings y valida PPL con `llama-perplexity` si está disponible. |
 | `src/core/tuner/TunerWorker.{h,cpp}` | Corre el tuning en un `QThread` (cada trial carga modelo → no congela la UI). Señales `trial`/`finished`, cancelación cooperativa. |
 | `AppController` | `startAutoTune` / `cancelAutoTune` + props `autoTuneRunning/Progress/Status` + señales `autoTuneTrial/Finished`. |
 | `qml/pages/ProfilesPage.qml` | Botones **Auto-tune** / **Cancelar tune** + línea de estado. |
@@ -74,6 +74,21 @@ Definido en `AppController::buildTuneParams()`:
 Combos inválidos para el binario (p.ej. quant de V cache sin flash-attn) hacen
 fallar ese trial → quedan penalizados automáticamente. El optimizador los evita.
 
+### Modo CPU-only
+
+El botón **Tune CPU** fuerza `-ngl 0` y usa un espacio más apropiado para equipos
+sin GPU: `threads`, `batch`, `ubatch` y cache K/V. No explora flash-attn ni MTP,
+porque en CPU el beneficio suele estar en prompt processing y balance de hilos.
+
+### Gate PPL
+
+Si junto a `llama-server` existe `llama-perplexity` y hay un corpus local
+disponible, el tuner mide primero la PPL baseline y valida los trials que cambian
+knobs de riesgo de calidad (`cache-type-k/v`). Un trial sólo conserva su calidad
+completa si su PPL queda dentro del umbral configurado (default 3%). Si falla PPL,
+el trial se marca inviable. Si no hay binario/corpus, el tuner cae al gate liviano
+por substrings para no bloquear el flujo.
+
 ---
 
 ## Medición de un trial (TunerEngine)
@@ -90,7 +105,9 @@ fallar ese trial → quedan penalizados automáticamente. El optimizador los evi
    `timings.predicted_per_second` (fallback `predicted_n / predicted_ms`).
 5. **Califica**: fracción de substrings de aceptación presentes en `content`
    (estilo EvalSuite), en `[0,1]`.
-6. **Mata** el server. Si falló, adjunta tail de stderr al resumen del trial.
+6. **Mata** el server para liberar RAM/VRAM.
+7. Si corresponde, corre `llama-perplexity` sobre el candidato y combina el score
+   con el gate PPL.
 
 ---
 
@@ -106,8 +123,8 @@ intacto.
 
 ## Uso (UI)
 
-1. `ProfilesPage` → elegir LaunchProfile → **Auto-tune** (el server principal
-   debe estar detenido).
+1. `ProfilesPage` → elegir LaunchProfile → **Auto-tune** o **Tune CPU** (el
+   server principal debe estar detenido).
 2. Corre `maxTrials` (default 24); la línea de estado muestra
    `Trial i/N — X tok/s, calidad Q [flags]`.
 3. **Cancelar tune** corta tras el trial en curso.
@@ -142,4 +159,4 @@ tools\build_tuner_tests.ps1   # MSVC 2022 + Qt 6.8.3; engine necesita /Zc:__cplu
 - Prueba end-to-end con modelo real (hasta ahora validado con mock HTTP).
 - Afinar espacio de búsqueda / `nPredict` / prompt de medición según hardware.
 - Exponer en UI la tabla de trials (hoy solo la última línea de estado).
-- Opción CPU-only (también pedida en la comunidad de llama-launcher).
+- Elegir corpus PPL y umbral desde UI avanzada.

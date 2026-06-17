@@ -127,7 +127,8 @@ Item {
     function extractManualArgs(rawArgs) {
         const pairFlags = {
             "--alias": true, "--n-predict": true, "--cache-type-v": true, "--temp": true,
-            "--top-p": true, "--top-k": true, "--repeat-penalty": true, "--presence-penalty": true,
+            "--top-p": true, "--top-k": true, "--min-p": true,
+            "--repeat-penalty": true, "--presence-penalty": true,
             "--cache-ram": true, "--cache-reuse": true
         }
         const boolFlags = { "--no-context-shift": true, "--context-shift": true, "--metrics": true, "--no-warmup": true }
@@ -665,8 +666,16 @@ Item {
                             secondary: true
                             enabled: selectedLaunchId.length > 0 && !App.serverRunning && !App.autoTuneRunning
                             ToolTip.visible: hovered
-                            ToolTip.text: "Optimiza ngl/batch/flash-attn/cache-type maximizando tok/s sin degradar calidad (gate). Crea un perfil nuevo \"-tuned\", no toca este"
-                            onClicked: { saveAll(); App.startAutoTune(selectedLaunchId, 24, 0.6, 256) }
+                            ToolTip.text: "Optimiza ngl/batch/flash-attn/cache-type maximizando tok/s sin degradar calidad. Usa PPL si encuentra llama-perplexity. Crea un perfil nuevo \"-tuned\""
+                            onClicked: { saveAll(); App.startAutoTune(selectedLaunchId, 24, 0.6, 256, "auto") }
+                        }
+                        LcButton {
+                            text: "Tune CPU"
+                            secondary: true
+                            enabled: selectedLaunchId.length > 0 && !App.serverRunning && !App.autoTuneRunning
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Fuerza -ngl 0 y optimiza threads/batch/ubatch/cache para inferencia CPU-only"
+                            onClicked: { saveAll(); App.startAutoTune(selectedLaunchId, 24, 0.6, 256, "cpu") }
                         }
                         LcButton {
                             text: "Cancelar tune"

@@ -207,6 +207,7 @@ de lanzar benchmarks o Deep Research.
 | Endpoint health check automático | ✅ (polling /health post-start) |
 | Pre-check colisión de puerto al iniciar server | ✅ |
 | Popup de primer inicio (binario + modelo + perfil automático) | ✅ |
+| Detector de nueva versión (flag remoto + popup con changelog) | ✅ |
 | Agente nativo (LlamaAgentBackend, ReAct + tools + MCP) | ✅ P5 |
 
 ## Objetivo
@@ -575,6 +576,16 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="C:\Qt
 cmake --build build --config Release --parallel
 ```
 
+### Calidad de código
+
+- `tests.bat Debug` configura `build_tests`, compila y corre toda la suite Qt Test.
+- Si `clang-format` está instalado, CMake expone los targets `format` y
+  `format-check` usando `.clang-format`.
+- `LC_STRICT_WARNINGS=ON` activa `/W4 /permissive-` en MSVC o
+  `-Wall -Wextra -Wpedantic` en GCC/Clang. `LC_WARNINGS_AS_ERRORS=ON` permite
+  endurecer CI/local cuando la rama está limpia de warnings.
+- `LC_ENABLE_CLANG_TIDY=ON` activa `clang-tidy` si el ejecutable está disponible.
+
 ### Primera instalación
 
 `install.bat` / `setup.bat` instalan Python deps + Qt 6.8.3 vía `aqtinstall` antes del primer build.
@@ -737,12 +748,20 @@ errores graves (count)
 
 ## Auto-tuning de parámetros
 
-Búsqueda automática de los flags de `llama-server` (`ngl`, `batch`, `ubatch`, `flash-attn`, `cache-type-k/v`) que maximizan **tok/s** sin degradar la **calidad**. Optimizador TPE-lite (Parzen discreto) con **gate de calidad**: a diferencia de *llama-launcher v1.3*, tunear el quant de KV cache solo por velocidad no colapsa al quant más bajo, porque la pérdida penaliza fuerte caer bajo el umbral.
+Búsqueda automática de los flags de `llama-server` (`ngl`, `batch`, `ubatch`,
+`flash-attn`, `cache-type-k/v`) que maximizan **tok/s** sin degradar la
+**calidad**. Optimizador TPE-lite (Parzen discreto) con **gate de calidad** y
+validación PPL opcional: a diferencia de *llama-launcher v1.3*, tunear el quant
+de KV cache solo por velocidad no colapsa al quant más bajo, porque la pérdida
+penaliza fuerte caer bajo el umbral. Si existe `llama-perplexity` junto al
+binario y hay corpus local, los trials que tocan cache K/V se validan contra la
+PPL baseline con tolerancia default del 3%.
 
 - Corre `N` trials en un puerto scratch (lanza/mide/mata el server por candidato, en un `QThread` aparte para no congelar la UI).
 - Mide throughput de `timings.predicted_per_second` (`/completion`) y califica la salida con substrings estilo EvalSuite.
+- Modo **Tune CPU**: fuerza `-ngl 0` y explora `threads`, `batch`, `ubatch` y cache K/V para equipos sin GPU.
 - Al terminar **clona** el perfil en uno nuevo `-tuned` con la mejor config en `extraArgs`; el original queda intacto.
-- UI: `ProfilesPage` → **Auto-tune** / **Cancelar tune** + estado en vivo.
+- UI: `ProfilesPage` → **Auto-tune**, **Tune CPU** / **Cancelar tune** + estado en vivo.
 
 Detalle completo en [`docs/tuner.md`](docs/tuner.md).
 

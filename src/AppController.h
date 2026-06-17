@@ -128,6 +128,8 @@ class AppController : public QObject
     Q_PROPERTY(double  voiceLevel READ voiceLevel NOTIFY voiceLevelChanged)
     Q_PROPERTY(QString voiceError READ voiceError NOTIFY voiceStateChanged)
     Q_PROPERTY(QString voicePartial READ voicePartial NOTIFY voicePartialChanged)
+    Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateCheckChanged)
+    Q_PROPERTY(QVariantMap updateInfo READ updateInfo NOTIFY updateCheckChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -317,7 +319,11 @@ public:
     Q_INVOKABLE void smokeTestServer(const QString &launchProfileId);
     Q_INVOKABLE bool smokeTestRunning() const { return m_smokeTestProc != nullptr; }
     Q_INVOKABLE QString resolveFlag(const QString &binaryId, const QString &flag) const;
-    Q_INVOKABLE QString version() const { return QStringLiteral("0.1.0"); }
+    Q_INVOKABLE QString version() const { return QStringLiteral("0.1.1"); }
+    bool updateAvailable() const { return m_updateAvailable; }
+    QVariantMap updateInfo() const { return m_updateInfo; }
+    Q_INVOKABLE void checkForUpdates();
+    Q_INVOKABLE void handleUpdateDecision(const QString &decision);
     Q_INVOKABLE QString l(const QString &key) const;
     Q_INVOKABLE QString lf(const QString &key, const QString &arg1) const { return l(key).arg(arg1); }
     Q_INVOKABLE QVariant readSetting(const QString &key, const QVariant &defaultValue = QVariant()) const;
@@ -487,7 +493,8 @@ public:
     // tok/s y calidad, y al terminar fusiona la mejor config en extraArgs del
     // launch profile. maxTrials/qualityGate/nPredict son opcionales.
     Q_INVOKABLE void startAutoTune(const QString &launchProfileId, int maxTrials = 24,
-                                   double qualityGate = 0.0, int nPredict = 256);
+                                   double qualityGate = 0.0, int nPredict = 256,
+                                   const QString &mode = QStringLiteral("auto"));
     Q_INVOKABLE void cancelAutoTune();
     bool autoTuneRunning() const { return m_autoTuneRunning; }
     int autoTuneProgress() const { return m_autoTuneProgress; }
@@ -580,6 +587,7 @@ signals:
     void voiceInstallProgress(const QString &engineId, int pct, const QString &status);
     void voiceInstallFinished(const QString &engineId, bool ok, const QString &message);
     void voiceBinaryInstalled(const QString &kind, bool ok, const QString &message);
+    void updateCheckChanged();
     // Un perfil cloud necesita su API key y no se pudo resolver (ni env var ni store):
     // la UI debe pedirla y llamar setSecret(keyRef, value) antes de reintentar.
     void cloudSecretRequired(const QString &launchProfileId, const QString &keyRef);
@@ -991,4 +999,9 @@ private:
     void setResearchState(bool running, int progress, const QString &status);
     void saveResearchReport(const QVariantMap &summary, const QString &markdown,
                             const QJsonObject &full);
+
+    bool m_updateAvailable = false;
+    QVariantMap m_updateInfo;
+    QNetworkReply *m_updateReply = nullptr;
+    void applyUpdateFlag(const QJsonObject &flag);
 };

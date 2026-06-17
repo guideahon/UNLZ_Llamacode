@@ -18,6 +18,7 @@ private slots:
     void computeLoss_penalizesSubGate();
     void run_qualityGateAvoidsLowestQuant();
     void tunedArgs_emitsSpecDraftNMax();
+    void parsePerplexity_readsLastReportedValue();
 };
 
 void TunerTests::paramSpec_intRange()
@@ -82,6 +83,16 @@ void TunerTests::tunedArgs_emitsSpecDraftNMax()
     const QStringList args = TunerEngine::tunedArgs(params, cfg);
     const int i = args.indexOf("--spec-draft-n-max");
     QVERIFY(i >= 0 && args[i + 1] == "2");
+}
+
+void TunerTests::parsePerplexity_readsLastReportedValue()
+{
+    const QByteArray out =
+        "llama perplexity benchmark\n"
+        "ppl = 12.50\n"
+        "Final estimate: PPL = 10.25\n";
+    QCOMPARE(TunerEngine::parsePerplexity(out), 10.25);
+    QCOMPARE(TunerEngine::parsePerplexity("no metric here"), -1.0);
 }
 
 QTEST_MAIN(TunerTests)

@@ -11,6 +11,7 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QUrl>
 
@@ -95,6 +96,22 @@ QString TunerEngine::extractContent(const QByteArray &json)
     return {};
 }
 
+double TunerEngine::parsePerplexity(const QByteArray &text)
+{
+    const QString s = QString::fromUtf8(text);
+    static const QRegularExpression re(
+        QStringLiteral(R"((?:final\s+)?(?:perplexity|ppl)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?))"),
+        QRegularExpression::CaseInsensitiveOption);
+    auto it = re.globalMatch(s);
+    double last = -1.0;
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        const double v = m.captured(1).toDouble();
+        if (v > 0.0) last = v;
+    }
+    return last;
+}
+
 double TunerEngine::scoreQuality(const QString &content, const QStringList &acceptance)
 {
     if (acceptance.isEmpty()) return 1.0;
@@ -102,6 +119,99 @@ double TunerEngine::scoreQuality(const QString &content, const QStringList &acce
     for (const QString &needle : acceptance)
         if (!needle.isEmpty() && content.contains(needle, Qt::CaseInsensitive)) ++hits;
     return static_cast<double>(hits) / acceptance.size();
+}
+
+QStringList TunerEngine::perplexityArgs(const TunerJob &job, const tuner::Config *config) const
+{
+    auto valueAfter = [](const QStringList &args, std::initializer_list<QString> flags) {
+        for (int i = 0; i + 1 < args.size(); ++i)
+            for (const QString &f : flags)
+                if (args[i] == f) return args[i + 1];
+        return QString();
+    };
+    auto appendIfPresent = [](QStringList &out, const QStringList &args,
+                              const QString &dstFlag, std::initializer_list<QString> srcFlags) {
+        for (int i = 0; i + 1 < args.size(); ++i) {
+            for (const QString &f : srcFlags) {
+                if (args[i] == f) {
+                    out << dstFlag << args[i + 1];
+                    return;
+                }
+            }
+        }
+    };
+
+    QStringList args;
+    const QString model = valueAfter(job.baseArgs, {QStringLiteral("-m"), QStringLiteral("--model")});
+    if (!model.isEmpty()) args << QStringLiteral("-m") << model;
+    args << QStringLiteral("-f") << job.perplexityCorpusPath;
+    appendIfPresent(args, job.baseArgs, QStringLiteral("-c"),
+                    {QStringLiteral("-c"), QStringLiteral("--ctx-size")});
+    if (job.cpuOnly) {
+        args << QStringLiteral("-ngl") << QStringLiteral("0");
+    } else {
+        appendIfPresent(args, job.baseArgs, QStringLiteral("-ngl"),
+                        {QStringLiteral("-ngl"), QStringLiteral("--n-gpu-layers"),
+                         QStringLiteral("--gpu-layers")});
+    }
+
+    if (config) {
+        const QStringList tuned = tunedArgs(job.params, *config);
+        appendIfPresent(args, tuned, QStringLiteral("-ngl"),
+                        {QStringLiteral("-ngl"), QStringLiteral("--n-gpu-layers"),
+                         QStringLiteral("--gpu-layers")});
+        appendIfPresent(args, tuned, QStringLiteral("-b"),
+                        {QStringLiteral("-b"), QStringLiteral("--batch-size")});
+        appendIfPresent(args, tuned, QStringLiteral("-ub"),
+                        {QStringLiteral("-ub"), QStringLiteral("--ubatch-size")});
+        appendIfPresent(args, tuned, QStringLiteral("-ctk"),
+                        {QStringLiteral("--cache-type-k"), QStringLiteral("-ctk")});
+        appendIfPresent(args, tuned, QStringLiteral("-ctv"),
+                        {QStringLiteral("--cache-type-v"), QStringLiteral("-ctv")});
+        if (tuned.contains(QStringLiteral("--flash-attn")) || tuned.contains(QStringLiteral("-fa")))
+            args << QStringLiteral("-fa");
+    }
+    return args;
+}
+
+double TunerEngine::runPerplexity(const TunerJob &job, const tuner::Config *config, QString *diag)
+{
+    if (!job.usePerplexityGate || job.perplexityBinaryPath.isEmpty()
+        || job.perplexityCorpusPath.isEmpty())
+        return -1.0;
+    QProcess proc;
+    QProcessEnvironment penv = QProcessEnvironment::systemEnvironment();
+    for (auto it = job.env.constBegin(); it != job.env.constEnd(); ++it)
+        penv.insert(it.key(), it.value());
+    proc.setProcessEnvironment(penv);
+    proc.setWorkingDirectory(QFileInfo(job.perplexityBinaryPath).absolutePath());
+    proc.start(job.perplexityBinaryPath, perplexityArgs(job, config));
+    if (!proc.waitForStarted(15000)) {
+        if (diag) *diag = QStringLiteral("llama-perplexity no arrancó");
+        return -1.0;
+    }
+    if (!proc.waitForFinished(job.evalTimeoutMs)) {
+        proc.kill();
+        proc.waitForFinished(3000);
+        if (diag) *diag = QStringLiteral("llama-perplexity timeout");
+        return -1.0;
+    }
+    const QByteArray all = proc.readAllStandardOutput() + '\n' + proc.readAllStandardError();
+    const double ppl = parsePerplexity(all);
+    if (ppl <= 0.0 && diag) *diag = QString::fromUtf8(all).trimmed().right(200);
+    return ppl;
+}
+
+bool TunerEngine::configChangesQualityRisk(const TunerJob &job, const tuner::Config &config) const
+{
+    for (const TunableParam &p : job.params) {
+        if (!p.spec.qualityRisk) continue;
+        const auto it = config.find(p.spec.name);
+        if (it == config.end()) continue;
+        const std::string val = p.spec.optionValue(it->second);
+        if (!val.empty()) return true;
+    }
+    return false;
 }
 
 bool TunerEngine::waitForReady(const QString &baseUrl, int timeoutMs, QProcess *proc)
@@ -188,6 +298,8 @@ tuner::Trial TunerEngine::run(const TunerJob &job)
     tuner::AutoTuner tuner(space, job.settings);
     int index = 0;
     const int total = job.settings.maxTrials;
+    QString baselinePplDiag;
+    const double baselinePpl = runPerplexity(job, nullptr, &baselinePplDiag);
 
     auto eval = [&](const tuner::Config &cfg) -> tuner::TrialResult {
         ++index;
@@ -235,6 +347,20 @@ tuner::Trial TunerEngine::run(const TunerJob &job)
             proc.waitForFinished(3000);
         }
 
+        double ppl = -1.0;
+        if (!r.failed && baselinePpl > 0.0 && configChangesQualityRisk(job, cfg)) {
+            QString pplDiag;
+            ppl = runPerplexity(job, &cfg, &pplDiag);
+            if (ppl <= 0.0) {
+                r.failed = true;
+                diag = pplDiag.isEmpty() ? QStringLiteral("PPL falló") : pplDiag;
+            } else {
+                const double maxPpl = baselinePpl * (1.0 + job.perplexityThresholdPct / 100.0);
+                const double pplQuality = ppl <= maxPpl ? 1.0 : qMax(0.0, maxPpl / ppl);
+                r.quality = qMin(r.quality, pplQuality);
+            }
+        }
+
         QString summary;
         for (const TunableParam &p : job.params) {
             const auto it = cfg.find(p.spec.name);
@@ -244,7 +370,16 @@ tuner::Trial TunerEngine::run(const TunerJob &job)
                                     QString::fromStdString(p.spec.optionValue(it->second)));
         }
         QString sum = summary.trimmed();
-        if (!diag.isEmpty()) sum += QStringLiteral(" ⚠ %1").arg(diag);
+        if (baselinePpl > 0.0) {
+            if (ppl > 0.0)
+                sum += QStringLiteral(" ppl=%1 base=%2")
+                           .arg(ppl, 0, 'f', 2).arg(baselinePpl, 0, 'f', 2);
+            else
+                sum += QStringLiteral(" ppl-base=%1").arg(baselinePpl, 0, 'f', 2);
+        } else if (job.usePerplexityGate && !baselinePplDiag.isEmpty()) {
+            sum += QStringLiteral(" ppl-off=%1").arg(baselinePplDiag.left(80));
+        }
+        if (!diag.isEmpty()) sum += QStringLiteral(" ! %1").arg(diag);
         emit trialDone(index, total, r.throughput, r.quality, sum);
         return r;
     };

@@ -2,7 +2,8 @@
 // TunerEngine: capa de integración entre el core AutoTuner (TPE-lite + gate de
 // calidad) y el mundo real de LlamaCode: lanza llama-server por candidato, mide
 // throughput (tok/s) vía /completion y califica la salida con criterios de
-// aceptación (substrings, estilo EvalSuite). El resultado alimenta al optimizador
+// aceptación (substrings, estilo EvalSuite) y, cuando está disponible,
+// llama-perplexity contra un corpus baseline. El resultado alimenta al optimizador
 // y la mejor config se exporta como RuntimePreset/extraArgs.
 //
 // Las primitivas de medición (composeArgs / parseThroughput / scoreQuality) son
@@ -37,6 +38,11 @@ struct TunerJob {
     QString evalPrompt;          // prompt de medición
     int nPredict = 256;          // tokens a generar por trial
     QStringList acceptance;      // substrings esperados -> calidad [0,1]
+    QString perplexityBinaryPath; // llama-perplexity(.exe), opcional
+    QString perplexityCorpusPath; // corpus para gate PPL, opcional
+    double perplexityThresholdPct = 3.0; // tolerancia vs baseline
+    bool usePerplexityGate = false;
+    bool cpuOnly = false;        // fuerza -ngl 0 y espacio CPU-friendly
     int readyTimeoutMs = 120000; // espera de arranque (carga de modelo)
     int evalTimeoutMs = 120000;  // espera de la respuesta /completion
     tuner::TunerSettings settings;
@@ -83,6 +89,10 @@ public:
     // Extrae el texto generado de una respuesta /completion (campo "content").
     static QString extractContent(const QByteArray &json);
 
+    // Extrae un valor de perplexity desde stdout/stderr de llama-perplexity.
+    // Devuelve -1 si no encuentra un número reconocible.
+    static double parsePerplexity(const QByteArray &text);
+
     // Solo los flags afinados (sin baseArgs ni host/port) para fusionar en
     // LaunchProfile.extraArgs y persistir la mejor config como perfil.
     static QStringList tunedArgs(const QVector<TunableParam> &params,
@@ -95,6 +105,10 @@ signals:
 private:
     // Espera /health 200. Aborta apenas el proceso muere (server crasheó).
     bool waitForReady(const QString &baseUrl, int timeoutMs, class QProcess *proc);
+    double runPerplexity(const TunerJob &job, const tuner::Config *config = nullptr,
+                         QString *diag = nullptr);
+    QStringList perplexityArgs(const TunerJob &job, const tuner::Config *config) const;
+    bool configChangesQualityRisk(const TunerJob &job, const tuner::Config &config) const;
 
     QNetworkAccessManager *m_nam = nullptr;
     std::atomic<bool> m_cancel{false};
