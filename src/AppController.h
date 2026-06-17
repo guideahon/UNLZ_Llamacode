@@ -59,6 +59,7 @@ class AppController : public QObject
     Q_PROPERTY(bool needsSetup READ needsSetup NOTIFY setupStateChanged)
     Q_PROPERTY(bool hasAnyBinary READ hasAnyBinary NOTIFY setupStateChanged)
     Q_PROPERTY(bool hasAnyModel  READ hasAnyModel  NOTIFY setupStateChanged)
+    Q_PROPERTY(bool hasAnyLaunch READ hasAnyLaunch NOTIFY setupStateChanged)
     Q_PROPERTY(QString serverBaseUrl READ serverBaseUrl NOTIFY serverRunningChanged)
     // Capacidades del modelo activo. Vision = el server se lanzó con --mmproj.
     Q_PROPERTY(bool serverHasVision READ serverHasVision NOTIFY serverHasVisionChanged)
@@ -153,9 +154,10 @@ public:
     QString serverLog()      const { return m_log; }
     QString activeLaunchId() const { return m_activeLaunchId; }
     QVariantMap effectiveProfile() const { return m_effectiveProfile; }
-    bool needsSetup() const { return m_binaries.count() == 0 || m_catalog.count() == 0; }
+    bool needsSetup() const { return !hasAnyBinary() || !hasAnyModel() || !hasAnyLaunch(); }
     bool hasAnyBinary() const { return m_binaries.count() > 0; }
     bool hasAnyModel()  const { return m_catalog.count()  > 0; }
+    bool hasAnyLaunch() const { return !m_profiles.launchProfilesForMenu().isEmpty(); }
     QString serverBaseUrl() const {
         const QStringList args = m_effectiveProfile.value("effectiveArgs").toStringList();
         QString host = QStringLiteral("127.0.0.1");
@@ -268,6 +270,8 @@ public:
     Q_INVOKABLE void stopChatGeneration();
     Q_INVOKABLE void startServer(const QString &launchProfileId);
     Q_INVOKABLE void startServerAndAgent(const QString &launchProfileId);
+    Q_INVOKABLE bool useSuggestedServerPort(const QString &launchProfileId, int port,
+                                            bool startAgent);
     Q_INVOKABLE void stopServer();
     Q_INVOKABLE void applyThinkingChange(bool enabled,
                                          const QString &surface,
@@ -507,9 +511,14 @@ public:
     // Parser de la salida CSV de nvidia-smi (--query-gpu power.*). Estático para
     // testear sin GPU. Devuelve lista de QVariantMap por GPU.
     static QVariantList parseGpuPowerCsv(const QString &csv);
+    // Filtro puro para el cookbook: la app descarga/lanza GGUF con llama.cpp, no
+    // repos MLX/AWQ/GPTQ que requieren otros runtimes.
+    static bool isGgufRecommendationCandidate(const QString &name, bool isGguf,
+                                              bool hasGgufSources);
     // Escaneo pesado de arranque (binaries/roots/hardware/catálogo + migraciones).
     // Diferido fuera del constructor; QML lo invoca tras pintar el popup de carga.
     Q_INVOKABLE void runStartupScan();
+    Q_INVOKABLE QString createRecommendedLaunchProfile();
     Q_INVOKABLE void downloadRecommendedModel(const QString &repo, const QString &fileName);
     Q_INVOKABLE void pauseModelDownload(const QString &id);
     Q_INVOKABLE void resumeModelDownload(const QString &id);
@@ -592,6 +601,8 @@ signals:
     void integrationsChanged();
     void integrationTestResult(const QString &id, bool ok, const QString &message);
     void serverError(const QString &message);
+    void serverPortCollision(const QString &launchProfileId, const QString &host,
+                             int requestedPort, int suggestedPort, bool startAgent);
     // Diagnóstico detectado por regex en el log del server (OOM, puerto, modelo cargado…).
     // level: "error" | "warn" | "info".
     void serverDiagnostic(const QString &level, const QString &message);

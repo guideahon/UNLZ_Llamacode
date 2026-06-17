@@ -334,6 +334,44 @@ static QVector<float> rerankTexts(const QString &baseUrl, const QString &query,
     return out;
 }
 
+// Extrae los "módulos" referenciados por un archivo de código (estilo dep-graph
+// de archex, sin tree-sitter): #include de C/C++, import/require de JS/TS,
+// import/from de Python, import de QML. Devuelve los nombres base (último
+// segmento, sin extensión, en minúsculas) para casar contra archivos del repo.
+static QSet<QString> extractImportRefs(const QString &text)
+{
+    QSet<QString> refs;
+    static const QRegularExpression reC(
+        QStringLiteral("#\\s*include\\s*[\"<]([^\">]+)[\">]"));
+    static const QRegularExpression reFrom(
+        QStringLiteral("(?:from|import|require)\\s*\\(?\\s*[\"']([^\"']+)[\"']"));
+    static const QRegularExpression rePy(
+        QStringLiteral("^\\s*(?:from|import)\\s+([\\w.]+)"),
+        QRegularExpression::MultilineOption);
+    static const QRegularExpression reQml(
+        QStringLiteral("^\\s*import\\s+([\\w.]+)"),
+        QRegularExpression::MultilineOption);
+    static const QRegularExpression reCodeExt(
+        QStringLiteral("\\.(h|hpp|hh|hxx|c|cc|cpp|cxx|js|jsx|mjs|ts|tsx|py|qml|java|go|rs|kt)$"),
+        QRegularExpression::CaseInsensitiveOption);
+    auto add = [&](const QString &raw) {
+        QString s = raw;
+        s.replace(QLatin1Char('\\'), QLatin1Char('/'));
+        s = s.section(QLatin1Char('/'), -1).trimmed();   // basename (ruta) / módulo
+        if (reCodeExt.match(s).hasMatch())
+            s = s.section(QLatin1Char('.'), 0, -2);       // ruta: dropear extensión
+        else if (s.contains(QLatin1Char('.')))
+            s = s.section(QLatin1Char('.'), -1);          // módulo a.b.c → último tramo
+        s = s.toLower();
+        if (s.size() >= 2) refs.insert(s);
+    };
+    for (const QRegularExpression *re : {&reC, &reFrom, &rePy, &reQml}) {
+        auto it = re->globalMatch(text);
+        while (it.hasNext()) add(it.next().captured(1));
+    }
+    return refs;
+}
+
 AgentToolRunner::AgentToolRunner(QObject *parent) : QObject(parent) {}
 AgentToolRunner::~AgentToolRunner() { shutdown(); }
 
@@ -1086,16 +1124,66 @@ QString AgentToolRunner::runNative(const QString &name, const QJsonObject &args,
             }
         }
 
+        // Empaquetado por presupuesto de tokens (estilo archex): si token_budget>0
+        // se llena hasta el presupuesto (≈ chars/4) en vez de un k fijo. Devolver
+        // contexto pre-presupuestado evita reventar la ventana del modelo local.
+        const int tokenBudget = args.value(QStringLiteral("token_budget")).toInt();
         QStringList outL;
-        for (int i = 0; i < finalOrder.size() && outL.size() < k; ++i) {
+        QStringList outFiles;            // archivos ya incluidos (para el dep-graph)
+        int usedTok = 0;
+        for (int i = 0; i < finalOrder.size(); ++i) {
             const Ch &c = chunks[finalOrder[i]];
-            outL << QStringLiteral("%1:%2\n%3").arg(c.rel).arg(c.line).arg(c.text.left(600));
+            const QString seg = c.text.left(600);
+            const int tok = seg.size() / 4 + 8;
+            if (tokenBudget > 0) {
+                if (!outL.isEmpty() && usedTok + tok > tokenBudget) break;
+                usedTok += tok;
+            } else if (outL.size() >= k) {
+                break;
+            }
+            outL << QStringLiteral("%1:%2\n%3").arg(c.rel).arg(c.line).arg(seg);
+            if (!outFiles.contains(c.rel)) outFiles << c.rel;
         }
+
+        // Expansión por dep-graph: a partir de los archivos en el resultado, mirar
+        // qué módulos importan/incluyen y listar los vecinos del repo que casan por
+        // nombre. Es "provenance" barata: el modelo ve qué archivos están a un salto.
+        QString graphFooter;
+        if (args.value(QStringLiteral("expand_graph")).toBool(true) && !outFiles.isEmpty()) {
+            // Índice basename(sin ext)→rel de todos los archivos colectados.
+            QHash<QString, QString> byBase;
+            for (const QString &fp : files) {
+                const QString rel = base.relativeFilePath(fp);
+                const QString b = QFileInfo(rel).completeBaseName().toLower();
+                if (!b.isEmpty() && !byBase.contains(b)) byBase.insert(b, rel);
+            }
+            QSet<QString> already(outFiles.cbegin(), outFiles.cend());
+            QStringList neighbors;
+            for (const QString &rel : outFiles) {
+                QFile nf(base.absoluteFilePath(rel));
+                if (!nf.open(QIODevice::ReadOnly)) continue;
+                const QString full = QString::fromUtf8(nf.read(64 * 1024));
+                for (const QString &refb : extractImportRefs(full)) {
+                    const QString nrel = byBase.value(refb);
+                    if (!nrel.isEmpty() && !already.contains(nrel)
+                        && !neighbors.contains(nrel)) {
+                        neighbors << nrel;
+                        if (neighbors.size() >= 12) break;
+                    }
+                }
+                if (neighbors.size() >= 12) break;
+            }
+            if (!neighbors.isEmpty())
+                graphFooter = QStringLiteral("\n\n══════\nArchivos relacionados (dep-graph): ")
+                                  + neighbors.join(QStringLiteral(", "));
+        }
+
         if (ok) *ok = true;
-        const QString header = QStringLiteral("[%1 chunks · %2%3]\n\n")
+        const QString header = QStringLiteral("[%1 chunks · %2%3%4]\n\n")
             .arg(chunks.size()).arg(rerankNote)
-            .arg(truncated ? QStringLiteral(" · TRUNCADO a 800") : QString());
-        return header + outL.join(QStringLiteral("\n\n──────\n"));
+            .arg(truncated ? QStringLiteral(" · TRUNCADO a 800") : QString())
+            .arg(tokenBudget > 0 ? QStringLiteral(" · ~%1 tok").arg(usedTok) : QString());
+        return header + outL.join(QStringLiteral("\n\n──────\n")) + graphFooter;
     }
     if (name == QLatin1String("verify_claims")) {
         // Anti-alucinación: por cada afirmación, busca evidencia en el proyecto y

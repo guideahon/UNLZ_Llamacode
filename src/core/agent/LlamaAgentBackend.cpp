@@ -2373,11 +2373,15 @@ QJsonArray LlamaAgentBackend::toolSchemas()
            QStringLiteral("Búsqueda HÍBRIDA (la mejor): fusiona BM25 (keywords) + vectorial "
                           "(embeddings) por Reciprocal Rank Fusion y RE-RANKEA con el reranker del "
                           "server si está disponible. Preferila a search_docs/semantic_search para "
-                          "recuperar contexto del repo. Cae a BM25 si no hay embeddings. "
-                          "args: query/k/path."),
+                          "recuperar contexto del repo. Cae a BM25 si no hay embeddings. Puede "
+                          "empaquetar por presupuesto de tokens y expandir con vecinos del dep-graph "
+                          "(archivos que el resultado importa/incluye). args: query/k/path/"
+                          "token_budget/expand_graph."),
            QJsonObject{
                {QStringLiteral("query"), strProp(QStringLiteral("Qué buscás (lenguaje natural)."))},
-               {QStringLiteral("k"), intProp(QStringLiteral("Cantidad de fragmentos (default 6, máx 15)."))},
+               {QStringLiteral("k"), intProp(QStringLiteral("Cantidad de fragmentos (default 6, máx 15). Ignorado si hay token_budget."))},
+               {QStringLiteral("token_budget"), intProp(QStringLiteral("Presupuesto aprox de tokens; llena hasta el límite en vez de k fijo (0=off)."))},
+               {QStringLiteral("expand_graph"), boolProp(QStringLiteral("Listar archivos relacionados vía imports/includes. Default true."))},
                {QStringLiteral("path"), strProp(QStringLiteral("Subdirectorio a acotar (opcional)."))}},
            QJsonArray{QStringLiteral("query")}),
         fn(QStringLiteral("verify_claims"),

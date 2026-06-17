@@ -26,6 +26,7 @@ ApplicationWindow {
     property bool minimizeToTray: Boolean(App.readSetting("window/minimizeToTray", false))
     // Bandera para forzar salida real desde el menú del tray.
     property bool forceQuit: false
+    property bool autoCreatingInitialProfile: false
 
     function showFromTray() {
         if (Boolean(App.readSetting("window/maximized", false)))
@@ -35,6 +36,20 @@ ApplicationWindow {
         window.show()
         window.raise()
         window.requestActivate()
+    }
+
+    function maybeCreateInitialProfile() {
+        if (autoCreatingInitialProfile)
+            return
+        if (!App.hasAnyBinary || !App.hasAnyModel || App.hasAnyLaunch)
+            return
+        autoCreatingInitialProfile = true
+        const id = App.createRecommendedLaunchProfile()
+        autoCreatingInitialProfile = false
+        if (id.length > 0) {
+            errorToast.show("Perfil inicial creado.")
+            stack.currentIndex = 0
+        }
     }
 
     function saveWindowState() {
@@ -298,7 +313,7 @@ ApplicationWindow {
         clip: true
         closePolicy: Popup.NoAutoClose
         width: 760
-        height: 560
+        height: 640
         padding: 18
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
@@ -531,6 +546,37 @@ ApplicationWindow {
                 }
             }
 
+            // Step 3: launch profile
+            Text {
+                text: (App.hasAnyLaunch ? "✓ " : "3. ") + "Perfil de lanzamiento"
+                color: App.hasAnyLaunch ? Theme.accent : Theme.textPrimary
+                font.pixelSize: 13
+                font.bold: true
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                enabled: App.hasAnyBinary && App.hasAnyModel && !App.hasAnyLaunch
+                opacity: App.hasAnyLaunch ? 0.5 : 1.0
+                BusyIndicator {
+                    running: App.hasAnyBinary && App.hasAnyModel && !App.hasAnyLaunch
+                    visible: running
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: 22
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: App.hasAnyLaunch
+                          ? "Listo para lanzar."
+                          : (App.hasAnyBinary && App.hasAnyModel
+                             ? "Creando automáticamente Backend, Model, Runtime y perfil de lanzamiento."
+                             : "Primero completá binario y modelo.")
+                    color: Theme.textMuted
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+            }
+
             Item { Layout.fillHeight: true }
             Text {
                 visible: App.needsSetup
@@ -618,6 +664,7 @@ ApplicationWindow {
 
         // El escaneo pesado ya corrió en main.cpp bajo el splash → counts listos.
         if (App.needsSetup) setupPopup.open()
+        maybeCreateInitialProfile()
     }
 
     onClosing: function(close) {
@@ -663,14 +710,17 @@ ApplicationWindow {
         target: App
         function onServerError(message) { errorToast.show(message) }
         function onSetupStateChanged() {
+            maybeCreateInitialProfile()
             if (App.needsSetup) setupPopup.open()
             else setupPopup.close()
         }
+        function onModelDownloadChanged() { maybeCreateInitialProfile() }
         function onOfficialBinaryInstallFinished(success, message, binaryPath) {
             errorToast.show(message)
             if (success && binaryPath.length > 0) {
-                stack.currentIndex = 3
+                stack.currentIndex = App.hasAnyModel ? 0 : 2
             }
+            maybeCreateInitialProfile()
         }
     }
     Connections {
@@ -682,7 +732,7 @@ ApplicationWindow {
     Connections {
         target: App.rootRegistry
         function onScanFinished(rootId, count) {
-            // Brief notification handled via subtitle update in page
+            maybeCreateInitialProfile()
         }
     }
 }

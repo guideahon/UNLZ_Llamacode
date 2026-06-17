@@ -27,6 +27,7 @@ private slots:
     void masterConfig_legacyMigration();
 
     void manager_addGetRemoveBackend();
+    void manager_updateBackendPort();
     void manager_setBackendCloud();
     void manager_addModelProfile();
     void manager_favoriteAndAlias();
@@ -217,6 +218,19 @@ void ProfilesTests::manager_addGetRemoveBackend()
     QVERIFY(pm.removeBackend(id));
     QVERIFY(pm.getBackend(id).isEmpty());
     QVERIFY(!pm.removeBackend("nope"));
+}
+
+void ProfilesTests::manager_updateBackendPort()
+{
+    ProfileManager pm;
+    const QString id = pm.addBackend("be", "bin1", "127.0.0.1", 8080);
+    QVERIFY(!id.isEmpty());
+    QVERIFY(pm.updateBackendPort(id, 8082));
+    QCOMPARE(pm.getBackend(id).value("port").toInt(), 8082);
+    QCOMPARE(pm.resolveBackend(id).port, 8082);
+    QVERIFY(!pm.updateBackendPort(id, 0));
+    QVERIFY(!pm.updateBackendPort(id, 70000));
+    QVERIFY(!pm.updateBackendPort("nope", 8083));
 }
 
 void ProfilesTests::manager_setBackendCloud()

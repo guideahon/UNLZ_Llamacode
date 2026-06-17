@@ -138,6 +138,7 @@ Principio central:
 | `LlamaProcessManager` dedicado | ⏳ P1 refactor |
 | Endpoint health check automático | ✅ (polling /health post-start) |
 | Pre-check colisión de puerto al iniciar server | ✅ |
+| Popup de primer inicio (binario + modelo + perfil automático) | ✅ |
 | Agente nativo (LlamaAgentBackend, ReAct + tools + MCP) | ✅ P5 |
 
 ## Objetivo
@@ -230,13 +231,20 @@ Entidad `CatalogModel`: `id`, `rootId`, `absolutePath`, `fileName`, `sizeBytes`,
 
 `ModelRootsPage` recomienda qué modelos descargar según el hardware detectado (RAM / VRAM / GPU vía `nvidia-smi`), usando el catálogo `assets/hwfit/hf_models.json` (~900 modelos, basado en el cookbook de Odysseus) y señales de ranking externas embebidas para el modo offline.
 
+La lista de descarga se limita a modelos **GGUF compatibles con llama.cpp**. Entradas
+MLX/AWQ/GPTQ/EXL2 del catálogo se filtran para no ofrecer repos que requieren otro
+runtime o no tienen archivo `.gguf` descargable por la app. Además, se agregan picks
+curados recientes (por ejemplo `Qwen3.5-9B-GGUF`) cuando el catálogo base no trae una
+fuente GGUF explícita.
+
 ### Scoring
 
 Cada modelo recibe un score `0–100` que combina, ponderado al caso de uso *general* (calidad 0.55 / velocidad 0.15 / fit 0.15 / contexto 0.10 / fuentes 0.05):
 
 - **Calidad** — preferentemente un **benchmark real** (Artificial Analysis *Intelligence Index*, remapeado a 0–100); si no hay match, heurística por params + familia + bonus de arquitectura (qwen3.6 +9, qwen3.5 +8, qwen3-next +6, …) con penalización por tier de quant. Modelos coder se penalizan en el scan general para no dominar.
 - **Velocidad** — t/s estimados según ancho de banda de la GPU y params activos (MoE-aware). En `partial_offload` la velocidad es un blend armónico GPU/CPU según la fracción residente en VRAM.
-- **Fit** — ratio memoria requerida vs. presupuesto.
+- **Fit** — ratio memoria requerida vs. presupuesto. En `partial_offload`, el
+  presupuesto es VRAM + RAM utilizable, no sólo VRAM.
 - **Contexto** — target moderno: 32k=100, 16k=85, 8k=70, 4k=50 (no se premia el stub de 4k).
 - **Fuentes externas** — prioridad acotada desde `assets/benchmarks/local_cookbook_priorities.json` (WhatLLM local/open-weight + leaderboards HF relevantes) o, si no hay match, popularidad Hugging Face (`hf_downloads` + `hf_likes`) como desempate suave.
 
@@ -417,6 +425,9 @@ un modelo de visión (server lanzado con `--mmproj`) también acepta **imágenes
   corre (`serverStats`), para ver el consumo real.
 - **Diagnóstico del log**: detecta por regex OOM, colisión de puerto, modelo cargado,
   etc., y los emite como eventos con nivel.
+- **Colisión de puerto recuperable**: si el puerto del perfil está ocupado, la UI
+  ofrece un puerto libre, actualiza el `BackendProfile` y relanza usando esa misma
+  fuente de configuración.
 
 ## Otras capacidades
 
@@ -685,5 +696,6 @@ Código, datos y diseño tomados de otros proyectos:
 | **API de audio OpenAI** | Contrato `/v1/audio/transcriptions` y `/v1/audio/speech` del modo Charla (whisper.cpp, openedai-speech, piper) | https://platform.openai.com/docs/api-reference/audio |
 | **QtKeychain** | Cifrado de secretos respaldado por el SO | https://github.com/frankosterfeld/qtkeychain |
 | **Catppuccin (Mocha)** | Paleta del theme QML | https://github.com/catppuccin/catppuccin |
+| **archex** | Ideas de pipeline de code-context en `hybrid_search`: empaquetado por presupuesto de tokens + expansión por dep-graph (vecinos vía imports/includes) | https://github.com/Mathews-Tom/archex |
 
 > Al sumar código/datos de otro repo, agregar la fila correspondiente acá.

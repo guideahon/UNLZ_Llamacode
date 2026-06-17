@@ -137,6 +137,7 @@ Core principle:
 | Dedicated `LlamaProcessManager` | ⏳ P1 refactor |
 | Automatic health-check endpoint | ✅ (polling /health post-start) |
 | Port-collision pre-check on server start | ✅ |
+| First-run setup popup (binary + model + automatic profile) | ✅ |
 | Native agent (LlamaAgentBackend, ReAct + tools + MCP) | ✅ P5 |
 
 ## Goal
@@ -229,13 +230,16 @@ Each binary tracks supported flags, aliases and conflicts. `EffectiveProfileBuil
 
 `ModelRootsPage` recommends which models to download based on detected hardware (RAM / VRAM / GPU via `nvidia-smi`), using the `assets/hwfit/hf_models.json` catalog (~900 models, based on the Odysseus cookbook).
 
+The download list is limited to **GGUF models compatible with llama.cpp**. MLX/AWQ/GPTQ/EXL2 catalog entries are filtered out so the app does not offer repositories that require another runtime or have no `.gguf` file downloadable by the app. Recent curated picks (for example `Qwen3.5-9B-GGUF`) are added when the base catalog lacks an explicit GGUF source.
+
 ### Scoring
 
 Each model gets a `0–100` score combining, weighted for the *general* use case (quality 0.45 / speed 0.30 / fit 0.15 / context 0.10):
 
 - **Quality** — preferably a **real benchmark** (Artificial Analysis *Intelligence Index*, remapped to 0–100); if there's no match, a heuristic by params + family + architecture bonus (qwen3.6 +9, qwen3.5 +8, qwen3-next +6, …) with a penalty by quant tier. Coder models are penalized in the general scan so they don't dominate.
 - **Speed** — estimated t/s based on GPU bandwidth and active params (MoE-aware). In `partial_offload` speed is a harmonic GPU/CPU blend by the fraction resident in VRAM.
-- **Fit** — required-memory vs. budget ratio.
+- **Fit** — required-memory vs. budget ratio. In `partial_offload`, the budget is
+  VRAM + usable RAM, not VRAM alone.
 - **Context** — modern target: 32k=100, 16k=85, 8k=70, 4k=50 (the 4k stub isn't rewarded).
 
 Tie-break by version (Qwen3.6 > Qwen3.5).
@@ -641,5 +645,6 @@ Code, data and design taken from other projects:
 | **OpenAI audio API** | `/v1/audio/transcriptions` and `/v1/audio/speech` contract for Talk mode (whisper.cpp, openedai-speech, piper) | https://platform.openai.com/docs/api-reference/audio |
 | **QtKeychain** | OS-backed secret encryption | https://github.com/frankosterfeld/qtkeychain |
 | **Catppuccin (Mocha)** | QML theme palette | https://github.com/catppuccin/catppuccin |
+| **archex** | Code-context pipeline ideas in `hybrid_search`: token-budget packing + dep-graph expansion (neighbors via imports/includes) | https://github.com/Mathews-Tom/archex |
 
 > When adding code/data from another repo, add the corresponding row here.

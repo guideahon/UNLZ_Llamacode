@@ -111,6 +111,18 @@ bool ProfileManager::updateBackend(const QString &id, const QString &name,
     return ok;
 }
 
+bool ProfileManager::updateBackendPort(const QString &id, int port)
+{
+    if (port <= 0 || port > 65535) return false;
+    BackendProfile p = m_backends.findById(id);
+    if (p.id.isEmpty()) return false;
+    if (p.port == port) return true;
+    p.port = port;
+    const bool ok = m_backends.update(p);
+    if (ok) save();
+    return ok;
+}
+
 QVariantMap ProfileManager::getBackend(const QString &id) const
 {
     const auto p = m_backends.findById(id);

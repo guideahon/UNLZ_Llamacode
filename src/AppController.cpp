@@ -58,6 +58,38 @@
 #include <algorithm>
 #include <cmath>
 
+namespace {
+QHostAddress bindAddressForHost(const QString &host)
+{
+    if (host == QLatin1String("0.0.0.0") || host.isEmpty())
+        return QHostAddress(QHostAddress::Any);
+    if (host == QLatin1String("localhost"))
+        return QHostAddress(QHostAddress::LocalHost);
+    return QHostAddress(host);
+}
+
+bool canListenOnPort(const QString &host, quint16 port, QString *error = nullptr)
+{
+    QTcpServer probe;
+    const bool ok = probe.listen(bindAddressForHost(host), port);
+    if (!ok && error)
+        *error = probe.errorString();
+    probe.close();
+    return ok;
+}
+
+int nextAvailablePort(const QString &host, int requestedPort)
+{
+    const int start = std::max(1, requestedPort + 1);
+    const int end = std::min(65535, requestedPort + 200);
+    for (int port = start; port <= end; ++port) {
+        if (canListenOnPort(host, static_cast<quint16>(port)))
+            return port;
+    }
+    return 0;
+}
+}
+
 struct ResearchHit {
     QString title;
     QString url;
@@ -244,6 +276,7 @@ AppController::AppController(QObject *parent) : QObject(parent)
 
     connect(&m_binaries, &BinaryRegistry::countChanged, this, &AppController::setupStateChanged);
     connect(&m_catalog, &ModelCatalog::countChanged, this, &AppController::setupStateChanged);
+    connect(&m_profiles, &ProfileManager::launchesChanged, this, &AppController::setupStateChanged);
 
     // Scheduler de Tasks (cron in-app). taskDue→runTask. El toggle global persiste.
     m_scheduler = new TaskScheduler(&m_tasks, this);
@@ -693,27 +726,24 @@ void AppController::startServer(const QString &launchProfileId)
         const int hostIdx = args.indexOf(QStringLiteral("--host"));
         const QString host = (hostIdx >= 0 && hostIdx + 1 < args.size())
                                  ? args[hostIdx + 1] : QStringLiteral("127.0.0.1");
-        QTcpServer probe;
-        QHostAddress addr(host);
-        if (host == QStringLiteral("0.0.0.0") || host.isEmpty())
-            addr = QHostAddress(QHostAddress::Any);
-        else if (host == QStringLiteral("localhost"))
-            addr = QHostAddress(QHostAddress::LocalHost);
-
-        if (!probe.listen(addr, port)) {
-            const QVariantMap status = launchPortStatus(launchProfileId);
-            const int suggested = status.value(QStringLiteral("suggestedPort")).toInt();
+        QString listenError;
+        if (!canListenOnPort(host, port, &listenError)) {
+            const int suggestedPort = nextAvailablePort(host, port);
             appendServerEvent(QStringLiteral("lifecycle"),
                               QStringLiteral("startServer abort: puerto %1 (%2) ocupado: %3")
-                                  .arg(QString::number(port), host, probe.errorString()));
-            emit serverError(suggested > 0
-                ? QStringLiteral("El puerto %1 ya está en uso. Puerto libre sugerido: %2.")
-                      .arg(port).arg(suggested)
-                : QStringLiteral("El puerto %1 ya está en uso. Cambiá el puerto del perfil.")
-                      .arg(port));
+                                  .arg(QString::number(port), host, listenError));
+            const bool wantsAgent = !m_pendingAutoAgentLaunchId.isEmpty();
+            if (suggestedPort > 0) {
+                emit serverPortCollision(launchProfileId, host, port, suggestedPort, wantsAgent);
+            }
+            const QString msg = suggestedPort > 0
+                ? QStringLiteral("El puerto %1 ya está en uso. Podés cambiar el perfil al puerto %2 y reintentar.")
+                      .arg(port).arg(suggestedPort)
+                : QStringLiteral("El puerto %1 ya está en uso. Cerrá el proceso que lo ocupa o cambiá el puerto del perfil.")
+                      .arg(port);
+            emit serverError(msg);
             return;
         }
-        probe.close();
     }
 
     m_proc = new QProcess(this);
@@ -906,6 +936,48 @@ void AppController::startServerAndAgent(const QString &launchProfileId)
         emit agentStartingChanged();
         startAgent(launchId);
     }
+}
+
+bool AppController::useSuggestedServerPort(const QString &launchProfileId, int port,
+                                           bool startAgent)
+{
+    if (port <= 0 || port > 65535) {
+        emit serverError(QStringLiteral("Puerto inválido: %1.").arg(port));
+        return false;
+    }
+    if (serverRunning()) {
+        emit serverError(QStringLiteral("Server already running. Stop it first."));
+        return false;
+    }
+
+    const LaunchProfile launch = m_profiles.resolveLaunch(launchProfileId);
+    if (launch.id.isEmpty() || launch.backendProfileId.isEmpty()) {
+        emit serverError(QStringLiteral("No se pudo resolver el backend del perfil."));
+        return false;
+    }
+    const BackendProfile backend = m_profiles.resolveBackend(launch.backendProfileId);
+    if (backend.id.isEmpty()) {
+        emit serverError(QStringLiteral("No se pudo resolver el backend del perfil."));
+        return false;
+    }
+    if (!canListenOnPort(backend.host, static_cast<quint16>(port))) {
+        emit serverError(QStringLiteral("El puerto %1 también está en uso.").arg(port));
+        return false;
+    }
+    if (!m_profiles.updateBackendPort(backend.id, port)) {
+        emit serverError(QStringLiteral("No se pudo actualizar el puerto del perfil."));
+        return false;
+    }
+
+    computeEffectiveProfile(launchProfileId);
+    appendServerEvent(QStringLiteral("lifecycle"),
+                      QStringLiteral("Perfil actualizado: backend %1 usa puerto %2.")
+                          .arg(backend.name, QString::number(port)));
+    if (startAgent)
+        startServerAndAgent(launchProfileId);
+    else
+        startServer(launchProfileId);
+    return true;
 }
 
 void AppController::fetchChatThinkingSupport()
@@ -5348,6 +5420,18 @@ static QString guessGgufFileName(const QString &repo, const QString &modelName, 
     return QStringLiteral("%1-%2.gguf").arg(base, quant.isEmpty() ? QStringLiteral("Q4_K_M") : quant);
 }
 
+bool AppController::isGgufRecommendationCandidate(const QString &name, bool isGguf,
+                                                  bool hasGgufSources)
+{
+    const QString n = name.toLower();
+    if (n.contains(QStringLiteral("mlx")))
+        return false;
+    if (n.contains(QStringLiteral("awq")) || n.contains(QStringLiteral("gptq")) ||
+        n.contains(QStringLiteral("exl2")) || n.contains(QStringLiteral("bnb")))
+        return false;
+    return hasGgufSources || isGguf || n.contains(QStringLiteral("gguf"));
+}
+
 static double quantBpp(const QString &quant)
 {
     const QString q = quant.toUpper();
@@ -5687,13 +5771,18 @@ void AppController::rebuildModelRecommendations()
         for (const QJsonValue &value : arr) {
             const QJsonObject m = value.toObject();
             const QString name = m.value(QStringLiteral("name")).toString();
+            const QJsonArray ggufSources = m.value(QStringLiteral("gguf_sources")).toArray();
+            if (!isGgufRecommendationCandidate(name,
+                                               m.value(QStringLiteral("is_gguf")).toBool(),
+                                               !ggufSources.isEmpty())) {
+                continue;
+            }
             const double paramsB = catalogParamsB(m);
             if (name.isEmpty() || paramsB <= 0)
                 continue;
 
             QString repo;
             QString fileName;
-            const QJsonArray ggufSources = m.value(QStringLiteral("gguf_sources")).toArray();
             if (!ggufSources.isEmpty()) {
                 const QJsonObject src = ggufSources.first().toObject();
                 repo = src.value(QStringLiteral("repo")).toString();
@@ -5793,6 +5882,108 @@ void AppController::rebuildModelRecommendations()
             rows.append(row);
         }
     }
+
+    const auto hasRecommendation = [&rows](const QString &repo, const QString &fileName) {
+        for (const QVariant &v : rows) {
+            const QVariantMap row = v.toMap();
+            if (row.value(QStringLiteral("repo")).toString() == repo &&
+                row.value(QStringLiteral("fileName")).toString() == fileName)
+                return true;
+        }
+        return false;
+    };
+    const auto appendCurated = [&](const RecommendedModelDef &m) {
+        if (hasRecommendation(m.repo, m.fileName))
+            return;
+        QJsonObject model;
+        model[QStringLiteral("name")] = m.name;
+        model[QStringLiteral("architecture")] = m.family == QLatin1String("Qwen")
+            ? QStringLiteral("qwen3_5")
+            : m.family.toLower();
+        model[QStringLiteral("parameter_count")] = m.params;
+        model[QStringLiteral("parameters_raw")] = m.params.section(QLatin1Char('B'), 0, 0).toDouble() * 1000000000.0;
+        model[QStringLiteral("use_case")] = m.capabilities;
+        model[QStringLiteral("pipeline_tag")] = QStringLiteral("text-generation");
+        model[QStringLiteral("hf_downloads")] = 0;
+
+        const double paramsB = catalogParamsB(model);
+        const int ctx = m.ctxK * 1024;
+        const double requiredGb = estimateCatalogMemoryGb(model, paramsB, m.quant, ctx);
+        const QString caps = m.capabilities;
+        QString runMode;
+        QString fit;
+        double gpuFraction = 1.0;
+        const double usableRamGb = ramGb * 0.9;
+        if (vramGb > 0 && requiredGb <= vramGb) {
+            runMode = QStringLiteral("gpu");
+            fit = QStringLiteral("Perfecto");
+        } else if (vramGb > 0 && requiredGb <= vramGb + usableRamGb) {
+            runMode = QStringLiteral("partial_offload");
+            gpuFraction = qBound(0.0, vramGb / requiredGb, 1.0);
+            fit = gpuFraction >= 0.6 ? QStringLiteral("Bueno") : QStringLiteral("Marginal");
+        } else if (vramGb <= 0 && requiredGb <= usableRamGb) {
+            runMode = QStringLiteral("cpu_only");
+            gpuFraction = 0.0;
+            fit = usableRamGb >= requiredGb * 1.2 ? QStringLiteral("Bueno") : QStringLiteral("Marginal");
+        } else {
+            runMode = QStringLiteral("no_fit");
+            fit = QStringLiteral("No entra");
+        }
+        const double tps = runMode == QLatin1String("no_fit")
+            ? 0.0
+            : catalogSpeedTps(gpuName, paramsB, requiredGb, runMode, gpuFraction);
+        const int score = qMin(100, catalogScore(model, paramsB, requiredGb, ramGb, vramGb,
+                                                 m.quant, caps, ctx, runMode, tps, -1.0, -1.0) + 8);
+
+        QString runLabel = runMode;
+        if (runMode == QLatin1String("gpu")) runLabel = QStringLiteral("GPU (todo en VRAM)");
+        else if (runMode == QLatin1String("partial_offload"))
+            runLabel = QStringLiteral("VRAM+RAM (%1%% en GPU)").arg(qRound(gpuFraction * 100.0));
+        else if (runMode == QLatin1String("cpu_only")) runLabel = QStringLiteral("CPU (todo en RAM)");
+        else if (runMode == QLatin1String("no_fit")) runLabel = QStringLiteral("No entra");
+
+        QVariantMap row;
+        row[QStringLiteral("name")] = m.name;
+        row[QStringLiteral("repo")] = m.repo;
+        row[QStringLiteral("fileName")] = m.fileName;
+        row[QStringLiteral("family")] = m.family;
+        row[QStringLiteral("capabilities")] = m.capabilities;
+        row[QStringLiteral("useCase")] = catalogUseCase(caps);
+        row[QStringLiteral("params")] = m.params;
+        row[QStringLiteral("quant")] = m.quant;
+        row[QStringLiteral("sizeGb")] = requiredGb;
+        row[QStringLiteral("requiredGb")] = requiredGb;
+        row[QStringLiteral("minRamGb")] = m.minRamGb;
+        row[QStringLiteral("recommendedRamGb")] = m.recommendedRamGb;
+        row[QStringLiteral("minVramGb")] = m.minVramGb;
+        row[QStringLiteral("ctxK")] = m.ctxK;
+        row[QStringLiteral("context")] = ctx;
+        row[QStringLiteral("notes")] = QStringLiteral("%1 · %2 t/s est. · ~%3 GB @ %4k ctx · curado")
+            .arg(runLabel)
+            .arg(QString::number(tps, 'f', 1))
+            .arg(QString::number(requiredGb, 'f', 1))
+            .arg(m.ctxK);
+        row[QStringLiteral("fit")] = fit;
+        row[QStringLiteral("score")] = score;
+        row[QStringLiteral("downloadable")] = true;
+        row[QStringLiteral("downloadUrl")] = QStringLiteral("https://huggingface.co/%1/resolve/main/%2?download=true")
+            .arg(m.repo, QString::fromLatin1(QUrl::toPercentEncoding(m.fileName)));
+        rows.append(row);
+    };
+
+    const QVector<RecommendedModelDef> curated = {
+        {QStringLiteral("Qwen3.5 9B"), QStringLiteral("unsloth/Qwen3.5-9B-GGUF"),
+         QStringLiteral("Qwen3.5-9B-Q4_K_M.gguf"), QStringLiteral("Qwen"), QStringLiteral("chat,reasoning,tool_use"),
+         QStringLiteral("9B"), QStringLiteral("Q4_K_M"), 0, 8, 16, 6, 32, QStringLiteral("curated")},
+        {QStringLiteral("Qwen3.5 9B MTP"), QStringLiteral("unsloth/Qwen3.5-9B-MTP-GGUF"),
+         QStringLiteral("Qwen3.5-9B-MTP-Q4_K_M.gguf"), QStringLiteral("Qwen"), QStringLiteral("chat,reasoning,tool_use,mtp"),
+         QStringLiteral("9.7B"), QStringLiteral("Q4_K_M"), 0, 10, 20, 7, 32, QStringLiteral("curated")},
+        {QStringLiteral("Qwen3 8B"), QStringLiteral("Qwen/Qwen3-8B-GGUF"),
+         QStringLiteral("Qwen3-8B-Q4_K_M.gguf"), QStringLiteral("Qwen"), QStringLiteral("chat,reasoning,tool_use"),
+         QStringLiteral("8B"), QStringLiteral("Q4_K_M"), 0, 8, 16, 6, 32, QStringLiteral("curated")}
+    };
+    for (const RecommendedModelDef &m : curated)
+        appendCurated(m);
 
     if (rows.isEmpty()) {
         const QVector<RecommendedModelDef> fallback = {
@@ -6036,6 +6227,74 @@ void AppController::scanModelDownloadRoot()
         m_roots.add(dir, QStringLiteral("Modelos descargados"), QStringLiteral("startup"), {});
     else
         m_roots.scan(existingRootId);
+}
+
+QString AppController::createRecommendedLaunchProfile()
+{
+    if (m_binaries.count() <= 0) {
+        emit serverError(QStringLiteral("Instalá o registrá un binario llama-server primero."));
+        return {};
+    }
+    if (m_catalog.count() <= 0) {
+        emit serverError(QStringLiteral("Descargá o registrá un modelo GGUF primero."));
+        return {};
+    }
+
+    const QModelIndex binIndex = m_binaries.index(0, 0);
+    const QString binaryId = m_binaries.data(binIndex, BinaryRegistry::IdRole).toString();
+    const QString binaryName = m_binaries.data(binIndex, BinaryRegistry::NameRole).toString();
+
+    QString modelId;
+    QString modelName;
+    for (int row = 0; row < m_catalog.rowCount(); ++row) {
+        const QVariantMap m = m_catalog.getAt(row);
+        if (!m.value(QStringLiteral("isAvailable"), true).toBool())
+            continue;
+        modelId = m.value(QStringLiteral("id")).toString();
+        modelName = m.value(QStringLiteral("fileName")).toString();
+        break;
+    }
+    if (binaryId.isEmpty() || modelId.isEmpty()) {
+        emit serverError(QStringLiteral("No se pudo resolver binario/modelo para crear el perfil."));
+        return {};
+    }
+
+    QString base = QFileInfo(modelName).completeBaseName();
+    base.remove(QRegularExpression(QStringLiteral("[-_](Q[0-9].*|IQ[0-9].*|BF16|F16|F32)$"),
+                                   QRegularExpression::CaseInsensitiveOption));
+    if (base.isEmpty())
+        base = QStringLiteral("Perfil local");
+
+    const QString backendId = m_profiles.addBackend(
+        QStringLiteral("%1 · Backend").arg(base),
+        binaryId,
+        QStringLiteral("127.0.0.1"),
+        8080);
+    const QString modelProfileId = m_profiles.addModelProfile(
+        QStringLiteral("%1 · Model").arg(base),
+        modelId,
+        QString(),
+        QString());
+    const QString runtimeId = m_profiles.addRuntimePreset(
+        QStringLiteral("%1 · Runtime").arg(base),
+        32768,
+        512,
+        -1,
+        true,
+        true);
+    const QString launchId = m_profiles.addLaunchProfile(base, backendId, modelProfileId, runtimeId);
+    if (launchId.isEmpty()) {
+        emit serverError(QStringLiteral("No se pudo crear el perfil de lanzamiento."));
+        return {};
+    }
+
+    writeSetting(QStringLiteral("lastLaunchId"), launchId);
+    computeEffectiveProfile(launchId);
+    appendServerEvent(QStringLiteral("lifecycle"),
+                      QStringLiteral("Perfil inicial creado: %1 con %2.").arg(base, binaryName));
+    emit setupStateChanged();
+    emit activeLaunchIdChanged();
+    return launchId;
 }
 
 void AppController::downloadRecommendedModel(const QString &repo, const QString &fileName)

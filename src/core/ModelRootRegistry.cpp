@@ -5,6 +5,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
+#include <QPointer>
 #include <QtConcurrent/QtConcurrentRun>
 
 ModelRootRegistry::ModelRootRegistry(ModelCatalog *catalog, QObject *parent)
@@ -213,21 +214,27 @@ void ModelRootRegistry::doScan(const ModelRoot &root)
 
     const QString rootId = root.id;
     const ModelRoot rootCopy = root;
-    GGUFScanner *scanner = m_scanner;
     ModelCatalog *catalog = m_catalog;
+    QPointer<ModelRootRegistry> self(this);
 
     m_scanning = true;
     emit scanningChanged();
     emit scanStarted(rootId);
 
-    (void)QtConcurrent::run([this, rootCopy, rootId, scanner, catalog]() {
-        QList<CatalogModel> found = scanner->scan(rootCopy);
+    (void)QtConcurrent::run([self, rootCopy, rootId, catalog]() {
+        GGUFScanner scanner;
+        QList<CatalogModel> found = scanner.scan(rootCopy);
 
-        QMetaObject::invokeMethod(this, [this, rootId, found, catalog]() {
+        if (!self)
+            return;
+
+        QMetaObject::invokeMethod(self.data(), [self, rootId, found, catalog]() {
+            if (!self)
+                return;
             catalog->addBatch(found);
-            m_scanning = false;
-            emit scanningChanged();
-            emit scanFinished(rootId, found.size());
+            self->m_scanning = false;
+            emit self->scanningChanged();
+            emit self->scanFinished(rootId, found.size());
         }, Qt::QueuedConnection);
     });
 }

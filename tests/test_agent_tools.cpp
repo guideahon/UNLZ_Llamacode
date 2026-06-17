@@ -28,6 +28,7 @@ private slots:
     void grep_findsMatch();
     void glob_listsFiles();
     void runShell_echo();
+    void hybridSearch_depGraphAndBudget();
 
 private:
     QVariantMap call(const QString &name, const QJsonObject &args);
@@ -119,6 +120,31 @@ void AgentToolsTests::runShell_echo()
     QVERIFY(spy.wait(15000));
     const QVariantMap out = spy.last().first().toMap();
     QVERIFY(out.value("result").toString().contains("hola_test"));
+}
+
+// hybrid_search sin server: cae a BM25 puro, pero igual debe empaquetar por
+// token_budget y expandir el dep-graph (vecino vía #include). util.h es el vecino
+// que main.cpp incluye y que NO contiene el término buscado.
+void AgentToolsTests::hybridSearch_depGraphAndBudget()
+{
+    call("write_file", {{"path", "util.h"},
+                        {"content", "int helper_widget_count();\n"}});
+    call("write_file", {{"path", "main.cpp"},
+                        {"content", "#include \"util.h\"\n"
+                                    "// WIDGETKEY marker for retrieval\n"
+                                    "int main(){ return helper_widget_count(); }\n"}});
+
+    // budget chico → solo el chunk top (main.cpp); util.h queda fuera del
+    // resultado y debe emerger como vecino del dep-graph.
+    QVariantMap h = call("hybrid_search", {{"query", "WIDGETKEY"},
+                                           {"token_budget", 25},
+                                           {"expand_graph", true}});
+    QVERIFY(h.value("ok").toBool());
+    const QString res = h.value("result").toString();
+    QVERIFY(res.contains("main.cpp"));            // hit BM25
+    QVERIFY(res.contains("~"));                   // header con ~N tok (budget activo)
+    QVERIFY(res.contains("dep-graph"));           // footer de vecinos
+    QVERIFY(res.contains("util.h"));              // vecino vía #include
 }
 
 QTEST_MAIN(AgentToolsTests)

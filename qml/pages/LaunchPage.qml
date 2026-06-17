@@ -9,6 +9,23 @@ Item {
     property real logHeight: 220
     property real minLogHeight: 120
     property bool _restored: false   // evita pisar la setting durante la carga inicial
+    property string pendingPortLaunchId: ""
+    property string pendingPortHost: ""
+    property int pendingPortCurrent: 0
+    property int pendingPortSuggested: 0
+    property bool pendingPortStartAgent: false
+
+    Connections {
+        target: App
+        function onServerPortCollision(launchProfileId, host, requestedPort, suggestedPort, startAgent) {
+            root.pendingPortLaunchId = launchProfileId
+            root.pendingPortHost = host
+            root.pendingPortCurrent = requestedPort
+            root.pendingPortSuggested = suggestedPort
+            root.pendingPortStartAgent = startAgent
+            portCollisionDialog.open()
+        }
+    }
 
     function startWithPortCheck(withAgent) {
         const launchId = launchCombo.currentValue ?? ""
@@ -654,6 +671,74 @@ Item {
                             background: null
                             onTextChanged: cursorPosition = text.length
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: portCollisionDialog
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        width: Math.min(520, parent.width - 48)
+        padding: 18
+        closePolicy: Popup.CloseOnEscape
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - implicitHeight) / 2)
+
+        background: Rectangle {
+            color: Theme.popupBg
+            radius: 8
+            border.color: Theme.popupBorderColor
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            width: portCollisionDialog.availableWidth
+            spacing: 14
+
+            Text {
+                Layout.fillWidth: true
+                text: "Puerto ocupado"
+                color: Theme.textPrimary
+                font.pixelSize: 16
+                font.bold: true
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "El perfil usa " + root.pendingPortHost + ":" + root.pendingPortCurrent
+                      + ", pero ese puerto ya está en uso. Hay un puerto libre disponible: "
+                      + root.pendingPortSuggested + "."
+                color: Theme.textSecondary
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "Si aceptás, se actualiza el puerto del BackendProfile y se vuelve a lanzar el servidor con ese mismo perfil."
+                color: Theme.textMuted
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Item { Layout.fillWidth: true }
+                LcButton {
+                    text: "Cancelar"
+                    secondary: true
+                    onClicked: portCollisionDialog.close()
+                }
+                LcButton {
+                    text: "Usar puerto " + root.pendingPortSuggested
+                    onClicked: {
+                        const launchId = root.pendingPortLaunchId
+                        const port = root.pendingPortSuggested
+                        const startAgent = root.pendingPortStartAgent
+                        portCollisionDialog.close()
+                        App.useSuggestedServerPort(launchId, port, startAgent)
                     }
                 }
             }

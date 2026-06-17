@@ -94,6 +94,7 @@ public:
     Q_INVOKABLE bool updateBackend(const QString &id, const QString &name,
                                    const QString &binaryId, const QString &host,
                                    int port, const QStringList &baseArgs);
+    Q_INVOKABLE bool updateBackendPort(const QString &id, int port);
     Q_INVOKABLE QVariantMap getBackend(const QString &id) const;
     // Config cloud (provider OpenAI-compat externo) de un backend existente.
     // kind: "local" (limpia cloud) | "cloud". keyRef = NOMBRE de la referencia al
