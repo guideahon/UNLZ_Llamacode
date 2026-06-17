@@ -143,14 +143,9 @@ Item {
 
     function selectProfile(id) {
         if (!id || id.length === 0) return false
-        const count = App.profileManager.launchProfiles.rowCount()
-        let found = false
-        for (let i = 0; i < count; ++i) {
-            const idx = App.profileManager.launchProfiles.index(i, 0)
-            const pid = App.profileManager.launchProfiles.data(idx, 257) ?? ""
-            if (pid === id) { launchCombo.currentIndex = i; found = true; break }
-        }
-        if (!found) return false
+        const i = launchCombo.indexOfValue(id)
+        if (i < 0) return false
+        launchCombo.currentIndex = i
         selectedLaunchId = id
         loadLaunch()
         return true
@@ -435,9 +430,11 @@ Item {
 
         // envOverrides ya no se edita en UI; se preserva el valor existente del perfil.
         let envOverrides = {}
+        let launchName = ""
         try {
             const lpCur = App.profileManager.getLaunchProfile(selectedLaunchId)
             envOverrides = lpCur.envOverrides ?? {}
+            launchName = lpCur.name ?? ""
         } catch (e) { envOverrides = {} }
 
         // Backend: update if exists, create if not
@@ -520,7 +517,7 @@ Item {
                     "args=", rebuiltArgs.length)
 
         const lpOk = App.profileManager.updateLaunchProfile({
-            "id": selectedLaunchId, "name": launchCombo.displayText,
+            "id": selectedLaunchId, "name": launchName,
             "alias": profileAliasField.text.trim(), "favorite": root.launchFavorite,
             "powerLimitW": parseInt(powerLimitField.text) || 0,
             "browserAutomation": browserAutoCombo.currentValue ?? "inherit",
@@ -546,9 +543,9 @@ Item {
     Component.onCompleted: {
         const lastId = App.readSetting("lastLaunchId", "")
         if (lastId === "" || !selectProfile(lastId)) {
-            if (App.profileManager.launchProfiles.rowCount() > 0) {
-                const idx = App.profileManager.launchProfiles.index(0, 0)
-                selectedLaunchId = App.profileManager.launchProfiles.data(idx, 257) ?? ""
+            if (launchCombo.count > 0) {
+                launchCombo.currentIndex = 0
+                selectedLaunchId = launchCombo.currentValue ?? ""
                 loadLaunch()
             }
         }
@@ -612,9 +609,20 @@ Item {
                         LcComboBox {
                             id: launchCombo
                             Layout.fillWidth: true
-                            model: App.profileManager.launchProfiles
-                            textRole: "name"
-                            valueRole: "profileId"
+                            // Menú ordenado: favoritos (★) arriba; displayName = alias - name.
+                            property var launchMenu: App.profileManager.launchProfilesForMenu()
+                            Connections {
+                                target: App.profileManager
+                                function onLaunchesChanged() {
+                                    const sel = launchCombo.currentValue
+                                    launchCombo.launchMenu = App.profileManager.launchProfilesForMenu()
+                                    const i = launchCombo.indexOfValue(sel)
+                                    if (i >= 0) launchCombo.currentIndex = i
+                                }
+                            }
+                            model: launchMenu
+                            textRole: "displayName"
+                            valueRole: "id"
                             onCurrentValueChanged: { selectedLaunchId = currentValue ?? ""; loadLaunch() }
                             background: Rectangle { color: Theme.inputBg; radius: 6; border.color: Theme.borderColor }
                             contentItem: Text {
@@ -676,7 +684,11 @@ Item {
                         LcButton {
                             text: (App.langV, App.l("profiles.rename")); secondary: true
                             enabled: selectedLaunchId.length > 0
-                            onClicked: { renameField.text = launchCombo.displayText; renameDialog.open() }
+                            onClicked: {
+                                const lp = App.profileManager.getLaunchProfile(selectedLaunchId)
+                                renameField.text = lp.name ?? ""
+                                renameDialog.open()
+                            }
                         }
                         LcButton { text: (App.langV, App.l("profiles.cancel")); secondary: true; onClicked: loadLaunch() }
                         LcButton { text: (App.langV, App.l("profiles.save")); onClicked: saveAll() }
@@ -715,10 +727,9 @@ Item {
                         const idToDelete = selectedLaunchId
                         App.profileManager.removeLaunchProfile(idToDelete)
                         selectedLaunchId = ""
-                        if (App.profileManager.launchProfiles.rowCount() > 0) {
-                            const idx = App.profileManager.launchProfiles.index(0, 0)
-                            selectedLaunchId = App.profileManager.launchProfiles.data(idx, 257) ?? ""
+                        if (launchCombo.count > 0) {
                             launchCombo.currentIndex = 0
+                            selectedLaunchId = launchCombo.currentValue ?? ""
                             loadLaunch()
                         }
                     }

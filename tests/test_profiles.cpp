@@ -280,8 +280,10 @@ void ProfilesTests::manager_favoriteAndAlias()
     const QVariantMap top = menu.first().toMap();
     QCOMPARE(top.value("alias").toString(), QStringLiteral("Alias"));
     QVERIFY(top.value("favorite").toBool());
-    // displayName antepone la estrella a los favoritos; alias tiene prioridad.
-    QCOMPARE(top.value("displayName").toString(), QStringLiteral("★ Alias"));
+    // displayName antepone la estrella a los favoritos y muestra alias + nombre.
+    QCOMPARE(top.value("displayName").toString(), QStringLiteral("★ Alias - 1_L"));
+    QCOMPARE(pm.getLaunchProfile(id).value("displayName").toString(),
+             QStringLiteral("Alias - 1_L"));
 }
 
 void ProfilesTests::manager_browserAutomationOverride()

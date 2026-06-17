@@ -699,7 +699,7 @@ Item {
                         ListView {
                             id: profileList
                             anchors { fill: parent; margins: 4 }
-                            // Menú ordenado: favoritos (★) arriba; displayName = alias||name.
+                            // Menú ordenado: favoritos (★) arriba; displayName = alias - name.
                             property var launchMenu: App.profileManager.launchProfilesForMenu()
                             Connections {
                                 target: App.profileManager

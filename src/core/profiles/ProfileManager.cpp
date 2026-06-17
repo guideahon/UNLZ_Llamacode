@@ -418,9 +418,12 @@ QVariantMap ProfileManager::getLaunchProfile(const QString &id) const
 {
     const auto p = m_launches.findById(id);
     if (p.id.isEmpty()) return {};
+    const QString displayName = p.alias.isEmpty()
+        ? p.name
+        : QStringLiteral("%1 - %2").arg(p.alias, p.name);
     return {{"id", p.id}, {"name", p.name},
             {"alias", p.alias}, {"favorite", p.favorite},
-            {"displayName", p.alias.isEmpty() ? p.name : p.alias},
+            {"displayName", displayName},
             {"backendProfileId", p.backendProfileId},
             {"modelProfileId", p.modelProfileId},
             {"runtimePresetId", p.runtimePresetId},
@@ -464,7 +467,7 @@ void ProfileManager::setLaunchAlias(const QString &id, const QString &alias)
 }
 
 // Lista de perfiles de lanzamiento para dropdowns: favoritos primero (estrella),
-// luego por id incremental; displayName = alias || name.
+// luego por id incremental; displayName = "alias - name" si hay alias.
 QVariantList ProfileManager::launchProfilesForMenu() const
 {
     QList<LaunchProfile> items = m_launches.m_items;
@@ -475,12 +478,14 @@ QVariantList ProfileManager::launchProfilesForMenu() const
         });
     QVariantList out;
     for (const auto &p : items) {
-        const QString base = p.alias.isEmpty() ? p.name : p.alias;
+        const QString base = p.alias.isEmpty()
+            ? p.name
+            : QStringLiteral("%1 - %2").arg(p.alias, p.name);
         out.append(QVariantMap{
             {"id", p.id}, {"name", p.name}, {"alias", p.alias},
             {"favorite", p.favorite},
             // displayName lleva la estrella para que se vea en el dropdown y en
-            // el texto seleccionado; alias tiene prioridad sobre name.
+            // el texto seleccionado; si hay alias se muestra junto al nombre real.
             {"displayName", p.favorite ? QStringLiteral("★ ") + base : base}});
     }
     return out;
