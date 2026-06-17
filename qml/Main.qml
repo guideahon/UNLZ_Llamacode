@@ -812,7 +812,7 @@ ApplicationWindow {
     Platform.SystemTrayIcon {
         id: trayIcon
         visible: window.minimizeToTray
-        icon.source: "qrc:/assets/app_icon.ico"
+        icon.source: AppIconSource
         tooltip: "UNLZ_Llamacode"
         onActivated: function(reason) {
             if (reason === Platform.SystemTrayIcon.Trigger

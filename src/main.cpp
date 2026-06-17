@@ -78,8 +78,10 @@ int main(int argc, char *argv[])
     // Icono según build: Debug = rojo (debug_icon), Release = normal. Coincide
     // con el icono embebido en el .exe (app_icon.rc).
 #ifdef QT_DEBUG
+    const QString appIconSource = QStringLiteral("qrc:/assets/debug_icon.ico");
     const QIcon appIcon(QStringLiteral(":/assets/debug_icon.ico"));
 #else
+    const QString appIconSource = QStringLiteral("qrc:/assets/app_icon.ico");
     const QIcon appIcon(QStringLiteral(":/assets/app_icon.ico"));
 #endif
     app.setWindowIcon(appIcon);
@@ -148,6 +150,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("App", &controller);
     engine.rootContext()->setContextProperty("Theme", &theme);
     engine.rootContext()->setContextProperty("Mermaid", &mermaid);
+    engine.rootContext()->setContextProperty("AppIconSource", appIconSource);
 
     // Control API headless (espejo de AppController) para tests sin GUI.
     // Puerto: env LLAMACODE_CONTROL_PORT (default 8765). 0 = desactivado. Localhost.
