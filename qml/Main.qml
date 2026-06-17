@@ -588,6 +588,137 @@ ApplicationWindow {
     }
 
     Popup {
+        id: updatePopup
+        parent: Overlay.overlay
+        modal: true
+        clip: true
+        closePolicy: Popup.NoAutoClose
+        width: Math.min(window.width - 80, 620)
+        height: Math.min(window.height - 80, 430)
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        padding: 0
+
+        background: Rectangle {
+            color: Theme.popupBg
+            radius: 10
+            border.width: 1
+            border.color: Theme.popupBorderColor
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 58
+                color: Theme.popupHeaderBg
+                radius: 10
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 10; color: Theme.popupHeaderBg }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.popupHeaderBorder }
+                Text {
+                    anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                    text: App.updateInfo.title ?? "Nueva version disponible"
+                    color: Theme.textPrimary
+                    font.pixelSize: 15
+                    font.bold: true
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.margins: 18
+                spacing: 12
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "Version " + (App.updateInfo.version ?? "")
+                    color: Theme.accent
+                    font.pixelSize: 13
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: App.updateInfo.summary ?? ""
+                    color: Theme.textSecondary
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                }
+
+                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.divider }
+
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    Column {
+                        width: updatePopup.width - 36
+                        spacing: 8
+                        Repeater {
+                            model: App.updateInfo.changelog ?? []
+                            delegate: RowLayout {
+                                width: parent.width
+                                spacing: 8
+                                Text {
+                                    text: "•"
+                                    color: Theme.accent
+                                    font.pixelSize: 14
+                                    Layout.alignment: Qt.AlignTop
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: modelData
+                                    color: Theme.textPrimary
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 64
+                color: Theme.popupHeaderBg
+                radius: 10
+                Rectangle { anchors.top: parent.top; width: parent.width; height: 10; color: Theme.popupHeaderBg }
+                Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.popupHeaderBorder }
+                RowLayout {
+                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                    spacing: 10
+                    LcButton {
+                        text: "Postponer hasta la proxima version"
+                        secondary: true
+                        onClicked: {
+                            App.handleUpdateDecision("skipVersion")
+                            updatePopup.close()
+                        }
+                    }
+                    LcButton {
+                        text: "Postponer al proximo inicio"
+                        secondary: true
+                        onClicked: {
+                            App.handleUpdateDecision("nextStart")
+                            updatePopup.close()
+                        }
+                    }
+                    LcButton {
+                        text: "Actualizar ahora"
+                        onClicked: {
+                            App.handleUpdateDecision("updateNow")
+                            updatePopup.close()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Popup {
         id: installLogPopup
         parent: Overlay.overlay
         modal: true
@@ -665,6 +796,7 @@ ApplicationWindow {
         // El escaneo pesado ya corrió en main.cpp bajo el splash → counts listos.
         if (App.needsSetup) setupPopup.open()
         maybeCreateInitialProfile()
+        App.checkForUpdates()
     }
 
     onClosing: function(close) {
@@ -721,6 +853,10 @@ ApplicationWindow {
                 stack.currentIndex = App.hasAnyModel ? 0 : 2
             }
             maybeCreateInitialProfile()
+        }
+        function onUpdateCheckChanged() {
+            if (App.updateAvailable)
+                updatePopup.open()
         }
     }
     Connections {
