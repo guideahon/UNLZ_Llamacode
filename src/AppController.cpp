@@ -17,6 +17,8 @@
 #include <QApplication>
 #include <QWidget>
 #include <QImage>
+#include <QImageReader>
+#include <QMimeData>
 #include <QClipboard>
 #include "core/agent/OpencodeBackend.h"
 #include "core/agent/RawChatBackend.h"
@@ -4837,11 +4839,32 @@ void AppController::clearChatQueue()
 
 QString AppController::pasteClipboardImage()
 {
-    const QImage img = QGuiApplication::clipboard()->image();
-    if (img.isNull()) return {};
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
                         + QStringLiteral("/llamacode-paste");
     QDir().mkpath(dir);
+
+    const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
+    if (mime) {
+        const QList<QUrl> urls = mime->urls();
+        for (const QUrl &url : urls) {
+            if (!url.isLocalFile()) continue;
+            const QString path = QFileInfo(url.toLocalFile()).absoluteFilePath();
+            if (QImageReader(path).canRead())
+                return path;
+        }
+        if (mime->hasImage()) {
+            const QImage mimeImg = qvariant_cast<QImage>(mime->imageData());
+            if (!mimeImg.isNull()) {
+                const QString path = dir + QStringLiteral("/paste-")
+                                     + QString::number(QDateTime::currentMSecsSinceEpoch())
+                                     + QStringLiteral(".png");
+                if (mimeImg.save(path, "PNG")) return path;
+            }
+        }
+    }
+
+    const QImage img = QGuiApplication::clipboard()->image();
+    if (img.isNull()) return {};
     const QString path = dir + QStringLiteral("/paste-")
                          + QString::number(QDateTime::currentMSecsSinceEpoch())
                          + QStringLiteral(".png");

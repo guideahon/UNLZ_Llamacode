@@ -1152,6 +1152,16 @@ Item {
                         readonly property string content: isStreaming
                             ? App.agentStreamingText
                             : (modelData.content ?? "")
+                        readonly property int maxInlineChars: 60000
+                        readonly property bool isLongContent: content.length > maxInlineChars
+                        property bool expandedLongContent: false
+                        readonly property string visibleContent: {
+                            if (!isLongContent || expandedLongContent)
+                                return content
+                            if (isStreaming || isTyping)
+                                return content.slice(Math.max(0, content.length - maxInlineChars))
+                            return content.slice(0, maxInlineChars)
+                        }
                         readonly property bool isTyping: modelData.typing ?? false
                         readonly property string metaLine: root.formatMeta(modelData)
                         property bool editing: false
@@ -1183,11 +1193,11 @@ Item {
                                     visible: !delegateRoot.editing
                                     width: parent.width
                                     text: {
-                                        if (delegateRoot.isTyping && delegateRoot.content.length === 0)
+                                        if (delegateRoot.isTyping && delegateRoot.visibleContent.length === 0)
                                             return "⏳ Procesando..."
                                         if (delegateRoot.isTyping)
-                                            return delegateRoot.content + "▌"
-                                        return delegateRoot.content
+                                            return delegateRoot.visibleContent + "▌"
+                                        return delegateRoot.visibleContent
                                     }
                                     color: {
                                         if (delegateRoot.isTyping && delegateRoot.content.length === 0)
@@ -1264,8 +1274,22 @@ Item {
                                     width: parent.width
                                     layoutDirection: Qt.RightToLeft
                                     spacing: 12
-                                    visible: delegateRoot.content.length > 0 && !delegateRoot.isTyping
+                                    visible: delegateRoot.content.length > 0
                                     Text {
+                                        visible: delegateRoot.isLongContent
+                                        text: delegateRoot.expandedLongContent ? "Contraer" : "Ver completo"
+                                        color: longMA.containsMouse ? Theme.textPrimary : Theme.textMuted
+                                        font.pixelSize: 10
+                                        MouseArea {
+                                            id: longMA
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: delegateRoot.expandedLongContent = !delegateRoot.expandedLongContent
+                                        }
+                                    }
+                                    Text {
+                                        visible: !delegateRoot.isTyping
                                         text: bubbleRect.justCopied ? "✓ Copiado" : "⧉ Copiar"
                                         color: copyMA.containsMouse || bubbleRect.justCopied
                                                ? Theme.textPrimary : Theme.textMuted
@@ -1889,6 +1913,15 @@ Item {
                                     || event.key === Qt.Key_Tab) {
                                     root.acceptMention(root.mentionSuggestions[root.mentionActive])
                                     event.accepted = true; return
+                                }
+                            }
+                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                                const p = App.pasteClipboardImage()
+                                if (p && p.length > 0) {
+                                    if (root.agentAttachments.indexOf(p) < 0)
+                                        root.agentAttachments = root.agentAttachments.concat([p])
+                                    event.accepted = true
+                                    return
                                 }
                             }
                             if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) return
