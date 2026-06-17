@@ -1,0 +1,30 @@
+{
+    "id": "32056a5f-d6df-4b1a-ac44-1528ef8cafdc",
+    "name": "Inventory + unittest",
+    "prompts": [
+        {
+            "id": "inventory_tests",
+            "isSpeed": true,
+            "maxTokens": 8192,
+            "prompt": "Quiero que implementes un módulo Python y tests unitarios.\nArchivos requeridos: `inventory.py` y `test_inventory.py`.\nUsá solamente unittest. Implementá funciones públicas add_product, remove_product, update_stock, set_price, get_product, total_inventory_value, low_stock_products. Validar SKU vacío, precio negativo, stock negativo, SKU duplicado y stock final negativo con ValueError claro. El inventario puede ser un diccionario simple. Tests reales para casos exitosos, errores, stock cero, inventario vacío, cálculo total y bajo stock.\nRespondé con ambos archivos en este formato exacto:\n# inventory.py\n[contenido]\n# test_inventory.py\n[contenido]\n",
+            "acceptance": {
+                "files": [
+                    "inventory.py",
+                    "test_inventory.py"
+                ],
+                "commands": [
+                    {
+                        "name": "py_compile",
+                        "command": "python -m py_compile inventory.py test_inventory.py",
+                        "timeoutMs": 30000
+                    },
+                    {
+                        "name": "unittest",
+                        "command": "python -m unittest test_inventory.py",
+                        "timeoutMs": 30000
+                    }
+                ]
+            }
+        }
+    ]
+}

@@ -220,6 +220,12 @@ if (MSVC)
     target_compile_options(LlamaCode PRIVATE /utf-8)
 endif()
 
+file(GLOB LLAMACODE_BUNDLED_CUSTOM_BENCHMARKS
+    RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    CONFIGURE_DEPENDS
+    "assets/benchmarks/custom/*.json"
+)
+
 qt_add_resources(LlamaCode "llamacode_assets"
     PREFIX "/"
     FILES
@@ -229,7 +235,7 @@ qt_add_resources(LlamaCode "llamacode_assets"
         assets/hwfit/hf_models.json
         assets/benchmarks/aa_intelligence.json
         assets/benchmarks/local_cookbook_priorities.json
-        assets/benchmarks/custom/llamacode_local_coding_smoke.json
+        ${LLAMACODE_BUNDLED_CUSTOM_BENCHMARKS}
 )
 
 target_include_directories(LlamaCode PRIVATE src)

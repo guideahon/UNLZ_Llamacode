@@ -1,0 +1,51 @@
+{
+  "id": "stress-largo-python-profesional-v1",
+  "name": "Stress largo · Proyecto Python profesional",
+  "prompts": [
+    {
+      "id": "taskflow_pro_professional_project",
+      "isSpeed": true,
+      "maxTokens": 20000,
+      "prompt": "Quiero que implementes un proyecto Python completo, mantenible y testeado.\nAntes de escribir codigo, razona internamente la arquitectura, pero no muestres el razonamiento.\nDebes crear archivos reales en disco dentro del workspace actual.\nNo uses dependencias externas. Solo libreria estandar. Compatible con Python 3.10+.\n\nProyecto requerido: `taskflow_pro`.\n\nEstructura exacta requerida:\n* `taskflow_pro/__init__.py`\n* `taskflow_pro/models.py`\n* `taskflow_pro/storage.py`\n* `taskflow_pro/service.py`\n* `taskflow_pro/reports.py`\n* `taskflow_pro/cli.py`\n* `taskflow_pro/main.py`\n* `tests/test_taskflow_pro.py`\n\nDominio:\nImplementa un gestor de tareas tipo proyecto/equipo, no una demo minima.\n\nModelo `Task`:\n* debe ser `@dataclass`\n* campos: id, title, description, priority, status, tags, created_at, updated_at, due_date, completed_at\n* priority valida: low, medium, high, urgent\n* status valida: todo, doing, blocked, done\n* tags lista de strings normalizados sin duplicados\n* fechas serializables ISO 8601\n* metodos `to_dict()` y `from_dict()` robustos\n\nModulo `service.py`:\nDebe exponer una clase `TaskService` con estos metodos publicos exactos:\n* `create_task(title, description='', priority='medium', tags=None, due_date=None)`\n* `list_tasks(status=None, priority=None, tag=None, search=None)`\n* `get_task(task_id)`\n* `update_task(task_id, **changes)`\n* `set_status(task_id, status)`\n* `complete_task(task_id)`\n* `reopen_task(task_id)`\n* `delete_task(task_id)`\n* `summary()`\n* `export_markdown(path)`\n\nReglas funcionales:\n* IDs enteros crecientes sin duplicados, preservados despues de guardar/cargar.\n* Title no puede estar vacio.\n* Priority/status invalidos deben lanzar `ValueError` con mensajes claros.\n* `get_task` inexistente debe lanzar `KeyError`.\n* `complete_task` setea status `done` y `completed_at`.\n* `reopen_task` vuelve a `todo` y borra `completed_at`.\n* `update_task` debe actualizar `updated_at`.\n* filtros combinables por status, priority, tag y search.\n* search debe mirar title y description case-insensitive.\n* `summary()` debe devolver dict con total, by_status, by_priority, overdue.\n* overdue cuenta tareas no done con due_date pasada.\n\nModulo `storage.py`:\n* Clase `JsonTaskStorage(path)`.\n* `load()` devuelve lista de Task.\n* `save(tasks)` persiste JSON.\n* tolera archivo inexistente devolviendo lista vacia.\n* tolera JSON corrupto devolviendo lista vacia.\n* ignora entradas malformadas individuales sin romper toda la carga.\n* guardado atomico usando archivo temporal y replace.\n\nModulo `reports.py`:\n* funcion `markdown_report(tasks, summary)` que devuelve Markdown.\n* debe incluir titulo, conteos por estado, conteos por prioridad y tabla de tareas.\n\nModulo `cli.py` y `main.py`:\n* `python -m taskflow_pro.main` debe abrir menu interactivo.\n* CLI debe permitir crear, listar, completar, reabrir, borrar, filtrar, buscar, resumen, exportar Markdown y salir.\n* no debe crashear con inputs invalidos.\n* manejar Ctrl+C limpiamente.\n\nTests:\n* Crear `tests/test_taskflow_pro.py` usando `unittest`.\n* Debe cubrir creacion, validaciones, completar/reabrir, update, filtros combinados, busqueda, resumen, persistencia, JSON corrupto, entradas malformadas, export markdown y IDs crecientes tras recargar.\n* Tests reales, no triviales.\n\nSelf-test:\n* `python -m taskflow_pro.main --self-test` debe ejecutar una prueba funcional sin interaccion.\n* Debe imprimir exactamente `SELF_TEST_OK` y salir codigo 0 si todo pasa.\n* Debe imprimir `SELF_TEST_FAIL` y salir codigo distinto de 0 si algo falla.\n\nRestricciones de calidad:\n* No usar `eval` ni `exec`.\n* No usar variables globales mutables para el estado principal.\n* Separar modelo, storage, servicio, reportes y CLI.\n* Usar type hints en funciones publicas.\n* Comentarios solo cuando aporten.\n* No crear archivos fuera del workspace salvo temporales usados por tests/self-test.\n\nResponde brevemente al terminar indicando archivos creados y comandos ejecutados. No agregues markdown largo.",
+      "acceptance": {
+        "files": [
+          "taskflow_pro/__init__.py",
+          "taskflow_pro/models.py",
+          "taskflow_pro/storage.py",
+          "taskflow_pro/service.py",
+          "taskflow_pro/reports.py",
+          "taskflow_pro/cli.py",
+          "taskflow_pro/main.py",
+          "tests/test_taskflow_pro.py"
+        ],
+        "commands": [
+          {
+            "name": "compile_package",
+            "command": "python -m py_compile taskflow_pro/__init__.py taskflow_pro/models.py taskflow_pro/storage.py taskflow_pro/service.py taskflow_pro/reports.py taskflow_pro/cli.py taskflow_pro/main.py tests/test_taskflow_pro.py",
+            "timeoutMs": 30000
+          },
+          {
+            "name": "unit_tests",
+            "command": "python -m unittest tests/test_taskflow_pro.py",
+            "timeoutMs": 120000
+          },
+          {
+            "name": "self_test",
+            "command": "python -m taskflow_pro.main --self-test",
+            "timeoutMs": 60000
+          },
+          {
+            "name": "deep_structure_ast",
+            "command": "@'\nimport ast, pathlib\nroot = pathlib.Path('.')\nrequired = ['taskflow_pro/__init__.py','taskflow_pro/models.py','taskflow_pro/storage.py','taskflow_pro/service.py','taskflow_pro/reports.py','taskflow_pro/cli.py','taskflow_pro/main.py','tests/test_taskflow_pro.py']\nmissing = [p for p in required if not (root / p).exists()]\nassert not missing, f'missing files: {missing}'\nall_text = '\\n'.join((root / p).read_text(encoding='utf-8', errors='replace') for p in required)\nassert 'eval(' not in all_text and 'exec(' not in all_text, 'eval/exec forbidden'\n\ndef is_dataclass_decorator(node):\n    if isinstance(node, ast.Call):\n        node = node.func\n    if isinstance(node, ast.Name):\n        return node.id == 'dataclass'\n    if isinstance(node, ast.Attribute):\n        return node.attr == 'dataclass'\n    return False\n\nmodels = ast.parse((root / 'taskflow_pro/models.py').read_text(encoding='utf-8'))\nclasses = [n for n in models.body if isinstance(n, ast.ClassDef) and n.name == 'Task']\nassert classes, 'Task class missing'\ntask_cls = classes[0]\nassert any(is_dataclass_decorator(d) for d in task_cls.decorator_list), 'Task must be dataclass'\nservice = ast.parse((root / 'taskflow_pro/service.py').read_text(encoding='utf-8'))\nsvc = [n for n in service.body if isinstance(n, ast.ClassDef) and n.name == 'TaskService']\nassert svc, 'TaskService class missing'\nmethods = {n.name for n in svc[0].body if isinstance(n, ast.FunctionDef)}\nexpected = {'create_task','list_tasks','get_task','update_task','set_status','complete_task','reopen_task','delete_task','summary','export_markdown'}\nassert expected <= methods, f'missing TaskService methods: {sorted(expected - methods)}'\ntests = (root / 'tests/test_taskflow_pro.py').read_text(encoding='utf-8', errors='replace')\nassert tests.count('def test_') >= 10, 'expected at least 10 unittest test methods'\nassert 'unittest' in tests, 'tests must use unittest'\nprint('DEEP_STRUCTURE_OK')\n'@ | python -",
+            "timeoutMs": 30000
+          },
+          {
+            "name": "deep_behavior_imports",
+            "command": "@'\nimport tempfile, pathlib, json\nfrom taskflow_pro.service import TaskService\nfrom taskflow_pro.storage import JsonTaskStorage\nwith tempfile.TemporaryDirectory() as td:\n    path = pathlib.Path(td) / 'tasks.json'\n    svc = TaskService(JsonTaskStorage(path))\n    t1 = svc.create_task('Fix API', 'repair timeout path', priority='urgent', tags=['Backend','backend'], due_date='2000-01-01')\n    t2 = svc.create_task('Write docs', priority='low', tags=['docs'])\n    assert t1.id == 1 and t2.id == 2\n    assert t1.tags == ['backend']\n    assert svc.get_task(1).title == 'Fix API'\n    assert len(svc.list_tasks(priority='urgent', tag='backend', search='timeout')) == 1\n    svc.complete_task(1)\n    assert svc.get_task(1).status == 'done' and svc.get_task(1).completed_at\n    svc.reopen_task(1)\n    assert svc.get_task(1).status == 'todo' and svc.get_task(1).completed_at is None\n    old_updated = svc.get_task(2).updated_at\n    svc.update_task(2, title='Write better docs', status='doing')\n    assert svc.get_task(2).title == 'Write better docs'\n    assert svc.get_task(2).updated_at != old_updated\n    summary = svc.summary()\n    assert summary['total'] == 2 and summary['by_priority']['urgent'] == 1 and summary['overdue'] == 1\n    report_path = pathlib.Path(td) / 'report.md'\n    svc.export_markdown(report_path)\n    assert report_path.exists() and '| ID |' in report_path.read_text(encoding='utf-8')\n    svc2 = TaskService(JsonTaskStorage(path))\n    t3 = svc2.create_task('After reload')\n    assert t3.id == 3\n    svc2.delete_task(2)\n    try:\n        svc2.get_task(2)\n        raise AssertionError('get_task should fail after delete')\n    except KeyError:\n        pass\n    for bad in [('',), ('Bad priority', '', 'bad')]:\n        try:\n            svc2.create_task(*bad)\n            raise AssertionError('invalid create_task accepted')\n        except ValueError:\n            pass\n    path.write_text('{bad json', encoding='utf-8')\n    assert JsonTaskStorage(path).load() == []\n    path.write_text(json.dumps([{'bad': 'entry'}, svc2.get_task(1).to_dict()]), encoding='utf-8')\n    assert len(JsonTaskStorage(path).load()) == 1\nprint('DEEP_BEHAVIOR_OK')\n'@ | python -",
+            "timeoutMs": 60000
+          }
+        ]
+      }
+    }
+  ]
+}

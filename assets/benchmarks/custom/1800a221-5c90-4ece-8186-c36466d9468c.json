@@ -1,0 +1,30 @@
+{
+    "id": "1800a221-5c90-4ece-8186-c36466d9468c",
+    "name": "Doom Fire · self-test",
+    "prompts": [
+        {
+            "id": "doom_fire_selftest",
+            "isSpeed": true,
+            "maxTokens": 8192,
+            "prompt": "Quiero que implementes una app CLI completa en Python.\n\nAntes de escribir el código, razoná internamente la arquitectura, pero no muestres el razonamiento. Entregá solamente el código final.\n\nArchivo requerido: `doom_fire.py`.\n\nLa app debe simular fuego ASCII estilo Doom en la terminal con menú, configuración, persistencia JSON, validación robusta, Ctrl+C limpio, fallback sin ANSI y sin dependencias externas. Debe usar dataclass y separar configuración, simulación, renderizado y menú.\n\nDebe incluir argumento CLI opcional `--self-test`. Cuando se ejecute `python doom_fire.py --self-test`, debe cargar configuración, crear una simulación pequeña, ejecutar 10 frames sin render interactivo, verificar dimensiones, intensidades en rango y render no vacío, imprimir SELF_TEST_OK y salir con código 0. Si falla, imprimir SELF_TEST_FAIL y salir distinto de 0.\n\nRespondé solamente con el código completo. No agregues markdown, explicación ni texto fuera del código.\n",
+            "acceptance": {
+                "files": [
+                    "doom_fire.py"
+                ],
+                "commands": [
+                    {
+                        "name": "py_compile",
+                        "command": "python -m py_compile doom_fire.py",
+                        "timeoutMs": 30000
+                    },
+                    {
+                        "name": "self_test",
+                        "command": "python doom_fire.py --self-test",
+                        "timeoutMs": 30000,
+                        "expectedStdout": "SELF_TEST_OK"
+                    }
+                ]
+            }
+        }
+    ]
+}

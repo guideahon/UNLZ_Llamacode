@@ -1,0 +1,12 @@
+{
+    "id": "b4a7eac4-26f2-4ad8-9d7b-6a52982b2e1c",
+    "name": "Doom Fire",
+    "prompts": [
+        {
+            "id": "task_1",
+            "isSpeed": true,
+            "maxTokens": 2048,
+            "prompt": "Quiero que implementes una app CLI completa en Python.\n\nAntes de escribir el código, razoná internamente la arquitectura, pero no muestres el razonamiento. Entregá solamente el código final.\n\nArchivo requerido: `doom_fire.py`.\n\nLa app debe simular fuego ASCII estilo Doom en la terminal.\n\nDebe incluir:\n\n* Menú principal con:\n\n  1. Iniciar\n  2. Configurar\n  3. Ver configuración actual\n  4. Restablecer valores por defecto\n  5. Salir\n\n* Simulación:\n\n  * matriz 2D de intensidades\n  * fuente de combustible en la fila inferior\n  * propagación hacia arriba\n  * enfriamiento\n  * viento lateral\n  * turbulencia\n  * chispas aleatorias\n  * desvanecimiento progresivo\n  * renderizado por caracteres según intensidad\n\n* Configuración:\n\n  * width\n  * height\n  * fps\n  * fuel\n  * cooling\n  * wind\n  * turbulence\n  * sparks\n  * palette\n  * color_enabled\n\n* Robustez:\n\n  * validación de inputs\n  * manejo de Ctrl+C\n  * limpieza de pantalla portable\n  * fallback sin ANSI color\n  * no crashear si el usuario ingresa texto inválido\n  * no crashear si la terminal es pequeña\n  * no usar dependencias externas\n\n* Calidad:\n\n  * usar `dataclass`\n  * funciones pequeñas\n  * nombres claros\n  * separación entre configuración, simulación, renderizado y menú\n  * comentarios útiles pero no excesivos\n\n* Persistencia:\n\n  * guardar configuración en JSON\n  * cargar configuración al inicio\n  * tolerar JSON inválido usando valores por defecto\n\nCriterios de aceptación:\n\n* `python -m py_compile doom_fire.py` debe pasar.\n* `python doom_fire.py` debe abrir el menú.\n* Iniciar debe mostrar animación continua.\n* Configurar debe cambiar parámetros reales de la simulación.\n* Salir debe cerrar limpiamente.\n\nRespondé solamente con el código completo. No agregues markdown, explicación ni texto fuera del código.\n"
+        }
+    ]
+}

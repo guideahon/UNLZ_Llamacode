@@ -1,0 +1,75 @@
+{
+    "id": "f779d1cb-0a6f-4c31-ba9a-54b640209b9b",
+    "name": "Suite rápida · Python coding",
+    "prompts": [
+        {
+            "id": "mini_calc_lang",
+            "isSpeed": true,
+            "maxTokens": 8192,
+            "prompt": "Quiero que implementes una app CLI completa en Python.\nAntes de escribir el código, razoná internamente la arquitectura, pero no muestres el razonamiento. Entregá solamente el código final.\nArchivo requerido: `mini_calc_lang.py`.\nImplementá un REPL de expresiones matemáticas sin usar eval ni exec. Debe soportar enteros, decimales, +, -, *, /, **, paréntesis, precedencia correcta, asignación de variables, constantes pi/e y funciones sqrt, abs, round, min, max. Comandos: help, vars, clear, exit. Errores claros para sintaxis inválida, división por cero y variables no definidas. No usar dependencias externas. Separar tokenización, parseo, evaluación y REPL.\nDebe incluir `--self-test` que valide 2+3*4=14, (2+3)*4=20, x=5 luego x*3=15, 2**3=8 y sqrt(16)=4; debe imprimir SELF_TEST_OK y salir 0. Respondé solamente con el código completo. No agregues markdown ni explicación.\n",
+            "acceptance": {
+                "files": [
+                    "mini_calc_lang.py"
+                ],
+                "commands": [
+                    {
+                        "name": "cmd_1",
+                        "command": "python -m py_compile mini_calc_lang.py",
+                        "timeoutMs": 30000
+                    },
+                    {
+                        "name": "cmd_2",
+                        "command": "python mini_calc_lang.py --self-test",
+                        "timeoutMs": 30000
+                    }
+                ]
+            }
+        },
+        {
+            "id": "expense_tracker",
+            "isSpeed": true,
+            "maxTokens": 8192,
+            "prompt": "Quiero que implementes una app CLI completa en Python.\nArchivo requerido: `expense_tracker.py`.\nDebe ser un gestor de gastos personales por consola con menú para agregar, listar, filtrar, resumen mensual, resumen por categoría, exportar CSV, importar CSV, eliminar y salir. Cada gasto tiene id, fecha, categoría, descripción, monto, método de pago y notas opcionales. Validar fechas y montos, ordenar por fecha, persistir JSON, tolerar JSON corrupto usando lista vacía, importar CSV sin duplicar IDs, no usar dependencias externas, manejar Ctrl+C. Usar dataclass y separar modelo, persistencia, reportes y menú.\nDebe incluir `--self-test` que cree datos temporales, agregue un gasto, guarde/cargue, exporte/importe CSV y verifique que no duplica IDs; debe imprimir SELF_TEST_OK y salir 0.\nRespondé solamente con el código completo. No agregues markdown ni explicación.\n",
+            "acceptance": {
+                "files": [
+                    "expense_tracker.py"
+                ],
+                "commands": [
+                    {
+                        "name": "cmd_1",
+                        "command": "python -m py_compile expense_tracker.py",
+                        "timeoutMs": 30000
+                    },
+                    {
+                        "name": "cmd_2",
+                        "command": "python expense_tracker.py --self-test",
+                        "timeoutMs": 30000
+                    }
+                ]
+            }
+        },
+        {
+            "id": "log_analyzer",
+            "isSpeed": true,
+            "maxTokens": 8192,
+            "prompt": "Quiero que implementes una herramienta CLI en Python para analizar archivos de log grandes sin cargarlos completos en memoria.\nArchivo requerido: `log_analyzer.py`.\nUso: python log_analyzer.py archivo.log. Cada línea: 2026-06-05T12:34:56Z LEVEL service_name message... Calcular total de líneas, cantidad por LEVEL, cantidad por service_name, top mensajes ERROR, primera/última fecha, porcentaje de errores y líneas inválidas. Soportar --json, --level, --service, --top. No usar dependencias externas. Debe funcionar con archivo vacío y líneas malformadas.\nDebe incluir `--self-test` que cree un log temporal y valide reporte texto y JSON; debe imprimir SELF_TEST_OK y salir 0.\nRespondé solamente con el código completo. No agregues markdown ni explicación.\n",
+            "acceptance": {
+                "files": [
+                    "log_analyzer.py"
+                ],
+                "commands": [
+                    {
+                        "name": "cmd_1",
+                        "command": "python -m py_compile log_analyzer.py",
+                        "timeoutMs": 30000
+                    },
+                    {
+                        "name": "cmd_2",
+                        "command": "python log_analyzer.py --self-test",
+                        "timeoutMs": 30000
+                    }
+                ]
+            }
+        }
+    ]
+}
