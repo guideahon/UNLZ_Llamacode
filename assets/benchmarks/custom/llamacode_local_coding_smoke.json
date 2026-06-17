@@ -1,0 +1,47 @@
+{
+  "id": "llamacode_local_coding_smoke",
+  "name": "LlamaCode local coding smoke",
+  "description": "Benchmark corto incluido con la app para comparar modelos locales en tareas de codigo y razonamiento operativo.",
+  "source": "bundled",
+  "prompts": [
+    {
+      "id": "python_parse_logs",
+      "category": "coding",
+      "isSpeed": false,
+      "maxTokens": 2500,
+      "prompt": "Escribi una funcion Python pura llamada summarize_logs(lines) que reciba una lista de strings con lineas tipo '2026-06-17T10:15:00Z ERROR api timeout' y devuelva un dict con conteo por nivel (INFO/WARN/ERROR) y las tres palabras mas frecuentes del mensaje ignorando timestamps, nivel y servicio. Inclui solo el codigo.",
+      "acceptance": {
+        "expectSubstrings": [
+          "def summarize_logs",
+          "return"
+        ]
+      }
+    },
+    {
+      "id": "debug_race_condition",
+      "category": "reasoning",
+      "isSpeed": false,
+      "maxTokens": 1800,
+      "prompt": "Un proceso escribe un archivo JSON usando write directo sobre el path final. Otra parte de la app lee ese mismo archivo cada vez que recibe un fileChanged. Explica el bug probable y propone una correccion concreta en no mas de 8 bullets.",
+      "acceptance": {
+        "expectSubstrings": [
+          "atom",
+          "rename"
+        ]
+      }
+    },
+    {
+      "id": "small_refactor_plan",
+      "category": "maintenance",
+      "isSpeed": false,
+      "maxTokens": 1800,
+      "prompt": "Dado un metodo C++ de 250 lineas que mezcla validacion, IO, parseo JSON y actualizacion de UI, propone un plan de refactor incremental con tests. Responde en espanol, directo y accionable.",
+      "acceptance": {
+        "expectSubstrings": [
+          "tests",
+          "validacion"
+        ]
+      }
+    }
+  ]
+}

@@ -930,6 +930,7 @@ private:
     void scanModelDownloadRoot();
     QString benchmarkStorageDir() const;
     QString customBenchmarkDir() const;   // dir holding custom benchmark definitions
+    void seedBundledCustomBenchmarks() const;
     QString benchmarkRunsDir() const;     // root for isolated timestamped run folders
     void saveBenchmarkResult(const QVariantMap &result);
     QString benchmarkServerLogTail(int maxBytes = 24000) const;

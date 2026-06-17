@@ -8483,8 +8483,31 @@ QString AppController::customBenchmarkDir() const
     return dir;
 }
 
+void AppController::seedBundledCustomBenchmarks() const
+{
+    const QString dstDir = customBenchmarkDir();
+    QDirIterator it(QStringLiteral(":/assets/benchmarks/custom"),
+                    QStringList{QStringLiteral("*.json")},
+                    QDir::Files);
+    while (it.hasNext()) {
+        const QString srcPath = it.next();
+        const QString dstPath = QDir(dstDir).filePath(QFileInfo(srcPath).fileName());
+        if (QFileInfo::exists(dstPath))
+            continue;
+
+        QFile src(srcPath);
+        if (!src.open(QIODevice::ReadOnly))
+            continue;
+        QFile dst(dstPath);
+        if (!dst.open(QIODevice::WriteOnly | QIODevice::NewOnly))
+            continue;
+        dst.write(src.readAll());
+    }
+}
+
 void AppController::loadCustomBenchmarks()
 {
+    seedBundledCustomBenchmarks();
     m_customBenchmarks.clear();
     const QDir dir(customBenchmarkDir());
     const auto files = dir.entryList({QStringLiteral("*.json")}, QDir::Files, QDir::Name);

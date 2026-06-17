@@ -229,6 +229,7 @@ qt_add_resources(LlamaCode "llamacode_assets"
         assets/hwfit/hf_models.json
         assets/benchmarks/aa_intelligence.json
         assets/benchmarks/local_cookbook_priorities.json
+        assets/benchmarks/custom/llamacode_local_coding_smoke.json
 )
 
 target_include_directories(LlamaCode PRIVATE src)
