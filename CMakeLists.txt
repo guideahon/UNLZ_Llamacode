@@ -277,6 +277,22 @@ if (BUILD_TESTS)
         target_include_directories(${name} PRIVATE src tests)
         target_link_libraries(${name} PRIVATE llamacode_core Qt6::Test)
         add_test(NAME ${name} COMMAND ${name})
+        if (WIN32)
+            set_property(TEST ${name} PROPERTY ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:${name}>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:llamacode_core>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+            )
+            if (LC_HAVE_QTKEYCHAIN)
+                if (TARGET Qt6Keychain)
+                    set_property(TEST ${name} APPEND PROPERTY ENVIRONMENT_MODIFICATION
+                        "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6Keychain>")
+                else()
+                    set_property(TEST ${name} APPEND PROPERTY ENVIRONMENT_MODIFICATION
+                        "PATH=path_list_prepend:$<TARGET_FILE_DIR:qt6keychain>")
+                endif()
+            endif()
+        endif()
     endfunction()
 
     add_lc_test(test_gguf_profiles      tests/test_gguf_profiles.cpp)
