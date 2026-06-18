@@ -10,5 +10,6 @@ Instrucciones para agentes que trabajen en este repo.
 - Mantener sincronizada la identidad visual por configuración: Debug debe usar `assets/debug_icon.ico` (llama roja) tanto en el `.exe`, acceso directo, ventana principal y splash; Release debe usar `assets/app_icon.ico`. La selección en C++ y recursos debe depender de `LC_DEBUG_ICON`, no de `QT_DEBUG`.
 - Para perfiles locales Qwen/coding, preferir sampling conservador: `--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0`. No subir creatividad sin justificarlo.
 - No revertir cambios ajenos. Si el working tree ya esta sucio, trabajar alrededor de esos cambios y reportar que archivos se tocaron.
+- Para operaciones de GitHub en este proyecto, usar siempre la cuenta `guideahon`. Si las credenciales activas no corresponden a esa cuenta, no pushear y reportar el bloqueo.
 - Si hay repo git disponible, al terminar hacer commit y push de los cambios propios, salvo que el usuario indique lo contrario o haya un bloqueo real.
 - Mantener los cambios acotados. Evitar refactors amplios si no son necesarios para la tarea.
