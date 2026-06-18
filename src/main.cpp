@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 
     // Icono según build: Debug = rojo (debug_icon), Release = normal. Coincide
     // con el icono embebido en el .exe (app_icon.rc).
-#ifdef QT_DEBUG
+#ifdef LC_DEBUG_ICON
     const QString appIconSource = QStringLiteral("qrc:/assets/debug_icon.ico");
     const QIcon appIcon(QStringLiteral(":/assets/debug_icon.ico"));
 #else

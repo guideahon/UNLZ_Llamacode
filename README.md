@@ -572,7 +572,12 @@ Salidas:
 | Release | `build\Release\LlamaCode.exe` (optimizado, `NDEBUG`) | `LlamaCode.lnk` | `assets\app_icon.ico` (llama normal) |
 | Debug | `build\Debug\LlamaCode.exe` (símbolos + asserts) | `LlamaCode-Debug.lnk` | `assets\debug_icon.ico` (llama **roja**) |
 
-El icono rojo del Debug va embebido en el `.exe` (taskbar/explorer) vía `app_icon.rc` + `#ifdef LC_DEBUG_ICON` (CMake define `/dLC_DEBUG_ICON` solo en config Debug), y también en el `.lnk`.
+El icono rojo del Debug va embebido en el `.exe` (taskbar/explorer) vía
+`app_icon.rc` + `#ifdef LC_DEBUG_ICON` (CMake define `LC_DEBUG_ICON` solo en
+config Debug), y también se usa en el `.lnk`, la ventana principal y el splash.
+Esta selección debe depender de la configuración de LlamaCode mediante
+`LC_DEBUG_ICON`, no de `QT_DEBUG`: Qt puede ser una build Release aunque la app
+se compile en Debug.
 
 > Tras tocar código siempre recompilar — el QML va embebido en el binario vía `qt_add_qml_module`.
 

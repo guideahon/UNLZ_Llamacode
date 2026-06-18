@@ -200,6 +200,8 @@ qt_add_executable(LlamaCode
     src/main.cpp
 )
 target_link_libraries(LlamaCode PRIVATE llamacode_core)
+target_compile_definitions(LlamaCode PRIVATE
+    "$<$<CONFIG:Debug>:LC_DEBUG_ICON>")
 
 if (WIN32)
     target_sources(LlamaCode PRIVATE app_icon.rc)
