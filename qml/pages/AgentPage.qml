@@ -1580,21 +1580,43 @@ Item {
                         contentY = maxY
                     }
 
+                    function normalizeViewport() {
+                        var maxY = Math.max(0, contentHeight - height)
+                        if (!isFinite(contentY) || contentY < 0) {
+                            contentY = 0
+                            return
+                        }
+                        if (contentY > maxY)
+                            contentY = maxY
+                    }
+
                     // followBottom se actualiza en vivo con cualquier cambio de
                     // posición (flick nativo o rueda animada): si el usuario sube,
                     // dejamos de auto-bajar durante el streaming.
                     onContentYChanged: {
-                        // Clamp duro contra overscroll bajo el último mensaje. Solo en
-                        // idle: durante el turno el contentHeight oscila y el clamp
-                        // pelearía con el auto-follow (scroll brusco).
+                        // Clamp duro cuando no hay streaming. agentRunning no sirve
+                        // como condición: el agente queda activo mientras se restaura
+                        // una sesión y Qt recalcula varias veces las alturas.
                         var maxY = Math.max(0, contentHeight - height)
-                        if (!App.agentRunning && contentY > maxY) { contentY = maxY; return }
+                        if (!root.hasTypingMessage
+                                && (!isFinite(contentY) || contentY < 0 || contentY > maxY)) {
+                            normalizeViewport()
+                            return
+                        }
                         followBottom = (contentY >= maxY - 2)
                     }
                     onMovementEnded: followBottom = atYEnd
                     // Throttle: durante streaming el contentHeight cambia por token.
                     // Un solo callLater coalescido evita reflows en cascada.
-                    onContentHeightChanged: if (followBottom) bottomTimer.restart()
+                    onContentHeightChanged: {
+                        // Los delegates largos se miden en varias pasadas. Si una
+                        // pasada reduce contentHeight, el contentY anterior puede
+                        // quedar fuera del rango y Qt muestra un viewport vacío.
+                        if (!root.hasTypingMessage)
+                            normalizeViewport()
+                        if (followBottom)
+                            bottomTimer.restart()
+                    }
                     // Sólo re-pegar al fondo si el usuario YA estaba abajo. Si subió
                     // a leer, un mensaje/token nuevo no lo arrastra de vuelta.
                     onCountChanged: {
@@ -1608,9 +1630,17 @@ Item {
                             followBottom = true
                             return
                         }
-                        if (followBottom) bottomTimer.restart()
+                        followBottom = true
+                        bottomTimer.restart()
+                        viewportSettleTimer.restart()
                     }
-                    onModelChanged: { followBottom = true; bottomTimer.restart() }
+                    onModelChanged: {
+                        agentWheelAnim.stop()
+                        contentY = 0
+                        followBottom = true
+                        bottomTimer.restart()
+                        viewportSettleTimer.restart()
+                    }
 
                     Timer {
                         id: bottomTimer
@@ -1619,6 +1649,19 @@ Item {
                             if (!msgList.followBottom) return
                             msgList.forceLayout()
                             msgList.scrollToBottom()
+                        }
+                    }
+
+                    // Una segunda pasada después del layout inicial estabiliza
+                    // historiales con mensajes de decenas de miles de caracteres.
+                    Timer {
+                        id: viewportSettleTimer
+                        interval: 120
+                        onTriggered: {
+                            msgList.forceLayout()
+                            msgList.normalizeViewport()
+                            if (msgList.followBottom)
+                                msgList.scrollToBottom()
                         }
                     }
 
